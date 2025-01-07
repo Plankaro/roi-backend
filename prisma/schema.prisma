@@ -1,0 +1,182 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DATABASE_URL_UNPOOLED")
+}
+
+model User {
+  id              String      @id @default(cuid())
+  name            String?
+  username        String?     @unique
+  email           String?     @unique
+  emailVerified   DateTime?
+  image           String?
+  accounts        Account[]
+  sessions        Session[]
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  isEmailVerified Boolean     @default(false)
+  businesses      Business[]  @relation("createdBusinesses")
+  employees       Employee[]
+}
+
+model Account {
+  id                       String  @id @default(cuid())
+  userId                   String  @unique
+  type                     String
+  provider                 String
+  providerAccountId        String
+  refreshToken             String? @db.Text
+  accessToken              String? @db.Text
+  expiresAt                Int?
+  tokenType                String?
+  scope                    String?
+  idToken                  String? @db.Text
+  sessionState             String?
+  refreshTokenExpiresIn    Int?
+  user                     User?   @relation(fields: [userId], references: [id])
+
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id])
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Business {
+  id          String       @id @default(uuid())
+  createdBy   String
+  creator     User         @relation("createdBusinesses", fields: [createdBy], references: [id])
+  createdAt   DateTime     @default(now())
+  employees   Employee[]
+  prospects   Prospect[]
+  tags        Tag[]
+  chats       Chat[]
+}
+
+model Employee {
+  id           String       @id @default(uuid())
+  business     Business     @relation(fields: [businessId], references: [id])
+  businessId   String
+  user         User         @relation(fields: [userId], references: [id])
+  userId       String
+  employeeType EmployeeType
+  broadcast    Broadcast[]
+  joinedDate   DateTime     @default(now())
+  prospects    Prospect[]
+}
+
+enum EmployeeType {
+  CREATOR
+  AGENTS
+}
+
+model Prospect {
+  id           String       @id @default(uuid())
+  name         String
+  email        String
+  phoneNo      String?
+  lead         Lead
+  tags         Tag[]
+  assignedToId String?
+  assignedTo   Employee?     @relation(fields: [assignedToId], references: [id])
+  business     Business      @relation(fields: [businessId], references: [id])
+  businessId   String
+  chats        Chat[]
+  orders       Order[]
+  templates    Template[]
+}
+
+enum Lead {
+  LEAD
+  LOST
+  NEGOTIATION
+  OTHER
+}
+
+model Tag {
+  id          String       @id @default(uuid())
+  title       String
+  business    Business?    @relation(fields: [businessId], references: [id])
+  businessId  String?
+  prospects   Prospect[]
+}
+
+model Chat {
+  id          String       @id @default(uuid())
+  chatId      String
+  receiverId  String
+  businessId  String
+  business    Business     @relation(fields: [businessId], references: [id])
+  receiver    Prospect     @relation(fields: [receiverId], references: [id])
+  sendDate    DateTime
+}
+
+model Order {
+  id               String      @id @default(uuid())
+  shopifyOrderId   String
+  orderedFor       Prospect     @relation(fields: [orderedForId], references: [id])
+  orderedForId     String
+  orderGeneratedBy String
+  price            Float
+  shopifyProductId String
+  quantity         Int
+  isConfirmed      Boolean      @default(false)
+  status           OrderStatus
+  createdAt        DateTime
+}
+
+enum OrderStatus {
+  PENDING
+  COMPLETED
+  CANCELLED
+}
+
+model Broadcast {
+  id           String       @id @default(uuid())
+  template     String
+  type         String
+  starters     String
+  createdBy    Employee      @relation(fields: [createdById], references: [id])
+  createdById  String
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  isScheduled  Boolean       @default(false)
+  scheduledDate DateTime?
+}
+
+model Template {
+  id          String       @id @default(uuid())
+  message     String
+  status      String
+  type        String
+  createdBy   Prospect      @relation(fields: [createdById], references: [id])
+  createdById String
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
