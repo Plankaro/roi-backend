@@ -27,6 +27,8 @@ model User {
   employees       Employee[]
 }
 
+
+
 model Account {
   id                       String  @id @default(cuid())
   userId                   String  @unique
@@ -72,7 +74,7 @@ model VerificationToken {
 }
 
 model Business {
-  id          String       @id @default(uuid())
+  id          String       @id @default(cuid())
   createdBy   String
   creator     User         @relation("createdBusinesses", fields: [createdBy], references: [id])
   createdAt   DateTime     @default(now())
@@ -83,7 +85,7 @@ model Business {
 }
 
 model Employee {
-  id           String       @id @default(uuid())
+  id           String       @id @default(cuid())
   business     Business     @relation(fields: [businessId], references: [id])
   businessId   String
   user         User         @relation(fields: [userId], references: [id])
@@ -100,7 +102,7 @@ enum EmployeeType {
 }
 
 model Prospect {
-  id           String       @id @default(uuid())
+  id           String       @id @default(cuid())
   name         String
   email        String
   phoneNo      String?
@@ -123,7 +125,7 @@ enum Lead {
 }
 
 model Tag {
-  id          String       @id @default(uuid())
+  id          String       @id @default(cuid())
   title       String
   business    Business?    @relation(fields: [businessId], references: [id])
   businessId  String?
@@ -131,7 +133,7 @@ model Tag {
 }
 
 model Chat {
-  id          String       @id @default(uuid())
+  id          String       @id @default(cuid())
   chatId      String
   receiverId  String
   businessId  String
@@ -141,7 +143,7 @@ model Chat {
 }
 
 model Order {
-  id               String      @id @default(uuid())
+  id               String      @id @default(cuid())
   shopifyOrderId   String
   orderedFor       Prospect     @relation(fields: [orderedForId], references: [id])
   orderedForId     String
@@ -161,7 +163,7 @@ enum OrderStatus {
 }
 
 model Broadcast {
-  id           String       @id @default(uuid())
+  id           String       @id @default(cuid())
   template     String
   type         String
   starters     String
@@ -174,7 +176,7 @@ model Broadcast {
 }
 
 model Template {
-  id          String       @id @default(uuid())
+  id          String       @id @default(cuid())
   message     String
   status      String
   type        String
