@@ -23,7 +23,7 @@ export class ShopifyService {
     });
   }
 
-  async queryGraphQL(query: string, variables: object = {}) {
+  async executeGraphQL(query: string, variables: object = {}) {
     try {
       const response = await this.client.post('/graphql.json', {
         query,

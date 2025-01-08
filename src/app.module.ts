@@ -9,6 +9,8 @@ import { ShopifyExpressModule, } from '@nestjs-shopify/express';
 import { ApiVersion } from '@shopify/shopify-api';
 import { OrdersService } from './orders/orders.service';
 import { OrdersModule } from './orders/orders.module';
+import { CustomersModule } from './customers/customers.module';
+
 import '@shopify/shopify-api/adapters/node';
 
 @Module({
@@ -31,7 +33,8 @@ import '@shopify/shopify-api/adapters/node';
     DatabaseModule,
     ShopifyModule,
     ProductsModule,
-    OrdersModule],
+    OrdersModule,
+    CustomersModule],
     
   controllers: [AppController],
   providers: [AppService, OrdersService],
