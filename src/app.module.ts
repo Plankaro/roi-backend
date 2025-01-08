@@ -10,6 +10,7 @@ import { ApiVersion } from '@shopify/shopify-api';
 import { OrdersService } from './orders/orders.service';
 import { OrdersModule } from './orders/orders.module';
 import { CustomersModule } from './customers/customers.module';
+import { AuthModule } from './auth/auth.module';
 
 import '@shopify/shopify-api/adapters/node';
 
@@ -34,7 +35,8 @@ import '@shopify/shopify-api/adapters/node';
     ShopifyModule,
     ProductsModule,
     OrdersModule,
-    CustomersModule],
+    CustomersModule,
+    AuthModule],
     
   controllers: [AppController],
   providers: [AppService, OrdersService],
