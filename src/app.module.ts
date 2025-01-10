@@ -12,7 +12,8 @@ import { OrdersModule } from './orders/orders.module';
 import { CustomersModule } from './customers/customers.module';
 import { AuthModule } from './auth/auth.module';
 import { RedisModule } from '@nestjs-modules/ioredis';
-
+import { BuisnessModule } from './buisness/buisness.module';
+import { JwtModule } from '@nestjs/jwt';
 import '@shopify/shopify-api/adapters/node';
 
 @Module({
@@ -23,7 +24,7 @@ import '@shopify/shopify-api/adapters/node';
         return {
           apiKey: configService.get('SHOPIFY_API_KEY'),
           apiSecretKey: configService.get('SHOPIFY_API_SECRET'),
-          apiVersion: ApiVersion.Unstable,
+          apiVersion: ApiVersion.October24,
           hostName: configService.get('SHOPIFY_STORE'),
           isEmbeddedApp: true,
           scopes: ['test_scope'],
@@ -46,6 +47,8 @@ import '@shopify/shopify-api/adapters/node';
     OrdersModule,
     CustomersModule,
     AuthModule,
+    BuisnessModule,
+   
   ],
     
   controllers: [AppController],

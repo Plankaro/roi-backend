@@ -4,6 +4,7 @@ import {
   Injectable,
   InternalServerErrorException,
   NotFoundException,
+  UnauthorizedException
 } from '@nestjs/common';
 import { RegisterAuthDto } from './dto/register-auth-dto';
 
@@ -75,6 +76,7 @@ export class AuthService {
         name: user.name,
         email: user.email,
         phone: user.phone,
+      
       };
     } catch (error) {
       // Handle unique constraint violations (e.g., email or phone already in use)
@@ -88,6 +90,25 @@ export class AuthService {
       console.error('Error during user registration:', error);
       throw new InternalServerErrorException(
         error.message || 'An unexpected error occurred during login.',
+      );
+    }
+  }
+
+  
+
+
+  async logout(userId: string) {
+    try {
+      await this.databaseService.user.update({
+        where: { id: userId },
+        data: {
+          refreshToken: null,
+        },
+      });
+      return { message: 'Logout successful' };
+    } catch (error) {
+      throw new InternalServerErrorException(
+        error.message || 'An unexpected error occurred during logout.',
       );
     }
   }
@@ -156,9 +177,42 @@ export class AuthService {
 
     return { message: 'Password changed successfully' };
   }
+
+  async RefreshToken(userId: string,refresh_token: string) {
+ try {
+     const user = await this.databaseService.user.findUnique({
+       where: {
+         id: userId,
+       },
+     })
+     if(!user || user.refreshToken!==refresh_token){
+       throw new BadRequestException('Invalid login');
+     }
+     const verifyToken = await this.jwtService.verifyAsync(refresh_token,{
+       secret: process.env.REFRESH_TOKEN_JWT_SECRET
+     });
+     if(!verifyToken){
+       throw new UnauthorizedException('Invalid login');
+     }
+     const userTokens = await this.getTokens(user.id, user.email);
+     await this.databaseService.user.update({
+       where: { id: user.id },
+       data: {
+         refreshToken: userTokens.refresh_token,
+       },
+     });
+     return userTokens;
+ } catch (error) {
+
+  throw new BadRequestException('Invalid login');
+ }
+  }
   remove(id: number) {
     return `This action removes a #${id} auth`;
   }
+
+
+
   async getTokens(userId: string, email: string) {
     const jwtPayload: { sub: string; email: string } = {
       sub: userId,
@@ -168,7 +222,7 @@ export class AuthService {
     const [at, rt] = await Promise.all([
       this.jwtService.signAsync(jwtPayload, {
         secret: process.env.ACCESS_TOKEN_JWT_SECRET,
-        expiresIn: '15m',
+        expiresIn: '1m',
       }),
       this.jwtService.signAsync(jwtPayload, {
         secret: process.env.REFRESH_TOKEN_JWT_SECRET,

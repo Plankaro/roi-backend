@@ -9,95 +9,86 @@ datasource db {
 }
 
 model User {
-  id              String      @id @default(cuid())
+  id              String     @id @default(cuid())
   name            String
   username        String?     @unique
-  email           String     @unique
-  phone           String     @unique
-  password         String?
-   refreshToken String?
+  email           String      @unique
+  phone           String      @unique
+  password        String?
+  refreshToken    String?     @db.Text
   emailVerified   DateTime?
   image           String?
-  accounts        Account[]
-  sessions        Session[]
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
   isEmailVerified Boolean     @default(false)
-  businesses      Business[]  @relation("createdBusinesses")
+  businesses      Business[]  @relation("createdBusinesses") 
   employees       Employee[]
+
+  accounts        Account[]   // Keep this if you have OAuth or linked accounts.
 }
 
-
-
 model Account {
-  id                       String  @id @default(cuid())
-  userId                   String  @unique
-  type                     String
-  provider                 String
-  providerAccountId        String
-  refreshToken             String? @db.Text
-  accessToken              String? @db.Text
-  expiresAt                Int?
-  tokenType                String?
-  scope                    String?
-  idToken                  String? @db.Text
-  sessionState             String?
-  refreshTokenExpiresIn    Int?
-  user                     User?   @relation(fields: [userId], references: [id])
+  id                    String   @id @default(cuid())
+  userId                String   @unique
+  type                  String
+  provider              String
+  providerAccountId     String
+  refreshToken          String?  @db.Text
+  accessToken           String?  @db.Text
+  expiresAt             Int?
+  tokenType             String?
+  scope                 String?
+  idToken               String?  @db.Text
+  sessionState          String?
+  refreshTokenExpiresIn Int?
+  user                  User?    @relation(fields: [userId], references: [id])
 
-  createdAt                DateTime @default(now())
-  updatedAt                DateTime @updatedAt
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 
   @@unique([provider, providerAccountId])
   @@index([userId])
 }
 
-model Session {
-  id           String   @id @default(cuid())
-  sessionToken String   @unique
-  userId       String
-  expires      DateTime
-  user         User     @relation(fields: [userId], references: [id])
-
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  @@index([userId])
-}
-
-model VerificationToken {
-  identifier String
-  token      String
-  expires    DateTime
-
-  @@unique([identifier, token])
-}
-
 model Business {
   id          String       @id @default(cuid())
+  businessName String
   createdBy   String
-  creator     User         @relation("createdBusinesses", fields: [createdBy], references: [id])
+  creator     User         @relation("createdBusinesses", fields: [createdBy], references: [id],onDelete: Cascade, onUpdate:Cascade)
   createdAt   DateTime     @default(now())
   employees   Employee[]
   prospects   Prospect[]
   tags        Tag[]
   chats       Chat[]
+  shopifyApi  String?
+
+  Broadcast Broadcast[]
+
+  Template Template[]
+
+  FlashResponse FlashResponse[]
+
+  Payment Payment[]
 }
 
 model Employee {
   id           String       @id @default(cuid())
-  business     Business     @relation(fields: [businessId], references: [id])
+  business     Business     @relation(fields: [businessId], references: [id],onUpdate: Cascade, onDelete: Cascade)
   businessId   String
-  user         User         @relation(fields: [userId], references: [id])
+  user         User         @relation(fields: [userId], references: [id],onDelete: Cascade, onUpdate: Cascade)
   userId       String
   employeeType EmployeeType
   broadcast    Broadcast[]
   joinedDate   DateTime     @default(now())
   prospects    Prospect[]
+  Template Template[]
+  @@index([businessId])
+  
+  FlashResponse FlashResponse[]
 }
 
 enum EmployeeType {
-  CREATOR
+  ADMIN
   AGENTS
 }
 
@@ -110,11 +101,11 @@ model Prospect {
   tags         Tag[]
   assignedToId String?
   assignedTo   Employee?     @relation(fields: [assignedToId], references: [id])
-  business     Business      @relation(fields: [businessId], references: [id])
+  business     Business      @relation(fields: [businessId], references: [id],onDelete: Cascade, onUpdate: Cascade)
   businessId   String
   chats        Chat[]
   orders       Order[]
-  templates    Template[]
+ 
 }
 
 enum Lead {
@@ -127,7 +118,7 @@ enum Lead {
 model Tag {
   id          String       @id @default(cuid())
   title       String
-  business    Business?    @relation(fields: [businessId], references: [id])
+  business    Business?    @relation(fields: [businessId], references: [id],onDelete: Cascade, onUpdate:Cascade)
   businessId  String?
   prospects   Prospect[]
 }
@@ -137,7 +128,7 @@ model Chat {
   chatId      String
   receiverId  String
   businessId  String
-  business    Business     @relation(fields: [businessId], references: [id])
+  business    Business     @relation(fields: [businessId], references: [id],onDelete: Cascade,onUpdate: Cascade)
   receiver    Prospect     @relation(fields: [receiverId], references: [id])
   sendDate    DateTime
 }
@@ -168,6 +159,8 @@ model Broadcast {
   type         String
   starters     String
   createdBy    Employee      @relation(fields: [createdById], references: [id])
+  createdForId String
+  CreatedFor    Business  @relation(fields: [createdForId], references: [id],onDelete: Cascade,onUpdate: Cascade)
   createdById  String
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
@@ -180,8 +173,45 @@ model Template {
   message     String
   status      String
   type        String
-  createdBy   Prospect      @relation(fields: [createdById], references: [id])
+  createdBy   Employee @relation(fields: [createdById],references: [id])
+  CreatedFor    Business  @relation(fields: [createdForId], references: [id],onDelete: Cascade,onUpdate: Cascade)
+  createdForId  String
   createdById String
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
+}
+
+model FlashResponse {
+  id          String       @id @default(cuid())
+  short       String
+  message     String
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+    createdBy    Employee      @relation(fields: [createdById], references: [id])
+  createdForId String
+  CreatedFor    Business  @relation(fields: [createdForId], references: [id],onDelete: Cascade,onUpdate: Cascade)
+  createdById  String  
+}
+
+
+model Payment {
+  id               String       @id @default(cuid())
+  razorpayOrderId  String       // Razorpay Order ID
+  razorpayPaymentId String?     // Razorpay Payment ID (can be null if not completed)
+  razorpaySignature String?     // Razorpay Signature (for validation)
+  amount           Float        // Payment amount
+  currency         String       // Currency, e.g., "INR"
+  status           PaymentStatus @default(PENDING) // Status of payment
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  businessId       String
+  business         Business     @relation(fields: [businessId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  REFUNDED
 }

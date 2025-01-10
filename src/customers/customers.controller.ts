@@ -1,7 +1,8 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards,Headers } from '@nestjs/common';
 import { CustomersService } from './customers.service';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
+import { AuthGuard } from 'src/auth/guards/authguard';
 
 @Controller('customers')
 export class CustomersController {
@@ -27,8 +28,5 @@ export class CustomersController {
     return this.customersService.update(+id, updateCustomerDto);
   }
 
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.customersService.remove(+id);
-  }
+ 
 }
