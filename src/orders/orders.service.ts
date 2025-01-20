@@ -6,7 +6,8 @@ import { ShopifyService } from 'src/shopify/shopify.service';
 @Injectable()
 export class OrdersService {
   constructor(private readonly shopifyService: ShopifyService) {}
-  async create() {
+  async create(CreateOrderDto: CreateOrderDto) {
+    const {customerId,variantId,quantity}=CreateOrderDto
     const variables = {
       order: {
         currency: "EUR",
