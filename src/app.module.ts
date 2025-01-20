@@ -14,6 +14,8 @@ import { AuthModule } from './auth/auth.module';
 import { RedisModule } from '@nestjs-modules/ioredis';
 import { BuisnessModule } from './buisness/buisness.module';
 import { JwtModule } from '@nestjs/jwt';
+import { ChatsModule } from './chats/chats.module';
+import { WhatsappModule } from './whatsapp/whatsapp.module';
 import '@shopify/shopify-api/adapters/node';
 
 @Module({
@@ -48,6 +50,8 @@ import '@shopify/shopify-api/adapters/node';
     CustomersModule,
     AuthModule,
     BuisnessModule,
+    ChatsModule,
+    WhatsappModule,
    
   ],
     

@@ -6,51 +6,22 @@ import { ShopifyService } from 'src/shopify/shopify.service';
 @Injectable()
 export class OrdersService {
   constructor(private readonly shopifyService: ShopifyService) {}
-  async create(CreateOrderDto: CreateOrderDto) {
-    const {customerId,variantId,quantity}=CreateOrderDto
+  async create(CreateOrderDto: any) {
+    console.log(CreateOrderDto);
+    const { customerId, Items } = CreateOrderDto;
     const variables = {
+      customerId: customerId, // This must be a valid Shopify Customer global ID
       order: {
-        currency: "EUR",
-        lineItems: [
-          {
-            title: "Big Brown Bear Boots",
-            priceSet: {
-              shopMoney: {
-                amount: 74.99,
-                currencyCode: "EUR"
-              }
-            },
-            quantity: 3,
-            taxLines: [
-              {
-                priceSet: {
-                  shopMoney: {
-                    amount: 13.5,
-                    currencyCode: "EUR"
-                  }
-                },
-                rate: 0.06,
-                title: "State tax"
-              }
-            ]
-          }
-        ],
-        transactions: [
-          {
-            kind: "SALE",
-            status: "SUCCESS",
-            amountSet: {
-              shopMoney: {
-                amount: 238.47,
-                currencyCode: "EUR"
-              }
-            }
-          }
-        ]
-      }
+        currency: 'INR', // Ensure this matches Shopify's supported currencies
+        lineItems: Items.map((item) => ({
+          variantId: item.productId, // This must be a valid Shopify Product Variant global ID
+          quantity: item.quantity, // Must be a positive integer
+        })),
+      },
     };
-  
-    const query = `mutation OrderCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {
+
+    const query = `
+    mutation OrderCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {
       orderCreate(order: $order, options: $options) {
         userErrors {
           field
@@ -58,10 +29,32 @@ export class OrdersService {
         }
         order {
           id
-          totalTaxSet {
+          currentTotalPriceSet {
             shopMoney {
               amount
               currencyCode
+            }
+          }
+          currentSubtotalPriceSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+          currentTotalTaxSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+          transactions {
+            kind
+            status
+            amountSet {
+              shopMoney {
+                amount
+                currencyCode
+              }
             }
           }
           lineItems(first: 5) {
@@ -86,15 +79,21 @@ export class OrdersService {
           }
         }
       }
-    }`;
-  
+    }
+  `;
+
     try {
-      const response = await this.shopifyService.executeGraphQL(query, variables);
-      return response;
+      const response = await this.shopifyService.executeGraphQL(
+        query,
+        variables,
+      );
+      console.log(response);
+      return { response, variables };
     } catch (error) {
       console.error('Error creating order:', error);
       throw error;
     }
+    return variables;
   }
 
   findAll() {
