@@ -1,83 +1,103 @@
 import { Injectable } from '@nestjs/common';
 import axios, { AxiosInstance } from 'axios';
+import { url } from 'inspector';
+import { SendTemplateMessageDto } from 'src/chats/dto/template-chat';
 
 @Injectable()
 export class WhatsappService {
-    private readonly client: AxiosInstance;
+  private readonly client: AxiosInstance;
+  private readonly whatsappMobileId = process.env.WHATSAPP_MOBILE_ID;
+  private readonly whatsappApiToken = process.env.WHATSAPP_API_TOKEN;
+  private readonly whatsappBusinessId = process.env.WHATSAPP_BUISNESS_ID;
 
-    constructor() {
-        const whatsappMobileId = process.env.WHATSAPP_MOBILE_ID;
-        const whatsappApiToken = process.env.WHATSAPP_API_TOKEN;
-
-        if (!whatsappMobileId || !whatsappApiToken) {
-            throw new Error('WhatsApp mobile ID or API token is not configured.');
-        }
-
-        this.client = axios.create({
-            baseURL: `https://graph.facebook.com/v13.0/${whatsappMobileId}`,
-            headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${whatsappApiToken}`,
-            },
-        });
+  constructor() {
+    if (
+      !this.whatsappMobileId ||
+      !this.whatsappApiToken ||
+      !this.whatsappBusinessId
+    ) {
+      throw new Error(
+        'WhatsApp Mobile ID, API token, or Business ID is not configured.',
+      );
     }
 
-    /**
-     * Sends a template message via WhatsApp.
-     * @param recipientId The recipient's WhatsApp number in international format (e.g., "+1234567890").
-     * @param templateName The name of the WhatsApp template.
-     * @param languageCode The language code for the template (e.g., "en_US").
-     * @param components An array of template components (e.g., header, body, etc.).
-     */
-    async sendTemplateMessage(
-        recipientNo: string,
-        templateName: string,
-        languageCode: string,
-        components: Array<any>
-    ): Promise<void> {
-        try {
-            const payload = {
-                messaging_product: 'whatsapp',
-                recipient_type: 'individual',
-                to: recipientNo,
-                type: 'template',
-                template: {
-                    name: templateName,
-                    language: {
-                        code: languageCode,
-                    },
-                    components,
-                },
-            };
+    this.client = axios.create({
+      baseURL: `https://graph.facebook.com/v21.0/`,
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${this.whatsappApiToken}`,
+      },
+    });
+  }
 
-            await this.client.post('/messages', payload);
-        } catch (error) {
-            console.error('Error sending template message:', error?.response?.data || error.message);
-            throw new Error('Failed to send WhatsApp template message.');
-        }
-    }
+  async sendTemplateMessage(data:SendTemplateMessageDto
+  ): Promise<void> {
+    try {
+       // Replace with your dynamic URL
 
-    async getTemplates(): Promise<any> {
-        try {
-            const response = await this.client.get('/message_templates');
-            return response.data;
-        } catch (error) {
-            console.error('Error fetching WhatsApp templates:', error?.response?.data || error.message);
-            throw new Error('Failed to fetch WhatsApp templates.');
-        }
-    }
+      const payload = {
+        messaging_product: 'whatsapp',
+        recipient_type: 'individual',
+        to: data.recipientNo,
+        type: 'template',
+        template: {
+          name: data.templateName,
+          language: {
+            code: data.languageCode, // Language code of your approved template
+          },
+          components: data.components
+        },
+      };
+      
+      console.log(payload);
 
-    async getAllChats(limit = 100): Promise<any> {
-        try {
-            const response = await this.client.get(`/conversations`, {
-                params: {
-                    limit,
-                },
-            });
-            return response.data;
-        } catch (error) {
-            console.error('Error fetching all chats:', error?.response?.data || error.message);
-            throw new Error('Failed to fetch all chats.');
-        }
+      await this.client.post(`/${this.whatsappMobileId}/messages`, payload);
+    } catch (error) {
+      console.error(
+        'Error sending template message:',
+        error?.response?.data || error.message,
+      );
+      throw new Error('Failed to send WhatsApp template message.');
     }
+  }
+
+  async getTemplates(): Promise<any> {
+    try {
+      const response = await this.client.get(
+        `${this.whatsappBusinessId}/message_templates`,
+      );
+      return response.data;
+    } catch (error) {
+      console.error(
+        'Error fetching WhatsApp templates:',
+        error?.response?.data || error.message,
+      );
+      throw new Error('Failed to fetch WhatsApp templates.');
+    }
+  }
+
+  async sendMessage(recipientNo: string, message: string) {
+    try {
+      const payload = {
+        messaging_product: 'whatsapp',
+        recipient_type: 'individual',
+        type: 'text',
+        to: recipientNo,
+        text: {
+          body: message,
+        },
+      };
+
+      await this.client.post(`/${this.whatsappMobileId}/messages`, payload);
+    } catch (error) {
+      console.error(
+        'Error sending WhatsApp message:',
+        error?.response?.data || error.message,
+      );
+      throw new Error('Failed to send WhatsApp message.');
+    }
+  }
+  
+
+
 }

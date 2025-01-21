@@ -131,6 +131,13 @@ model Chat {
   business    Business     @relation(fields: [businessId], references: [id],onDelete: Cascade,onUpdate: Cascade)
   receiver    Prospect     @relation(fields: [receiverId], references: [id])
   sendDate    DateTime
+  message    Message[]
+}
+
+model Message {
+  id          String       @id @default(cuid())
+  chatId      String
+  chat        Chat @relation(fields: [chatId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 }
 
 model Order {
