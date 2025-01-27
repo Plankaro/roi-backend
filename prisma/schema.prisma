@@ -11,25 +11,25 @@ datasource db {
 model User {
   id              String     @id @default(cuid())
   name            String
-  username        String?     @unique
-  email           String      @unique
-  phone           String?      @unique
+  username        String?    @unique
+  email           String     @unique
+  phone           String?    @unique
   password        String?
-  refreshToken    String?     @db.Text
+  refreshToken    String?    @db.Text
   emailVerified   DateTime?
   image           String?
-  createdAt       DateTime    @default(now())
-  updatedAt       DateTime    @updatedAt
-  isEmailVerified Boolean     @default(false)
-  role            Role        @default(USER) // Role field added
-  businesses      Business[]  @relation("createdBusinesses") 
-  accounts        Account[]   // Keep this if you have OAuth or linked accounts.
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  isEmailVerified Boolean    @default(false)
+  role            Role       @default(USER) // Role field added
+  businesses      Business[] @relation("createdBusinesses")
+  accounts        Account[] // Keep this if you have OAuth or linked accounts.
 
   // Relations for other models
-  prospects       Prospect[]  @relation("AssignedProspects") // User can be assigned to Prospects
-  broadcasts      Broadcast[] @relation("CreatedBroadcasts")
-  templates       Template[]  @relation("CreatedTemplates")
-  flashResponses  FlashResponse[] @relation("CreatedFlashResponses")
+  prospects      Prospect[]      @relation("AssignedProspects") // User can be assigned to Prospects
+  broadcasts     Broadcast[]     @relation("CreatedBroadcasts")
+  templates      Template[]      @relation("CreatedTemplates")
+  flashResponses FlashResponse[] @relation("CreatedFlashResponses")
 
   Business Business[] @relation("BusinessEmployees")
 }
@@ -41,59 +41,62 @@ enum Role {
 }
 
 model Account {
-  id                    String   @id @default(cuid())
-  userId                String   @unique
+  id                    String  @id @default(cuid())
+  userId                String  @unique
   type                  String
   provider              String
   providerAccountId     String
-  refreshToken          String?  @db.Text
-  accessToken           String?  @db.Text
+  refreshToken          String? @db.Text
+  accessToken           String? @db.Text
   expiresAt             Int?
   tokenType             String?
   scope                 String?
-  idToken               String?  @db.Text
+  idToken               String? @db.Text
   sessionState          String?
   refreshTokenExpiresIn Int?
-  user                  User?    @relation(fields: [userId], references: [id])
+  user                  User?   @relation(fields: [userId], references: [id])
 
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([provider, providerAccountId])
   @@index([userId])
 }
 
 model Business {
-  id          String       @id @default(cuid())
+  id           String     @id @default(cuid())
   businessName String
-  createdBy   String
-  creator     User         @relation("createdBusinesses", fields: [createdBy], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  createdAt   DateTime     @default(now())
-  employees   User[]       @relation("BusinessEmployees") // Users as employees
-  prospects   Prospect[]
-  tags        Tag[]
-  chats       Chat[]
-  shopifyApi  String?
+  createdBy    String
+  creator      User       @relation("createdBusinesses", fields: [createdBy], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  createdAt    DateTime   @default(now())
+  employees    User[]     @relation("BusinessEmployees") // Users as employees
+  prospects    Prospect[]
+  tags         Tag[]
 
-  Broadcast   Broadcast[]
-  Template    Template[]
+  shopifyApi String?
+
+  Broadcast     Broadcast[]
+  Template      Template[]
   FlashResponse FlashResponse[]
-  Payment     Payment[]
+  Payment       Payment[]
 }
 
 model Prospect {
-  id           String       @id @default(cuid())
+  id           String    @id @default(cuid())
+  shopify_id   String    @unique
   name         String
-  email        String
-  phoneNo      String?
+  email        String?
+  image        String?
+  phoneNo      String
   lead         Lead
   tags         Tag[]
   assignedToId String?
-  assignedTo   User?        @relation("AssignedProspects", fields: [assignedToId], references: [id])
-  business     Business      @relation(fields: [businessId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  businessId   String
+  assignedTo   User?     @relation("AssignedProspects", fields: [assignedToId], references: [id])
+  business     Business? @relation(fields: [businessId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  businessId   String?
   chats        Chat[]
-  orders       Order[]
+  is_blocked   Boolean   @default(false)
+  created_at   DateTime  @default(now())
 }
 
 enum Lead {
@@ -104,42 +107,49 @@ enum Lead {
 }
 
 model Tag {
-  id          String       @id @default(cuid())
-  title       String
-  business    Business?    @relation(fields: [businessId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  businessId  String?
-  prospects   Prospect[]
+  id         String     @id @default(cuid())
+  title      String
+  business   Business?  @relation(fields: [businessId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  businessId String?
+  prospects  Prospect[]
 }
 
 model Chat {
-  id          String       @id @default(cuid())
-  chatId      String
-  receiverId  String
-  businessId  String
-  business    Business     @relation(fields: [businessId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  receiver    Prospect     @relation(fields: [receiverId], references: [id])
-  sendDate    DateTime
-  message     Message[]
+  id         String @id @default(cuid())
+  chatId     String
+  receiverId String
+
+  receiver                 Prospect    @relation(fields: [receiverId], references: [id])
+  sendDate                 DateTime
+  template_used            Boolean     @default(false)
+  template_name            String
+  header_type              HeaderType?
+  header_url               String?
+  body_attachment_included Boolean     @default(false)
+  body_attachmentUrl       String[]
+
+  body_text String?
+
+  footer_included Boolean @default(false)
+  footer_url      String?
+  footer_text     String?
+
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  deleted   Boolean       @default(false)
+  Status    MessageStatus
 }
 
-model Message {
-  id          String       @id @default(cuid())
-  chatId      String
-  chat        Chat         @relation(fields: [chatId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+enum MessageStatus {
+  PENDING
+  SENT
+  DELIVERED
+  READ
 }
 
-model Order {
-  id               String      @id @default(cuid())
-  shopifyOrderId   String
-  orderedFor       Prospect     @relation(fields: [orderedForId], references: [id])
-  orderedForId     String
-  orderGeneratedBy String
-  price            Float
-  shopifyProductId String
-  quantity         Int
-  isConfirmed      Boolean      @default(false)
-  status           OrderStatus
-  createdAt        DateTime
+enum HeaderType {
+  Image
+  Video
 }
 
 enum OrderStatus {
@@ -149,58 +159,58 @@ enum OrderStatus {
 }
 
 model Broadcast {
-  id           String       @id @default(cuid())
-  template     String
-  type         String
-  starters     String
-  createdBy    String
-  creator      User         @relation("CreatedBroadcasts", fields: [createdBy], references: [id])
-  createdForId String
-  createdFor   Business     @relation(fields: [createdForId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
-  isScheduled  Boolean      @default(false)
+  id            String    @id @default(cuid())
+  template      String
+  type          String
+  starters      String
+  createdBy     String
+  creator       User      @relation("CreatedBroadcasts", fields: [createdBy], references: [id])
+  createdForId  String
+  createdFor    Business  @relation(fields: [createdForId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  isScheduled   Boolean   @default(false)
   scheduledDate DateTime?
 }
 
 model Template {
-  id           String       @id @default(cuid())
+  id           String   @id @default(cuid())
   message      String
   status       String
   type         String
   createdBy    String
-  creator      User         @relation("CreatedTemplates", fields: [createdBy], references: [id])
+  creator      User     @relation("CreatedTemplates", fields: [createdBy], references: [id])
   createdForId String
-  createdFor   Business     @relation(fields: [createdForId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
+  createdFor   Business @relation(fields: [createdForId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
 
 model FlashResponse {
-  id           String       @id @default(cuid())
+  id           String   @id @default(cuid())
   short        String
   message      String
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
   createdBy    String
-  creator      User         @relation("CreatedFlashResponses", fields: [createdBy], references: [id])
+  creator      User     @relation("CreatedFlashResponses", fields: [createdBy], references: [id])
   createdForId String
-  createdFor   Business     @relation(fields: [createdForId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  createdFor   Business @relation(fields: [createdForId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 }
 
 model Payment {
-  id               String       @id @default(cuid())
-  razorpayOrderId  String       // Razorpay Order ID
-  razorpayPaymentId String?     // Razorpay Payment ID (can be null if not completed)
-  razorpaySignature String?     // Razorpay Signature (for validation)
-  amount           Float        // Payment amount
-  currency         String       // Currency, e.g., "INR"
-  status           PaymentStatus @default(PENDING) // Status of payment
-  createdAt        DateTime     @default(now())
-  updatedAt        DateTime     @updatedAt
+  id                String        @id @default(cuid())
+  razorpayOrderId   String // Razorpay Order ID
+  razorpayPaymentId String? // Razorpay Payment ID (can be null if not completed)
+  razorpaySignature String? // Razorpay Signature (for validation)
+  amount            Float // Payment amount
+  currency          String // Currency, e.g., "INR"
+  status            PaymentStatus @default(PENDING) // Status of payment
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
 
-  businessId       String
-  business         Business     @relation(fields: [businessId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 }
 
 enum PaymentStatus {
