@@ -16,6 +16,7 @@ import { BuisnessModule } from './buisness/buisness.module';
 import { JwtModule } from '@nestjs/jwt';
 import { ChatsModule } from './chats/chats.module';
 import { WhatsappModule } from './whatsapp/whatsapp.module';
+import { SendgridModule } from './sendgrid/sendgrid.module';
 import '@shopify/shopify-api/adapters/node';
 
 @Module({
@@ -52,6 +53,7 @@ import '@shopify/shopify-api/adapters/node';
     BuisnessModule,
     ChatsModule,
     WhatsappModule,
+    SendgridModule,
    
   ],
     

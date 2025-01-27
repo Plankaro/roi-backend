@@ -10,10 +10,10 @@ export class BuisnessService {
 
   async create(createBuisnessDto: CreateBuisnessDto) {
     try {
-      const alredyExists = await this.databaseService.employee.findUnique({
+      const alredyExists = await this.databaseService.user.findUnique({
         where: {
           id: createBuisnessDto.createdBy,
-          employeeType: 'ADMIN',
+          role: 'ADMIN',
         },
       });
 
@@ -42,7 +42,7 @@ export class BuisnessService {
          id: businessId, // The business ID
          employees: {
            some: {
-             userId: userId, // The user is an employee of the business
+             id:userId
            },
          },
        },

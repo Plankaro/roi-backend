@@ -13,7 +13,7 @@ model User {
   name            String
   username        String?     @unique
   email           String      @unique
-  phone           String      @unique
+  phone           String?      @unique
   password        String?
   refreshToken    String?     @db.Text
   emailVerified   DateTime?
@@ -21,10 +21,23 @@ model User {
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
   isEmailVerified Boolean     @default(false)
+  role            Role        @default(USER) // Role field added
   businesses      Business[]  @relation("createdBusinesses") 
-  employees       Employee[]
-
   accounts        Account[]   // Keep this if you have OAuth or linked accounts.
+
+  // Relations for other models
+  prospects       Prospect[]  @relation("AssignedProspects") // User can be assigned to Prospects
+  broadcasts      Broadcast[] @relation("CreatedBroadcasts")
+  templates       Template[]  @relation("CreatedTemplates")
+  flashResponses  FlashResponse[] @relation("CreatedFlashResponses")
+
+  Business Business[] @relation("BusinessEmployees")
+}
+
+enum Role {
+  USER
+  ADMIN
+  AGENT
 }
 
 model Account {
@@ -54,42 +67,18 @@ model Business {
   id          String       @id @default(cuid())
   businessName String
   createdBy   String
-  creator     User         @relation("createdBusinesses", fields: [createdBy], references: [id],onDelete: Cascade, onUpdate:Cascade)
+  creator     User         @relation("createdBusinesses", fields: [createdBy], references: [id], onDelete: Cascade, onUpdate: Cascade)
   createdAt   DateTime     @default(now())
-  employees   Employee[]
+  employees   User[]       @relation("BusinessEmployees") // Users as employees
   prospects   Prospect[]
   tags        Tag[]
   chats       Chat[]
   shopifyApi  String?
 
-  Broadcast Broadcast[]
-
-  Template Template[]
-
+  Broadcast   Broadcast[]
+  Template    Template[]
   FlashResponse FlashResponse[]
-
-  Payment Payment[]
-}
-
-model Employee {
-  id           String       @id @default(cuid())
-  business     Business     @relation(fields: [businessId], references: [id],onUpdate: Cascade, onDelete: Cascade)
-  businessId   String
-  user         User         @relation(fields: [userId], references: [id],onDelete: Cascade, onUpdate: Cascade)
-  userId       String
-  employeeType EmployeeType
-  broadcast    Broadcast[]
-  joinedDate   DateTime     @default(now())
-  prospects    Prospect[]
-  Template Template[]
-  @@index([businessId])
-  
-  FlashResponse FlashResponse[]
-}
-
-enum EmployeeType {
-  ADMIN
-  AGENTS
+  Payment     Payment[]
 }
 
 model Prospect {
@@ -100,12 +89,11 @@ model Prospect {
   lead         Lead
   tags         Tag[]
   assignedToId String?
-  assignedTo   Employee?     @relation(fields: [assignedToId], references: [id])
-  business     Business      @relation(fields: [businessId], references: [id],onDelete: Cascade, onUpdate: Cascade)
+  assignedTo   User?        @relation("AssignedProspects", fields: [assignedToId], references: [id])
+  business     Business      @relation(fields: [businessId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   businessId   String
   chats        Chat[]
   orders       Order[]
- 
 }
 
 enum Lead {
@@ -118,7 +106,7 @@ enum Lead {
 model Tag {
   id          String       @id @default(cuid())
   title       String
-  business    Business?    @relation(fields: [businessId], references: [id],onDelete: Cascade, onUpdate:Cascade)
+  business    Business?    @relation(fields: [businessId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   businessId  String?
   prospects   Prospect[]
 }
@@ -128,16 +116,16 @@ model Chat {
   chatId      String
   receiverId  String
   businessId  String
-  business    Business     @relation(fields: [businessId], references: [id],onDelete: Cascade,onUpdate: Cascade)
+  business    Business     @relation(fields: [businessId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   receiver    Prospect     @relation(fields: [receiverId], references: [id])
   sendDate    DateTime
-  message    Message[]
+  message     Message[]
 }
 
 model Message {
   id          String       @id @default(cuid())
   chatId      String
-  chat        Chat @relation(fields: [chatId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  chat        Chat         @relation(fields: [chatId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 }
 
 model Order {
@@ -165,41 +153,40 @@ model Broadcast {
   template     String
   type         String
   starters     String
-  createdBy    Employee      @relation(fields: [createdById], references: [id])
+  createdBy    String
+  creator      User         @relation("CreatedBroadcasts", fields: [createdBy], references: [id])
   createdForId String
-  CreatedFor    Business  @relation(fields: [createdForId], references: [id],onDelete: Cascade,onUpdate: Cascade)
-  createdById  String
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  isScheduled  Boolean       @default(false)
+  createdFor   Business     @relation(fields: [createdForId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  isScheduled  Boolean      @default(false)
   scheduledDate DateTime?
 }
 
 model Template {
-  id          String       @id @default(cuid())
-  message     String
-  status      String
-  type        String
-  createdBy   Employee @relation(fields: [createdById],references: [id])
-  CreatedFor    Business  @relation(fields: [createdForId], references: [id],onDelete: Cascade,onUpdate: Cascade)
-  createdForId  String
-  createdById String
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  id           String       @id @default(cuid())
+  message      String
+  status       String
+  type         String
+  createdBy    String
+  creator      User         @relation("CreatedTemplates", fields: [createdBy], references: [id])
+  createdForId String
+  createdFor   Business     @relation(fields: [createdForId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
 }
 
 model FlashResponse {
-  id          String       @id @default(cuid())
-  short       String
-  message     String
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
-    createdBy    Employee      @relation(fields: [createdById], references: [id])
+  id           String       @id @default(cuid())
+  short        String
+  message      String
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  createdBy    String
+  creator      User         @relation("CreatedFlashResponses", fields: [createdBy], references: [id])
   createdForId String
-  CreatedFor    Business  @relation(fields: [createdForId], references: [id],onDelete: Cascade,onUpdate: Cascade)
-  createdById  String  
+  createdFor   Business     @relation(fields: [createdForId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 }
-
 
 model Payment {
   id               String       @id @default(cuid())

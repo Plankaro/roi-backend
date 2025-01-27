@@ -4,7 +4,7 @@ import {
   Injectable,
   InternalServerErrorException,
   NotFoundException,
-  UnauthorizedException
+  UnauthorizedException,
 } from '@nestjs/common';
 import { RegisterAuthDto } from './dto/register-auth-dto';
 
@@ -13,34 +13,35 @@ import { Prisma } from '@prisma/client';
 import { hash, compare } from 'bcrypt';
 import { LoginDto } from './dto/login-auth.dto';
 import { JwtService } from '@nestjs/jwt';
-import {
-  ForgetPasswordDto,
-  ResetPasswordDto,
-  VerifyOtpDto,
-} from './dto/forget-password.dto';
+import { ResetPasswordDto } from './dto/forget-password.dto';
 import { generateOtp } from 'utils/otp';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import Redis from 'ioredis';
-
+import { SendgridService } from 'src/sendgrid/sendgrid.service';
+import { error } from 'console';
 @Injectable()
 export class AuthService {
   constructor(
     private readonly databaseService: DatabaseService,
     private readonly jwtService: JwtService,
     @InjectRedis() private readonly redis: Redis,
+    private readonly sendgridService: SendgridService,
   ) {}
 
   async login(LoginDto: LoginDto) {
     try {
+      console.log(LoginDto);
       const user = await this.databaseService.user.findUnique({
         where: {
           email: LoginDto.email,
         },
       });
+      console.log(user);
       if (!user) throw new ForbiddenException('Invalid email or password');
       if (!user.password)
         throw new BadRequestException('User is registered with auth provider');
       const isMatch = await compare(LoginDto.password, user.password);
+      console.log(isMatch);
       if (!isMatch) throw new ForbiddenException('Invalid email or password');
       const userTokens = await this.getTokens(user.id, user.email);
       await this.databaseService.user.update({
@@ -49,8 +50,14 @@ export class AuthService {
           refreshToken: userTokens.refresh_token,
         },
       });
-      return userTokens;
+      return { userTokens, user:{
+        id: user.id,
+        name: user.name,
+        email: user.email
+        
+      } };
     } catch (e) {
+      console.log(error);
       throw new InternalServerErrorException(
         e.message || 'An unexpected error occurred during login.',
       );
@@ -59,24 +66,32 @@ export class AuthService {
 
   async register(registerAuthDto: RegisterAuthDto) {
     try {
-      // Hash the password before saving it to the database
+      if (registerAuthDto.password !== registerAuthDto.confirmPassword)
+        throw new BadRequestException(
+          'Password and confirm password does not match',
+        );
+      const name = `${registerAuthDto.firstName} ${registerAuthDto.lastName}`;
+
       const hashedPassword = await hash(registerAuthDto.password, 10);
 
       // Create the user in the database
       const user = await this.databaseService.user.create({
         data: {
-          ...registerAuthDto,
-          password: hashedPassword, // Save the hashed password
+          email: registerAuthDto.email,
+          password: hashedPassword,
+          name: name, // Save the hashed password
         } as Prisma.UserCreateInput,
       });
+      const jwtPayload: { sub: string; email: string } = {
+        sub: user.id,
+        email: user.email,
+      };
 
       // Return the user details excluding the password
       return {
         id: user.id,
         name: user.name,
         email: user.email,
-        phone: user.phone,
-      
       };
     } catch (error) {
       // Handle unique constraint violations (e.g., email or phone already in use)
@@ -94,8 +109,106 @@ export class AuthService {
     }
   }
 
-  
+  async getTokenLink(email: string) {
+    const user = await this.databaseService.user.findUnique({
+      where: {
+        email: email,
+      },
+    });
 
+    if (!user) {
+      throw new BadRequestException('Email not registered');
+    }
+    const jwtPayload: { sub: string; email: string } = {
+      sub: user.id,
+      email: user.email,
+    };
+    await this.redis.del(user.id);
+
+    // Determine token expiration and link based on email verification status
+    const tokenExpiration = user.emailVerified ? '15m' : '1d'; // 15 minutes for forget password, 1 day for email verification
+    const token = await this.jwtService.signAsync(jwtPayload, {
+      secret: process.env.ACCESS_TOKEN_JWT_SECRET,
+      expiresIn: tokenExpiration,
+    });
+
+    const link = user.emailVerified
+      ? `${process.env.CLIENT_URL}/reset-password/${token}` // Password reset link for verified users
+      : `${process.env.CLIENT_URL}/verify/${token}`; // Verification link for unverified users
+
+    // Set Redis key expiration based on use case
+    const redisExpiration = user.emailVerified ? 60 * 15 : 60 * 60 * 24; // 15 minutes or 1 day in seconds
+    await this.redis.set(user.id, JSON.stringify(token), 'EX', redisExpiration);
+
+    // Send email
+    await this.sendgridService.sendMail(
+      user.email,
+      'Your verification link',
+      `Your link is: ${link}`,
+    );
+
+    return { message: 'Email sent successfully' };
+  }
+
+  async verifyToken(token: string) {
+    try {
+      const getToken = await this.jwtService.verifyAsync(token, {
+        secret: process.env.ACCESS_TOKEN_JWT_SECRET,
+      });
+
+      if (!getToken) throw new BadRequestException('Invalid token');
+      const isUsed = await this.redis.get(getToken.sub);
+      if (!isUsed || isUsed === token)
+        throw new BadRequestException('This token has already been used');
+      const update = await this.databaseService.user.update({
+        where: {
+          id: getToken.sub,
+        },
+        data: {
+          isEmailVerified: true,
+          emailVerified: new Date(),
+        },
+      });
+      if (!update) throw new BadRequestException('Invalid user');
+      await this.redis.del(getToken.sub);
+      return { message: 'Email verified successfully' };
+    } catch (error) {
+      console.log(error);
+      throw new InternalServerErrorException(
+        'An unexpected error occurred during email verification.',
+      );
+    }
+  }
+
+  async resetPassword(resetPasswordDto: ResetPasswordDto, token: string) {
+    try {
+      const getToken = await this.jwtService.verifyAsync(token, {
+        secret: process.env.ACCESS_TOKEN_JWT_SECRET,
+      });
+      if (!getToken) throw new BadRequestException('Invalid token');
+      const isUsed = await this.redis.get(getToken.sub);
+      if (!isUsed || isUsed === token)
+        throw new BadRequestException('This token has already been used');
+
+      const update = await this.databaseService.user.update({
+        where: {
+          id: getToken.sub,
+        },
+        data: {
+          password: await hash(resetPasswordDto.password, 10),
+        },
+      });
+      if (!update) throw new BadRequestException('Invalid user');
+      await this.redis.del(getToken.sub);
+
+      return { message: 'Password reset successfully' };
+    } catch (error) {
+      console.log(error);
+      throw new InternalServerErrorException(
+        'An unexpected error occurred during password reset.',
+      );
+    }
+  }
 
   async logout(userId: string) {
     try {
@@ -113,105 +226,38 @@ export class AuthService {
     }
   }
 
-  async forgetPassword(ForgetPasswordDto: ForgetPasswordDto) {
-    const user = await this.databaseService.user.findUnique({
-      where: {
-        email: ForgetPasswordDto.email,
-      },
-    });
-    if (!user) throw new NotFoundException('Email not found');
+  async RefreshToken(refresh_token: string) {
+    try {
+      const verifyToken = await this.jwtService.verifyAsync(refresh_token, {
+        secret: process.env.REFRESH_TOKEN_JWT_SECRET,
+      });
+      if (!verifyToken) {
+        throw new UnauthorizedException('Invalid login');
+      }
+      const user = await this.databaseService.user.findUnique({
+        where: {
+          id: verifyToken.sub,
+        },
+      });
+      if (!user || user.refreshToken !== refresh_token) {
+        throw new BadRequestException('Invalid login');
+      }
 
-    const otp = generateOtp();
-    console.log(otp, user.id);
-
-    //sending logic here
-
-    const hashedOtp = await hash(otp, 10);
-    const storedData = { hashedOtp, isVerified: false };
-    await this.redis.set(user.id, JSON.stringify(storedData), 'EX', 60 * 5);
-
-    return { message: 'Otp sent successfully' };
-  }
-  async verifyOtp(id: string, VerifyOtpDto: VerifyOtpDto) {
-    const otp = await this.redis.get(id);
-    const storedData: { hashedOtp: string; isVerified: boolean } =
-      JSON.parse(otp);
-    if (!otp) throw new NotFoundException('Otp not found');
-    const isMatch = compare(String(VerifyOtpDto.otp), storedData.hashedOtp);
-    if (!isMatch) throw new BadRequestException('Invalid otp');
-
-    await this.redis.set(
-      id,
-      JSON.stringify({ ...storedData, isVerified: true }),
-      'EX',
-      60 * 5,
-    );
-    return { message: 'Otp verified successfully' };
-  }
-
-  async ResetPassword(id: string, ResetPasswordDto: ResetPasswordDto) {
-    const user = await this.databaseService.user.findUnique({
-      where: {
-        id: id,
-      },
-    });
-    if (!user) throw new NotFoundException('User not found');
-
-    const storedData: { hashedOtp: string; isVerified: boolean } = JSON.parse(
-      await this.redis.get(id),
-    );
-    if (!storedData || !storedData.isVerified)
-      throw new ForbiddenException('You dont have acess to reset passowrd');
-
-    const hashedPassword = await hash(ResetPasswordDto.password, 10);
-    await this.databaseService.user.update({
-      where: {
-        id: id,
-      },
-      data: {
-        password: hashedPassword,
-      },
-    });
-
-    await this.redis.del(id);
-
-    return { message: 'Password changed successfully' };
-  }
-
-  async RefreshToken(userId: string,refresh_token: string) {
- try {
-     const user = await this.databaseService.user.findUnique({
-       where: {
-         id: userId,
-       },
-     })
-     if(!user || user.refreshToken!==refresh_token){
-       throw new BadRequestException('Invalid login');
-     }
-     const verifyToken = await this.jwtService.verifyAsync(refresh_token,{
-       secret: process.env.REFRESH_TOKEN_JWT_SECRET
-     });
-     if(!verifyToken){
-       throw new UnauthorizedException('Invalid login');
-     }
-     const userTokens = await this.getTokens(user.id, user.email);
-     await this.databaseService.user.update({
-       where: { id: user.id },
-       data: {
-         refreshToken: userTokens.refresh_token,
-       },
-     });
-     return userTokens;
- } catch (error) {
-
-  throw new BadRequestException('Invalid login');
- }
+      const userTokens = await this.getTokens(user.id, user.email);
+      await this.databaseService.user.update({
+        where: { id: user.id },
+        data: {
+          refreshToken: userTokens.refresh_token,
+        },
+      });
+      return userTokens;
+    } catch (error) {
+      throw new BadRequestException('Invalid login');
+    }
   }
   remove(id: number) {
     return `This action removes a #${id} auth`;
   }
-
-
 
   async getTokens(userId: string, email: string) {
     const jwtPayload: { sub: string; email: string } = {

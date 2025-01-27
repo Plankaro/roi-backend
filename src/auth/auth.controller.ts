@@ -2,7 +2,7 @@ import { Controller, Get, Post, Body, Patch, Param, Delete,Headers } from '@nest
 import { AuthService } from './auth.service';
 import { RegisterAuthDto } from './dto/register-auth-dto';
 import { LoginDto } from './dto/login-auth.dto';
-import { ForgetPasswordDto, VerifyOtpDto, ResetPasswordDto } from './dto/forget-password.dto';
+import { ResetPasswordDto,GetTokenDto } from './dto/forget-password.dto';
 import { Public } from './decorator/public.decorator';
 
 
@@ -23,30 +23,33 @@ export class AuthController {
   }
 
   @Public()
+  @Post('/refresh-token')
   async refreshToken(
-    @Param('id') userId: string,
+    
     @Headers('authorization') authorization: string,
   ) {
-    return this.authService.RefreshToken(userId,authorization);
+    return this.authService.RefreshToken(authorization);
   }
 
-  @Public()
-  @Post('/forget')
- forgetPassword(@Body() ForgetPasswordDto: ForgetPasswordDto) {
+ 
 
-   return this.authService.forgetPassword(ForgetPasswordDto);
+
+ @Public() // Marks this route as public (if applicable in your app logic).
+ @Post('token-link') // Specify the route endpoint if needed.
+ getTokenLink(@Body() GetTokenDto: GetTokenDto) {
+
+   return this.authService.getTokenLink(GetTokenDto.email);
  }
 
-
- @Public()
- @Patch('/verify/:id')
- verify(@Param('id') id: string, @Body() VerifyOtpDto: VerifyOtpDto) {
-   return this.authService.verifyOtp(id, VerifyOtpDto);
+ @Public() // Marks this route as public (if applicable in your app logic).
+ @Get('verify-token/:id') // Specify the route endpoint if needed.
+ verifyToken( @Param('id') token: string,) {
+   return this.authService.verifyToken(token);
  }
 
- @Public()
- @Patch('/reset/:id')
- resetPassword(@Param('id') id: string, @Body() ResetPasswordDto: ResetPasswordDto) {
-   return this.authService.ResetPassword(id, ResetPasswordDto);
+ @Public() // Marks this route as public (if applicable in your app logic).
+ @Post('reset-password/:id') // Specify the route endpoint if needed.
+ resetPassword(@Body() resetPasswordDto: ResetPasswordDto, @Param('id') token: string,) {
+   return this.authService.resetPassword(resetPasswordDto, token);
  }
 }

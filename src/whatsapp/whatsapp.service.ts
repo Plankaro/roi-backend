@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import axios, { AxiosInstance } from 'axios';
-import { url } from 'inspector';
+
 import { SendTemplateMessageDto } from 'src/chats/dto/template-chat';
 
 @Injectable()
@@ -97,6 +97,7 @@ export class WhatsappService {
       throw new Error('Failed to send WhatsApp message.');
     }
   }
+  
   
 
 
