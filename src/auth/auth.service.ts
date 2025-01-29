@@ -30,18 +30,18 @@ export class AuthService {
 
   async login(LoginDto: LoginDto) {
     try {
-      console.log(LoginDto);
+   
       const user = await this.databaseService.user.findUnique({
         where: {
           email: LoginDto.email,
         },
       });
-      console.log(user);
+  
       if (!user) throw new ForbiddenException('Invalid email or password');
       if (!user.password)
         throw new BadRequestException('User is registered with auth provider');
       const isMatch = await compare(LoginDto.password, user.password);
-      console.log(isMatch);
+    
       if (!isMatch) throw new ForbiddenException('Invalid email or password');
       const userTokens = await this.getTokens(user.id, user.email);
       await this.databaseService.user.update({
@@ -50,16 +50,17 @@ export class AuthService {
           refreshToken: userTokens.refresh_token,
         },
       });
+      
       return { userTokens, user:{
         id: user.id,
         name: user.name,
         email: user.email
         
       } };
-    } catch (e) {
+    } catch (error) {
       console.log(error);
       throw new InternalServerErrorException(
-        e.message || 'An unexpected error occurred during login.',
+        error.message || 'An unexpected error occurred during login.',
       );
     }
   }
@@ -228,9 +229,12 @@ export class AuthService {
 
   async RefreshToken(refresh_token: string) {
     try {
-      const verifyToken = await this.jwtService.verifyAsync(refresh_token, {
+      const token = refresh_token.replace(/^Bearer\s/, "");
+
+      const verifyToken = await this.jwtService.verifyAsync(token, {
         secret: process.env.REFRESH_TOKEN_JWT_SECRET,
       });
+   
       if (!verifyToken) {
         throw new UnauthorizedException('Invalid login');
       }
@@ -239,9 +243,10 @@ export class AuthService {
           id: verifyToken.sub,
         },
       });
-      if (!user || user.refreshToken !== refresh_token) {
-        throw new BadRequestException('Invalid login');
-      }
+
+      // if (!user || user.refreshToken !== refresh_token) {
+      //   throw new BadRequestException('Invalid login');
+      // }
 
       const userTokens = await this.getTokens(user.id, user.email);
       await this.databaseService.user.update({
@@ -252,6 +257,7 @@ export class AuthService {
       });
       return userTokens;
     } catch (error) {
+      console.log(error);
       throw new BadRequestException('Invalid login');
     }
   }
@@ -275,6 +281,7 @@ export class AuthService {
         expiresIn: '7d',
       }),
     ]);
+
 
     return {
       access_token: at,

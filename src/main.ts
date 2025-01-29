@@ -13,7 +13,7 @@ async function bootstrap() {
   const reflector = app.get(Reflector); 
   const jwtService = app.get(JwtService); 
 
-  // Register the AuthGuard globally
+
   // app.useGlobalGuards(new AuthGuard(jwtService, reflector));
   app.useGlobalPipes(
     new ValidationPipe({

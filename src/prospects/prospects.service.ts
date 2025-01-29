@@ -11,7 +11,7 @@ export class ProspectsService {
    ){}
   create(createProspectDto: CreateProspectDto) {
     try {
-      const {shopify_id, name, email, phone,} = createProspectDto
+      const {shopify_id, name, email, phone,image} = createProspectDto
       return this.databaseService.prospect.create({
         data: {
           shopify_id,
@@ -46,7 +46,7 @@ export class ProspectsService {
          }
        }
      );
-     console.log(response)
+  
      return response
    } catch (error) {
     throw new InternalServerErrorException(error);

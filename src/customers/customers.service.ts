@@ -90,7 +90,7 @@ export class CustomersService {
         existingCustomers.map((customer) => customer.shopify_id),
       );
       const filteredData = response.data.customers.edges
-        .filter(({ node }) => !existingCustomerIds.has(node.id)) // Exclude matching IDs
+        .filter(({ node }) => !existingCustomerIds.has(node.id.match(/\d+$/)[0])) // Exclude matching IDs
         .map(({ node }) => ({
           id: node.id,
           name: `${node.firstName || ''} ${node.lastName || ''}`.trim(),
@@ -126,6 +126,10 @@ export class CustomersService {
           firstName
           lastName
           email
+          image {
+              url
+              src
+            }
           phone
           amountSpent {
             amount
@@ -158,9 +162,25 @@ export class CustomersService {
 
     const variables = { id: `gid://shopify/Customer/${customerId}` };
 
-    const response = this.shopifyService.executeGraphQL(query, variables);
-
-    return response;
+    const response = await  this.shopifyService.executeGraphQL(query, variables);
+    // const filteredData = response.data.customers.edges 
+    // .map(({ node }) => ({
+    //   id: node.id,
+    //   name: `${node.firstName || ''} ${node.lastName || ''}`.trim(),
+    //   email: node.email || '',
+    //   phone: node.phone || '',
+    //   address: node.addresses.map((address) => ({
+    //     address1: address.address1 || '',
+    //     address2: address.address2 || '',
+    //     city: address.city || '',
+    //     country: address.country || '',
+    //     zip: address.zip || '',
+    //   })),
+    //   amountSpent: node.amountSpent,
+    //   orders: node.orders.nodes,
+    //   image: node.image?.url || '', // Handle cases where image might be null
+    // }));
+    return response.data.customer
   }
 
   update(id: number, updateCustomerDto: UpdateCustomerDto) {

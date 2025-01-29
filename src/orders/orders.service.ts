@@ -8,79 +8,116 @@ export class OrdersService {
   constructor(private readonly shopifyService: ShopifyService) {}
   async create(CreateOrderDto: any) {
     console.log(CreateOrderDto);
-    const { customerId, Items } = CreateOrderDto;
+    const { customerId, Items, shippingAddress, totalPrice } = CreateOrderDto;
+    console.log(customerId);
     const variables = {
-      customerId: customerId, // This must be a valid Shopify Customer global ID
+      customer: {
+        id: customerId,
+      },
       order: {
         currency: 'INR', // Ensure this matches Shopify's supported currencies
         lineItems: Items.map((item) => ({
-          variantId: item.productId, // This must be a valid Shopify Product Variant global ID
+          variantId: item.variantId, // This must be a valid Shopify Product Variant global ID
           quantity: item.quantity, // Must be a positive integer
         })),
+        shippingAddress: {
+          address1: shippingAddress.address1,
+          address2: shippingAddress.address2,
+          city: shippingAddress.city,
+          company: shippingAddress.company,
+          country: shippingAddress.country,
+          countryName: shippingAddress.countryName,
+          firstName: shippingAddress.firstName,
+          lastName: shippingAddress.lastName,
+          phone: shippingAddress.phone,
+          // state: shippingAddress.state,
+          province: shippingAddress.state,
+          zip: shippingAddress.zip,
+        },
+        transactions: [
+          {
+            kind: 'CAPTURE', // or 'AUTHORIZE' depending on your payment flow
+            status: 'PENDING',
+            gateway: 'cash_on_delivery',
+            amountSet: {
+              shopMoney: {
+                amount: totalPrice.toString(),
+                currencyCode: 'INR',
+              },
+            },
+          },
+        ],
       },
     };
-
+    console.log(variables);
     const query = `
-    mutation OrderCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {
-      orderCreate(order: $order, options: $options) {
-        userErrors {
-          field
-          message
+mutation OrderCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {
+  orderCreate(order: $order, options: $options) {
+    userErrors {
+      field
+      message
+    }
+    order {
+      id
+      currentTotalPriceSet {
+        shopMoney {
+          amount
+          currencyCode
         }
-        order {
+      }
+      currentSubtotalPriceSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+      currentTotalTaxSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+      transactions {
+        kind
+        status
+        amountSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+        }
+      }
+      lineItems(first: 5) {
+        nodes {
+          variant {
+            id
+          }
           id
-          currentTotalPriceSet {
-            shopMoney {
-              amount
-              currencyCode
-            }
-          }
-          currentSubtotalPriceSet {
-            shopMoney {
-              amount
-              currencyCode
-            }
-          }
-          currentTotalTaxSet {
-            shopMoney {
-              amount
-              currencyCode
-            }
-          }
-          transactions {
-            kind
-            status
-            amountSet {
+          title
+          quantity
+          taxLines {
+            title
+            rate
+            priceSet {
               shopMoney {
                 amount
                 currencyCode
               }
             }
           }
-          lineItems(first: 5) {
-            nodes {
-              variant {
-                id
-              }
-              id
-              title
-              quantity
-              taxLines {
-                title
-                rate
-                priceSet {
-                  shopMoney {
-                    amount
-                    currencyCode
-                  }
-                }
-              }
-            }
-          }
         }
       }
+      customer {
+        id
+        firstName
+        lastName
+        email
+        phone
+      }
     }
-  `;
+  }
+}
+`;
 
     try {
       const response = await this.shopifyService.executeGraphQL(

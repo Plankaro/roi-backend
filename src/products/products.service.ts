@@ -21,7 +21,7 @@ export class ProductsService {
             id
             title
             productType
-            descriptionHtml
+         description
             totalInventory
             options {
               id
@@ -44,10 +44,12 @@ export class ProductsService {
                 availableForSale
                   id
                   price
+               
                   title
                   image{
                     url
                   }
+                     inventoryQuantity
                 }
               }
             }
@@ -62,7 +64,6 @@ export class ProductsService {
       }
     }
   `;
-  
 
     try {
       const response = await this.shopifyService.executeGraphQL(query);
@@ -74,7 +75,30 @@ export class ProductsService {
         );
       }
 
-      return response.data.products.edges.map((edge) => edge.node);
+      const dirtyProducts = response.data.products.edges.map(
+        (edge) => edge.node,
+      );
+      const cleanProducts = dirtyProducts.map((product) => ({
+        id: product.id,
+        title: product.title,
+        description: product.description,
+        images: product.images.edges.map((image) => image.node.url),
+        options: product.options.map((option) => ({
+          name: option.name,
+          values: option.values,
+        })),
+        variants: product.variants.edges.map((variant) => ({
+          id: variant.node.id,
+          availableForSale: variant.node.availableForSale,
+          price: variant.node.price,
+          title: variant.node.title,
+          quantity: variant.node.inventoryQuantity,
+          image:variant.node?.image?.url??null
+          
+        })),
+        totalInventory: product.totalInventory,
+      }));
+      return cleanProducts;
     } catch (error) {
       throw new InternalServerErrorException(
         'An error occurred while fetching products',
