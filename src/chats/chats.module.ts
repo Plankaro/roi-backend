@@ -3,10 +3,13 @@ import { ChatsService } from './chats.service';
 import { ChatsController } from './chats.controller';
 import { WhatsappService } from 'src/whatsapp/whatsapp.service';
 import { WhatsappModule } from 'src/whatsapp/whatsapp.module';
+import { ChatsGateway } from './chats.gateway';
+import { DatabaseModule } from 'src/database/database.module';
+
 
 @Module({
-  imports: [WhatsappModule],
+  imports: [WhatsappModule,DatabaseModule],
   controllers: [ChatsController],
-  providers: [ChatsService],
+  providers: [ChatsService, ChatsGateway],
 })
 export class ChatsModule {}

@@ -88,7 +88,8 @@ export class WhatsappService {
         },
       };
 
-      await this.client.post(`/${this.whatsappMobileId}/messages`, payload);
+      const response = await this.client.post(`/${this.whatsappMobileId}/messages`, payload);
+      return response.data
     } catch (error) {
       console.error(
         'Error sending WhatsApp message:',
@@ -98,7 +99,7 @@ export class WhatsappService {
     }
   }
   
-  
+
 
 
 }

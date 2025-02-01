@@ -115,18 +115,17 @@ model Tag {
 }
 
 model Chat {
-  id         String @id @default(cuid())
-  chatId     String
-  receiverId String
-
-  receiver                 Prospect    @relation(fields: [receiverId], references: [id])
-  sendDate                 DateTime
-  template_used            Boolean     @default(false)
-  template_name            String
-  header_type              HeaderType?
-  header_url               String?
-  body_attachment_included Boolean     @default(false)
-  body_attachmentUrl       String[]
+  id                 String      @id @default(cuid())
+  chatId             String      @unique
+  senderPhoneNo      String
+  receiverPhoneNo    String
+  sendDate           DateTime
+  template_used      Boolean     @default(false)
+  template_name      String?
+  header_type        HeaderType?
+  header_url         String?
+  body_type          BodyType    @default(text)
+  body_attachmentUrl String[]
 
   body_text String?
 
@@ -134,22 +133,31 @@ model Chat {
   footer_url      String?
   footer_text     String?
 
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
-  deleted   Boolean       @default(false)
-  Status    MessageStatus
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+  deleted    Boolean       @default(false)
+  Status     MessageStatus @default(pending)
+  Prospect   Prospect?     @relation(fields: [prospectId], references: [id])
+  prospectId String?
 }
 
 enum MessageStatus {
-  PENDING
-  SENT
-  DELIVERED
-  READ
+  pending
+  sent
+  delivered
+  read
 }
 
 enum HeaderType {
   Image
   Video
+  Document // Added document support
+}
+
+enum BodyType {
+  image
+  text
+  document
 }
 
 enum OrderStatus {
