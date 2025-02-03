@@ -49,12 +49,26 @@ export class ProspectsService {
   
      return response
    } catch (error) {
+    console.log(error);
     throw new InternalServerErrorException(error);
    }
   }
 
-  findOne(id: number) {
-    return `This action returns a #${id} prospect`;
+  async findOne(id: string) {
+   try {
+    const response = await this.databaseService.prospect.findUnique({
+      where: {
+        shopify_id:id
+      },
+      include: {
+        order: true
+      }
+    })
+    return response
+
+   } catch (error) {
+    throw new InternalServerErrorException(error)
+   }
   }
 
   update(id: number, updateProspectDto: UpdateProspectDto) {

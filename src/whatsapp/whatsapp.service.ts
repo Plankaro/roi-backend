@@ -30,7 +30,16 @@ export class WhatsappService {
     });
   }
 
-  async sendTemplateMessage(data:SendTemplateMessageDto
+  async sendTemplateMessage({
+    recipientNo,
+    templateName,
+    languageCode,
+    components,}:{
+      recipientNo: string;
+      templateName: string;
+      languageCode: string;
+      components:any
+    }
   ): Promise<void> {
     try {
        // Replace with your dynamic URL
@@ -38,20 +47,23 @@ export class WhatsappService {
       const payload = {
         messaging_product: 'whatsapp',
         recipient_type: 'individual',
-        to: data.recipientNo,
+        to: recipientNo,
         type: 'template',
         template: {
-          name: data.templateName,
+          name: templateName,
           language: {
-            code: data.languageCode, // Language code of your approved template
+            code: languageCode, // Language code of your approved template
           },
-          components: data.components
+          components: components
         },
       };
       
-      console.log(payload);
+   
 
-      await this.client.post(`/${this.whatsappMobileId}/messages`, payload);
+      const result =  await this.client.post(`/${this.whatsappMobileId}/messages`, payload);
+      console.log(result.data)
+      return result.data
+      
     } catch (error) {
       console.error(
         'Error sending template message:',

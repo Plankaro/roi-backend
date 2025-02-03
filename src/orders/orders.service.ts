@@ -1,11 +1,12 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
 import { ShopifyService } from 'src/shopify/shopify.service';
+import { DatabaseService } from 'src/database/database.service';
 
 @Injectable()
 export class OrdersService {
-  constructor(private readonly shopifyService: ShopifyService) {}
+  constructor(private readonly shopifyService: ShopifyService,private readonly databaseService: DatabaseService) {}
   async create(CreateOrderDto: any) {
     console.log(CreateOrderDto);
     const { customerId, Items, shippingAddress, totalPrice } = CreateOrderDto;
@@ -124,13 +125,31 @@ mutation OrderCreate($order: OrderCreateOrderInput!, $options: OrderCreateOption
         query,
         variables,
       );
-      console.log(response);
+      if(!response.data){
+        throw new BadRequestException('Order creation failed')
+      }
+      const getId = (gid: string): string => {
+        return gid.split('/').pop() || '';
+      }
+      console.log(JSON.stringify(response))
+      const ordercreate = await this.databaseService.order.create({
+        data:{
+          shopify_id:getId(response?.data?.orderCreate?.order?.id??""),
+          amount:response?.data?.orderCreate?.order?.currentTotalPriceSet?.shopMoney?.amount??"",
+          
+          prospect_shopify_id:getId(customerId)
+
+
+        }
+      })
+      console.log(ordercreate); 
+
       return { response, variables };
     } catch (error) {
       console.error('Error creating order:', error);
       throw error;
     }
-    return variables;
+    
   }
 
   findAll() {

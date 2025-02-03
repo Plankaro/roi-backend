@@ -95,8 +95,26 @@ model Prospect {
   business     Business? @relation(fields: [businessId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   businessId   String?
   chats        Chat[]
+  order        Order[]
   is_blocked   Boolean   @default(false)
   created_at   DateTime  @default(now())
+}
+
+model Order {
+  id                String     @id @default(cuid())
+  shopify_id        String     @unique
+  prospect_shopify_id       String
+  prospect          Prospect @relation(fields: [prospect_shopify_id], references: [shopify_id] )
+  status        Status @default(PENDING)
+  amount        String
+  Date          DateTime @default(now())
+
+}
+
+enum Status {
+  PENDING
+  COMPLETED
+  CANCELLED
 }
 
 enum Lead {
@@ -130,6 +148,7 @@ model Chat {
   body_text String?
 
   footer_included Boolean @default(false)
+  footer_type     String?
   footer_url      String?
   footer_text     String?
 

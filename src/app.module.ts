@@ -18,6 +18,8 @@ import { ChatsModule } from './chats/chats.module';
 import { WhatsappModule } from './whatsapp/whatsapp.module';
 import { SendgridModule } from './sendgrid/sendgrid.module';
 import { ProspectsModule } from './prospects/prospects.module';
+import { CloudinaryService } from './cloudinary/cloudinary.service';
+import { CloudinaryModule } from './cloudinary/cloudinary.module';
 import '@shopify/shopify-api/adapters/node';
 
 @Module({
@@ -56,10 +58,11 @@ import '@shopify/shopify-api/adapters/node';
     WhatsappModule,
     SendgridModule,
     ProspectsModule,
+    CloudinaryModule,
    
   ],
     
   controllers: [AppController],
-  providers: [AppService, OrdersService],
+  providers: [AppService],
 })
 export class AppModule {}
