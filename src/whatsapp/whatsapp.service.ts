@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import axios, { AxiosInstance } from 'axios';
+import { console } from 'inspector';
 
 import { SendTemplateMessageDto } from 'src/chats/dto/template-chat';
 
@@ -111,7 +112,39 @@ export class WhatsappService {
     }
   }
   
-
+  async sendMedia(recipientNo: string, mediaUrl: string, type: "image" | "video" | "document", caption?: string) {
+    try {
+      console.log(type);
+      
+      // Construct the payload based on media type
+      let mediaPayload: any = {};
+      if (type === "image") {
+        mediaPayload = { image: { link: mediaUrl, caption } };
+      } else if (type === "video") {
+        mediaPayload = { video: { link: mediaUrl, caption } };
+      } else if (type === "document") {
+        mediaPayload = { document: { link: mediaUrl, caption } };
+      }
+  
+      const payload = {
+        messaging_product: 'whatsapp',
+        recipient_type: 'individual',
+        type,
+        to: recipientNo,
+        ...mediaPayload,
+      };
+  
+      const response = await this.client.post(`/${this.whatsappMobileId}/messages`, payload);
+      console.log(response);
+      return response.data;
+    } catch (error) {
+      console.error(
+        'Error sending WhatsApp message:',
+        error?.response?.data || error.message,
+      );
+      throw new Error(error.message);
+    }
+  }
 
 
 }

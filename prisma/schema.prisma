@@ -141,16 +141,17 @@ model Chat {
   template_used      Boolean     @default(false)
   template_name      String?
   header_type        HeaderType?
-  header_url         String?
-  body_type          BodyType    @default(text)
-  body_attachmentUrl String[]
+  header_value         String?
+  // body_type          BodyType    @default(text)
+  // body_attachmentUrl String[]
 
   body_text String?
 
   footer_included Boolean @default(false)
-  footer_type     String?
-  footer_url      String?
+  // footer_type     String?
+  // footer_url      String?
   footer_text     String?
+  Buttons         String[]
 
   createdAt  DateTime      @default(now())
   updatedAt  DateTime      @updatedAt
@@ -165,12 +166,14 @@ enum MessageStatus {
   sent
   delivered
   read
+  failed
 }
 
 enum HeaderType {
-  Image
-  Video
-  Document // Added document support
+  IMAGE
+  VIDEO
+  DOCUMENT
+  TEXT// Added document support
 }
 
 enum BodyType {

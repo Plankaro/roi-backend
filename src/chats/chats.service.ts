@@ -3,6 +3,8 @@ import { SendTemplateMessageDto } from './dto/template-chat';
 import { WhatsappService } from 'src/whatsapp/whatsapp.service';
 import { ChatsGateway } from './chats.gateway';
 import { DatabaseService } from 'src/database/database.service';
+import { MediaDto } from './dto/media-chat-dto';
+import { HeaderType } from '@prisma/client';
 
 @Injectable()
 export class ChatsService {
@@ -19,7 +21,9 @@ export class ChatsService {
       language, // Language string
       parameter_format, // Format type
       recipientNo, // Recipient's phone number
-      template_name, // Template name
+      template_name,
+      previewSection,
+      // Template name
     } = sendTemplateMessageDto;
 
     // console.log(sendTemplateMessageDto);
@@ -84,34 +88,82 @@ export class ChatsService {
         };
       }
     });
-
     components.push({
       type: 'body',
       parameters: bodyParameters,
     });
-    components.push({
-      type: 'button',
-      sub_type: 'url',
-      index: 0,
-      parameters: [
-        {
-          type: 'text',
-          text: 'your-shop-url.com',
-        },
-      ],
-    });
+
+    buttons.map((button,index) => {
+      if(button.type === 'URL' && button.isEditable==true) {
+        components.push({
+          type: 'button',
+          sub_type: 'url',
+          index: index,
+          parameters: [
+            {
+              type: 'text',
+              text: button.value,
+            },
+          ],
+        })
+      }
+      else if(button.type === 'COPY_CODE' && button.isEditable==true) {
+        components.push({
+          type: 'button',
+          sub_type: 'copy_code',
+          index: index,
+          parameters: [
+            {
+              type: 'text',
+              text: button.value,
+            },
+          ],
+        })
+      }
+    })
 
     console.log(JSON.stringify(components));
+ 
+    // components.push({
+    //   type: 'button',
+    //   sub_type: 'url',
+    //   index: 0,
+    //   parameters: [
+    //     {
+    //       type: 'text',
+    //       text: 'your-shop-url.com',
+    //     },
+    //   ],
+    // });
 
     try {
-      const message = await this.whatsappService.sendTemplateMessage({
+      const message: any = await this.whatsappService.sendTemplateMessage({
         recipientNo: recipientNo,
         templateName: template_name,
         languageCode: language,
         components: components,
       });
 
-      return message;
+      console.log(JSON.stringify(previewSection));
+      const addTodb = await this.databaseService.chat.create({
+        data: {
+          chatId: message?.messages[0]?.id ?? '',
+          template_used: true,
+          template_name:template_name,
+          senderPhoneNo: '15551365364',
+          receiverPhoneNo: message?.contacts[0].input.replace(/^\+/, ''),
+          sendDate: new Date(),
+          header_type: previewSection.header.type,
+          header_value: previewSection.header.value,
+          body_text: previewSection.bodyText,
+          footer_included:previewSection.footer.length > 0,
+          footer_text:previewSection.footer,
+          Buttons:previewSection.buttons,
+
+        },
+
+      });
+      return  addTodb;
     } catch (error) {
       console.log(error);
       throw new InternalServerErrorException(error);
@@ -139,9 +191,9 @@ export class ChatsService {
                     senderPhoneNo: message.from,
                     receiverPhoneNo: value.metadata.display_phone_number,
                     sendDate: new Date(),
-                    body_type: message.type,
+                    // body_type: message.type,
                     body_text: message.text?.body,
-                    Status:"delivered"// Handle non-text messages
+                    Status: 'delivered', // Handle non-text messages
                   },
                 });
                 processedResults.push(result);
@@ -196,8 +248,9 @@ export class ChatsService {
           senderPhoneNo: '15551365364',
           receiverPhoneNo: sendMessage?.contacts[0].input,
           sendDate: new Date(),
-          body_type: 'text',
-          body_text: message, // Handle non-text messages
+          // body_type: 'text',
+          body_text: message,
+          // Handle non-text messages
         },
       });
       console.log(result);
@@ -248,6 +301,48 @@ export class ChatsService {
     } catch (error) {
       console.log(error);
       throw new InternalServerErrorException('Failed to fetch templates');
+    }
+  }
+  async sendMedia(MediaDto:MediaDto) {
+    try {
+      function mapMediaTypeToHeaderType(mediaType: string): HeaderType {
+        switch (mediaType.toLowerCase()) {
+          case 'image':
+            return HeaderType.IMAGE;
+          case 'video':
+            return HeaderType.VIDEO;
+          case 'document':
+            return HeaderType.DOCUMENT;
+          case 'text':
+            return HeaderType.TEXT;
+          default:
+            throw new Error(`Unsupported media type: ${mediaType}`);
+        }
+      }
+      
+      const sendMessage = await this.whatsappService.sendMedia(
+        MediaDto.recipientNo,
+        MediaDto.mediaUrl,
+        MediaDto.type,
+        MediaDto.caption,
+      );
+      const result = await this.databaseService.chat.create({
+        data: {
+          chatId: sendMessage?.messages[0]?.id ?? '',
+          senderPhoneNo: '15551365364',
+          receiverPhoneNo: sendMessage?.contacts[0].input,
+          sendDate: new Date(),
+          header_type:mapMediaTypeToHeaderType(MediaDto.type),
+          header_value: MediaDto.mediaUrl,
+          body_text: MediaDto.caption,
+          // Handle non-text messages
+        },
+      });
+      console.log(result);
+      return result
+    } catch (error) {
+      console.log(error);
+      throw new InternalServerErrorException(error.message);
     }
   }
 

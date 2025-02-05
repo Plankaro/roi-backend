@@ -30,19 +30,21 @@ export class AuthService {
 
   async login(LoginDto: LoginDto) {
     try {
-   
+      console.log(LoginDto)
       const user = await this.databaseService.user.findUnique({
         where: {
           email: LoginDto.email,
         },
       });
-  
-      if (!user) throw new ForbiddenException('Invalid email or password');
+
+      if (!user) throw new UnauthorizedException('Invalid email or password');
       if (!user.password)
         throw new BadRequestException('User is registered with auth provider');
+      const isUserVErified = user.isEmailVerified
+      if (!isUserVErified) throw new ForbiddenException('User is not verified');
       const isMatch = await compare(LoginDto.password, user.password);
-    
-      if (!isMatch) throw new ForbiddenException('Invalid email or password');
+
+      if (!isMatch) throw new UnauthorizedException('Invalid email or password');
       const userTokens = await this.getTokens(user.id, user.email);
       await this.databaseService.user.update({
         where: { id: user.id },
@@ -50,13 +52,15 @@ export class AuthService {
           refreshToken: userTokens.refresh_token,
         },
       });
-      
-      return { userTokens, user:{
-        id: user.id,
-        name: user.name,
-        email: user.email
-        
-      } };
+
+      return {
+        userTokens,
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+        },
+      };
     } catch (error) {
       console.log(error);
       throw new InternalServerErrorException(
@@ -74,7 +78,7 @@ export class AuthService {
       const name = `${registerAuthDto.firstName} ${registerAuthDto.lastName}`;
 
       const hashedPassword = await hash(registerAuthDto.password, 10);
-
+      console.log(registerAuthDto);
       // Create the user in the database
       const user = await this.databaseService.user.create({
         data: {
@@ -95,6 +99,7 @@ export class AuthService {
         email: user.email,
       };
     } catch (error) {
+      console.log(error);
       // Handle unique constraint violations (e.g., email or phone already in use)
       if (error.code === 'P2002') {
         throw new BadRequestException(
@@ -111,44 +116,53 @@ export class AuthService {
   }
 
   async getTokenLink(email: string) {
-    const user = await this.databaseService.user.findUnique({
-      where: {
-        email: email,
-      },
-    });
+    try {
+      const user = await this.databaseService.user.findUnique({
+        where: {
+          email: email,
+        },
+      });
 
-    if (!user) {
-      throw new BadRequestException('Email not registered');
+      if (!user) {
+        throw new BadRequestException('Email not registered');
+      }
+      const jwtPayload: { sub: string; email: string } = {
+        sub: user.id,
+        email: user.email,
+      };
+      await this.redis.del(user.id);
+
+      // Determine token expiration and link based on email verification status
+      const tokenExpiration = user.emailVerified ? '15m' : '1d'; // 15 minutes for forget password, 1 day for email verification
+      const token = await this.jwtService.signAsync(jwtPayload, {
+        secret: process.env.ACCESS_TOKEN_JWT_SECRET,
+        expiresIn: tokenExpiration,
+      });
+
+      const link = user.emailVerified
+        ? `${process.env.CLIENT_URL}/reset-password/${token}` // Password reset link for verified users
+        : `${process.env.CLIENT_URL}/verify/${token}`; // Verification link for unverified users
+
+      // Set Redis key expiration based on use case
+      const redisExpiration = user.emailVerified ? 60 * 15 : 60 * 60 * 24; // 15 minutes or 1 day in seconds
+      await this.redis.set(
+        user.id,
+        JSON.stringify(token),
+        'EX',
+        redisExpiration,
+      );
+
+      // Send email
+      await this.sendgridService.sendMail(
+        user.email,
+        'Your verification link',
+        `Your link is: ${link}`,
+      );
+
+      return { message: 'Email sent successfully' };
+    } catch (error) {
+      throw new InternalServerErrorException(error);
     }
-    const jwtPayload: { sub: string; email: string } = {
-      sub: user.id,
-      email: user.email,
-    };
-    await this.redis.del(user.id);
-
-    // Determine token expiration and link based on email verification status
-    const tokenExpiration = user.emailVerified ? '15m' : '1d'; // 15 minutes for forget password, 1 day for email verification
-    const token = await this.jwtService.signAsync(jwtPayload, {
-      secret: process.env.ACCESS_TOKEN_JWT_SECRET,
-      expiresIn: tokenExpiration,
-    });
-
-    const link = user.emailVerified
-      ? `${process.env.CLIENT_URL}/reset-password/${token}` // Password reset link for verified users
-      : `${process.env.CLIENT_URL}/verify/${token}`; // Verification link for unverified users
-
-    // Set Redis key expiration based on use case
-    const redisExpiration = user.emailVerified ? 60 * 15 : 60 * 60 * 24; // 15 minutes or 1 day in seconds
-    await this.redis.set(user.id, JSON.stringify(token), 'EX', redisExpiration);
-
-    // Send email
-    await this.sendgridService.sendMail(
-      user.email,
-      'Your verification link',
-      `Your link is: ${link}`,
-    );
-
-    return { message: 'Email sent successfully' };
   }
 
   async verifyToken(token: string) {
@@ -229,12 +243,12 @@ export class AuthService {
 
   async RefreshToken(refresh_token: string) {
     try {
-      const token = refresh_token.replace(/^Bearer\s/, "");
+      const token = refresh_token.replace(/^Bearer\s/, '');
 
       const verifyToken = await this.jwtService.verifyAsync(token, {
         secret: process.env.REFRESH_TOKEN_JWT_SECRET,
       });
-   
+
       if (!verifyToken) {
         throw new UnauthorizedException('Invalid login');
       }
@@ -281,7 +295,6 @@ export class AuthService {
         expiresIn: '7d',
       }),
     ]);
-
 
     return {
       access_token: at,

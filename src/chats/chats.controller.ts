@@ -3,6 +3,7 @@ import { Response } from 'express';
 import { ChatsService } from './chats.service';
 import { SendTemplateMessageDto } from './dto/template-chat';
 import { Public } from 'src/auth/decorator/public.decorator';
+import { MediaDto } from './dto/media-chat-dto';
 
 
 @Controller('chats')
@@ -57,6 +58,10 @@ export class ChatsController {
     return this.chatsService.findOne(+id);
   }
 
+  @Post('/media')
+  sendMedia(@Body() mediaDto: MediaDto){
+    return this.chatsService.sendMedia(mediaDto)
+  }
 
 
   // @Patch(':id')

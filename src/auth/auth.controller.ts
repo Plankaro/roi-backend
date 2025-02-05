@@ -32,7 +32,11 @@ export class AuthController {
   }
 
  
-
+@Public()
+@Post('/logout')
+logout(@Body() userId: string) {
+  return this.authService.logout(userId);
+}
 
  @Public() // Marks this route as public (if applicable in your app logic).
  @Post('token-link') // Specify the route endpoint if needed.
