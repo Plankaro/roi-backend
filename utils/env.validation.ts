@@ -6,9 +6,8 @@ import {
   IsOptional,
   IsString,
   IsUrl,
-  ValidateIf,
+  IsEmail,
   validateSync,
-  Matches,
 } from 'class-validator';
 
 export enum Environment {
@@ -38,6 +37,10 @@ export class EnvironmentVariable {
 
   @IsString()
   @IsNotEmpty()
+  CLIENT_URL: string;
+
+  @IsString()
+  @IsNotEmpty()
   SHOPIFY_ACCESS_TOKEN: string;
 
   @IsString()
@@ -60,9 +63,9 @@ export class EnvironmentVariable {
   @IsNotEmpty()
   REFRESH_TOKEN_JWT_SECRET: string;
 
-  @IsString()
+  @IsUrl() // Use IsUrl if the REDIS_URL follows a URL pattern, otherwise use IsString.
   @IsNotEmpty()
-  REDIS_URL:string;
+  REDIS_URL: string;
 
   @IsString()
   @IsNotEmpty()
@@ -71,6 +74,42 @@ export class EnvironmentVariable {
   @IsString()
   @IsNotEmpty()
   REDIS_USER: string;
+
+  @IsString()
+  @IsNotEmpty()
+  WHATSAPP_MOBILE_ID: string; // Treat as string since it might be too long for a number
+
+  @IsString()
+  @IsNotEmpty()
+  WHATSAPP_API_TOKEN: string;
+
+  @IsString()
+  @IsNotEmpty()
+  WHATSAPP_BUISNESS_ID: string;
+
+  @IsString()
+  @IsNotEmpty()
+  SENDGRID_API_KEY: string;
+
+  @IsEmail()
+  @IsNotEmpty()
+  SENDER_EMAIL: string;
+
+  @IsString()
+  @IsNotEmpty()
+  CLOUDINARY_CLOUD_NAME: string;
+
+  @IsString()
+  @IsNotEmpty()
+  CLOUDINARY_API_KEY: string;
+
+  @IsString()
+  @IsNotEmpty()
+  CLOUDINARY_API_SECRET: string;
+
+  @IsUrl() // Assuming CLOUDINARY_URL is a valid URL
+  @IsNotEmpty()
+  CLOUDINARY_URL: string;
 }
 
 export type EnvironmentVariableType = EnvironmentVariable;

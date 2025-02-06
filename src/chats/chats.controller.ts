@@ -46,28 +46,6 @@ export class ChatsController {
   }
 
 
-  
-
-  @Get("/template")
-  findAll() {
-    return this.chatsService.findAllTemplate();
-  }
-
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.chatsService.findOne(+id);
-  }
-
-  @Post('/media')
-  sendMedia(@Body() mediaDto: MediaDto){
-    return this.chatsService.sendMedia(mediaDto)
-  }
-
-
-  // @Patch(':id')
-  // update(@Param('id') id: string, @Body() updateChatDto: UpdateChatDto) {
-  //   return this.chatsService.update(+id, updateChatDto);
-  // }
   @Post('/webhook')
   receiveMessage(@Body() receievemessageDto: any) {
    
@@ -76,4 +54,19 @@ export class ChatsController {
     // // Process the incoming message
    
   }
+
+  @Get("/template")
+  findAll() {
+    return this.chatsService.findAllTemplate();
+  }
+
+ 
+  @Post('/media')
+  sendMedia(@Body() mediaDto: MediaDto){
+    return this.chatsService.sendMedia(mediaDto)
+  }
+
+
+
+
 }

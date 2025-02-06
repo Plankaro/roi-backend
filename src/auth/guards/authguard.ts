@@ -24,6 +24,7 @@ export class AuthGuard implements CanActivate {
     if (isPublic) {
       return true; // Skip the guard if the route is marked as public
     }
+    console.log("passing through authguard")
 
     const request = context.switchToHttp().getRequest<Request>();
     const token = this.extractTokenFromHeader(request);
@@ -35,6 +36,7 @@ export class AuthGuard implements CanActivate {
       const payload = await this.jwtService.verifyAsync(token, {
         secret: process.env.ACCESS_TOKEN_JWT_SECRET,
       });
+      console.log(payload);
       request['user'] = payload.sub; // Attach the user to the request
     } catch (err) {
       throw new UnauthorizedException('Authentication failed');

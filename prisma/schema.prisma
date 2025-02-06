@@ -159,6 +159,11 @@ model Chat {
   Status     MessageStatus @default(pending)
   Prospect   Prospect?     @relation(fields: [prospectId], references: [id])
   prospectId String?
+  isForBroadcast Boolean @default(false)
+  Broadcast  Broadcast?     @relation(fields: [broadcastId], references: [id])
+  broadcastId String?
+ 
+
 }
 
 enum MessageStatus {
@@ -192,15 +197,18 @@ model Broadcast {
   id            String    @id @default(cuid())
   template      String
   type          String
-  starters      String
-  createdBy     String
-  creator       User      @relation("CreatedBroadcasts", fields: [createdBy], references: [id])
-  createdForId  String
-  createdFor    Business  @relation(fields: [createdForId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  status        String
+  broadastContact String[]
+  createdBy     String?
+  creator       User?      @relation("CreatedBroadcasts", fields: [createdBy], references: [id])
+  createdForId  String?
+  createdFor    Business?  @relation(fields: [createdForId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   isScheduled   Boolean   @default(false)
   scheduledDate DateTime?
+
+  Chat Chat[]
 }
 
 model Template {
@@ -222,10 +230,11 @@ model FlashResponse {
   message      String
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
-  createdBy    String
-  creator      User     @relation("CreatedFlashResponses", fields: [createdBy], references: [id])
-  createdForId String
-  createdFor   Business @relation(fields: [createdForId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  createdBy    String?
+  creator      User?     @relation("CreatedFlashResponses", fields: [createdBy], references: [id])
+  createdForId String?
+  createdFor   Business? @relation(fields: [createdForId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  isPrivate    Boolean  @default(false)
 }
 
 model Payment {

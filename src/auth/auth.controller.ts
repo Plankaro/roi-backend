@@ -24,10 +24,12 @@ export class AuthController {
 
   @Public()
   @Post('/refresh-token')
+  
   async refreshToken(
     
     @Headers('authorization') authorization: string,
   ) {
+    console.log("refreshing");
     return this.authService.RefreshToken(authorization);
   }
 

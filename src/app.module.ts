@@ -5,40 +5,29 @@ import { DatabaseModule } from './database/database.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ShopifyModule } from './shopify/shopify.module';
 import { ProductsModule } from './products/products.module';
-import { ShopifyExpressModule, } from '@nestjs-shopify/express';
-import { ApiVersion } from '@shopify/shopify-api';
-import { OrdersService } from './orders/orders.service';
+import { CacheModule } from '@nestjs/cache-manager';
+
+
 import { OrdersModule } from './orders/orders.module';
 import { CustomersModule } from './customers/customers.module';
 import { AuthModule } from './auth/auth.module';
 import { RedisModule } from '@nestjs-modules/ioredis';
 import { BuisnessModule } from './buisness/buisness.module';
-import { JwtModule } from '@nestjs/jwt';
+
 import { ChatsModule } from './chats/chats.module';
 import { WhatsappModule } from './whatsapp/whatsapp.module';
 import { SendgridModule } from './sendgrid/sendgrid.module';
 import { ProspectsModule } from './prospects/prospects.module';
-import { CloudinaryService } from './cloudinary/cloudinary.service';
+
 import { CloudinaryModule } from './cloudinary/cloudinary.module';
-import '@shopify/shopify-api/adapters/node';
+import { FlashresponseModule } from './flashresponse/flashresponse.module';
+import { BroadcastModule } from './broadcast/broadcast.module';
+
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
-    ShopifyExpressModule.forRootAsync({
-      useFactory: async (configService: ConfigService) => {
-        return {
-          apiKey: configService.get('SHOPIFY_API_KEY'),
-          apiSecretKey: configService.get('SHOPIFY_API_SECRET'),
-          apiVersion: ApiVersion.October24,
-          hostName: configService.get('SHOPIFY_STORE'),
-          isEmbeddedApp: true,
-          scopes: ['test_scope'],
-          sessionStorage:{}
-        };
-      },
-      inject: [ConfigService],
-    }),
+    CacheModule.register(),
     RedisModule.forRoot({
       type: 'single',
       url: process.env.REDIS_URL,
@@ -59,6 +48,8 @@ import '@shopify/shopify-api/adapters/node';
     SendgridModule,
     ProspectsModule,
     CloudinaryModule,
+    FlashresponseModule,
+    BroadcastModule,
    
   ],
     

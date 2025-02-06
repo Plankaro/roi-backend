@@ -26,7 +26,7 @@ export class ChatsService {
       // Template name
     } = sendTemplateMessageDto;
 
-    // console.log(sendTemplateMessageDto);
+    console.log(JSON.stringify(sendTemplateMessageDto,null, 2));
 
     const components = [];
     let newcomponents = [];
@@ -98,7 +98,7 @@ export class ChatsService {
         components.push({
           type: 'button',
           sub_type: 'url',
-          index: index,
+          index: "0",
           parameters: [
             {
               type: 'text',
@@ -107,14 +107,14 @@ export class ChatsService {
           ],
         })
       }
-      else if(button.type === 'COPY_CODE' && button.isEditable==true) {
+      else if(button.type === 'COPY_CODE' ) {
         components.push({
           type: 'button',
           sub_type: 'copy_code',
           index: index,
           parameters: [
             {
-              type: 'text',
+              type: 'otp',
               text: button.value,
             },
           ],
@@ -122,16 +122,39 @@ export class ChatsService {
       }
     })
 
-    console.log(JSON.stringify(components));
+    console.log(JSON.stringify(components,null, 2))
+ 
  
     // components.push({
     //   type: 'button',
     //   sub_type: 'url',
-    //   index: 0,
+    //   index: '0',
     //   parameters: [
     //     {
     //       type: 'text',
-    //       text: 'your-shop-url.com',
+    //       text: 'https://default-url.com',
+    //     },
+    //   ],
+    // },
+    // {
+    //   type: 'button',
+    //   sub_type: 'copy_code',
+    //   index: '1',
+    //   parameters: [
+    //     {
+    //       type: 'text',
+    //       text: 'DEFAULT_CODE',
+    //     },
+    //   ],
+    // },
+    // {
+    //   type: 'button',
+    //   sub_type: 'phone_number',
+    //   index: '2',
+    //   parameters: [
+    //     {
+    //       type: 'text',
+    //       text:'+1234567890',
     //     },
     //   ],
     // });
@@ -143,8 +166,8 @@ export class ChatsService {
         languageCode: language,
         components: components,
       });
+      console.log(message)
 
-      console.log(JSON.stringify(previewSection));
       const addTodb = await this.databaseService.chat.create({
         data: {
           chatId: message?.messages[0]?.id ?? '',
@@ -174,7 +197,7 @@ export class ChatsService {
       console.log(receiveMessageDto);
 
       const { entry } = receiveMessageDto;
-      console.log(JSON.stringify(receiveMessageDto));
+     
       const processedResults = [];
 
       for (const individualEntry of entry) {
@@ -208,7 +231,7 @@ export class ChatsService {
           if (value.statuses) {
             const statusPromises = value.statuses.map(async (status) => {
               try {
-                console.log(status);
+          
                 const result = await this.databaseService.chat.update({
                   where: { chatId: status.id },
                   data: { Status: status.status },
@@ -236,6 +259,7 @@ export class ChatsService {
   }
 
   async sendMessage(sendChatDto: any) {
+    console.log(sendChatDto);
     const { recipientNo, message } = sendChatDto;
     try {
       const sendMessage = await this.whatsappService.sendMessage(
@@ -253,8 +277,7 @@ export class ChatsService {
           // Handle non-text messages
         },
       });
-      console.log(result);
-
+ 
       return result;
     } catch (error) {
       console.log(error);
@@ -285,7 +308,7 @@ export class ChatsService {
         },
       });
 
-      console.log(chats);
+  
       return chats;
     } catch (e) {
       throw new InternalServerErrorException('Failed to fetch messages');
@@ -338,19 +361,13 @@ export class ChatsService {
           // Handle non-text messages
         },
       });
-      console.log(result);
+  
       return result
     } catch (error) {
       console.log(error);
       throw new InternalServerErrorException(error.message);
     }
   }
-
-  findOne(id: number) {
-    return `This action returns a #${id} chat`;
-  }
-
-  remove(id: number) {
-    return `This action removes a #${id} chat`;
-  }
+  
+ 
 }
