@@ -6,6 +6,7 @@ import { AuthGuard } from './auth/guards/authguard';
 import { JwtModule, JwtService } from '@nestjs/jwt';
 
 import { Reflector } from '@nestjs/core';
+import { MicroserviceOptions, Transport } from '@nestjs/microservices';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   app.use(cookieParser());
@@ -23,6 +24,13 @@ async function bootstrap() {
       forbidUnknownValues: true,
     }),
   );
+  
+  const microservice = app.connectMicroservice<MicroserviceOptions>({
+    transport: Transport.TCP,
+    options: { port: 4001 },
+  });
+
+  await microservice.listen();
   app.enableCors()
   await app.listen(process.env.PORT ?? 4000);
 }

@@ -22,12 +22,28 @@ import { ProspectsModule } from './prospects/prospects.module';
 import { CloudinaryModule } from './cloudinary/cloudinary.module';
 import { FlashresponseModule } from './flashresponse/flashresponse.module';
 import { BroadcastModule } from './broadcast/broadcast.module';
+import { BullModule } from '@nestjs/bullmq';
+
+import { TemplateModule } from './template/template.module';
+import { RedirectModule } from './redirect/redirect.module';
+
+
 
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     CacheModule.register(),
+    BullModule.forRoot({
+      connection: {
+        url: process.env.REDIS_URL,
+        // Depending on your Aiven configuration, you may or may not need to specify these.
+        username: process.env.REDIS_USER,
+        password: process.env.REDIS_PASSWORD,
+        // If your connection uses TLS (rediss://) you can also add TLS options:
+        tls: { rejectUnauthorized: false },
+      },
+    }),
     RedisModule.forRoot({
       type: 'single',
       url: process.env.REDIS_URL,
@@ -50,6 +66,9 @@ import { BroadcastModule } from './broadcast/broadcast.module';
     CloudinaryModule,
     FlashresponseModule,
     BroadcastModule,
+    TemplateModule,
+    RedirectModule,
+  
    
   ],
     

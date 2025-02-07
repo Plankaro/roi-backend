@@ -23,13 +23,14 @@ export class ChatsService {
       recipientNo, // Recipient's phone number
       template_name,
       previewSection,
+      template_type,
       // Template name
     } = sendTemplateMessageDto;
 
     console.log(JSON.stringify(sendTemplateMessageDto,null, 2));
 
     const components = [];
-    let newcomponents = [];
+ 
 
     if (header && header.isEditable) {
       if (header.type === 'TEXT') {
@@ -182,6 +183,8 @@ export class ChatsService {
           footer_included:previewSection.footer.length > 0,
           footer_text:previewSection.footer,
           Buttons:previewSection.buttons,
+          type:template_type
+
 
         },
 
@@ -194,7 +197,7 @@ export class ChatsService {
   }
   async receiveMessage(receiveMessageDto: any) {
     try {
-      console.log(receiveMessageDto);
+      console.log(JSON.stringify(receiveMessageDto, null, 2));
 
       const { entry } = receiveMessageDto;
      
@@ -216,7 +219,8 @@ export class ChatsService {
                     sendDate: new Date(),
                     // body_type: message.type,
                     body_text: message.text?.body,
-                    Status: 'delivered', // Handle non-text messages
+                    Status: 'delivered',
+                    type:"personal" // Handle non-text messages
                   },
                 });
                 processedResults.push(result);
@@ -274,6 +278,7 @@ export class ChatsService {
           sendDate: new Date(),
           // body_type: 'text',
           body_text: message,
+          type:"personal"
           // Handle non-text messages
         },
       });
@@ -358,6 +363,7 @@ export class ChatsService {
           header_type:mapMediaTypeToHeaderType(MediaDto.type),
           header_value: MediaDto.mediaUrl,
           body_text: MediaDto.caption,
+          type:"personal"
           // Handle non-text messages
         },
       });

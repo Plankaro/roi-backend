@@ -12,23 +12,24 @@ export class BroadcastController {
     return this.broadcastService.create(createBroadcastDto);
   }
 
-  @Get()
-  findAll() {
-    return this.broadcastService.findAll();
-  }
+//   @Get()
+//   findAll() {
+//     return this.broadcastService.findAll();
+//   }
 
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.broadcastService.findOne(+id);
-  }
+//   @Get(':id')
+//   findOne(@Param('id') id: string) {
+//     return this.broadcastService.findOne(+id);
+//   }
 
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() updateBroadcastDto: UpdateBroadcastDto) {
-    return this.broadcastService.update(+id, updateBroadcastDto);
-  }
+//   @Patch(':id')
+//   update(@Param('id') id: string, @Body() updateBroadcastDto: UpdateBroadcastDto) {
+//     return this.broadcastService.update(+id, updateBroadcastDto);
+//   }
 
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.broadcastService.remove(+id);
-  }
+//   @Delete(':id')
+//   remove(@Param('id') id: string) {
+//     return this.broadcastService.remove(+id);
+//   }
+// }
 }
