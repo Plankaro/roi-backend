@@ -24,6 +24,15 @@ export class TemplateService {
   }
 
   remove(id: string) {
-    return `This action removes a #${id} template`;
+   try {
+    const findTemplateById = this.databaseService.template.findUnique({
+      where: {
+        id: id,
+      },
+    })
+    
+   } catch (error) {
+    
+   }
   }
 }

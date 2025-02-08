@@ -163,6 +163,9 @@ export class BroadcastService {
         where: {
           id: id,
         },
+        include:{
+          Chat:true
+        }
       
       });
       const statusCounts = await this.databaseService.chat.groupBy({
@@ -181,4 +184,5 @@ export class BroadcastService {
       throw new InternalServerErrorException(error);
     }
   }
+  
 }

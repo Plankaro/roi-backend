@@ -140,7 +140,7 @@ export class BroadcastProcessor extends WorkerHost {
             Buttons: previewSection.buttons,
             isForBroadcast: true,
             broadcastId: broadastContactId,
-            Status: 'sent',
+            Status: 'pending',
             type: templatetype || 'personal',
           },
         });

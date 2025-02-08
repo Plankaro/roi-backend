@@ -13,6 +13,15 @@ export class CustomersController {
     return this.customersService.create(createCustomerDto);
   }
 
+  @Get('/segments')
+  GetAllSegments() {
+    return this.customersService.getAllSegments();
+  }
+  @Get('/segments/:id')
+  getSegment(@Param('id') id: string) {
+    return this.customersService.getAllContactsForSegment(id);
+  }
+
   @Get()
   getAllCustomers() {
     return this.customersService. getAllCustomers();
@@ -23,10 +32,6 @@ export class CustomersController {
     return this.customersService.getCustomerById(id);
   }
 
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() updateCustomerDto: UpdateCustomerDto) {
-    return this.customersService.update(+id, updateCustomerDto);
-  }
 
  
 }

@@ -240,7 +240,7 @@ export class ChatsService {
                   where: { chatId: status.id },
                   data: { 
                     Status: status.status,
-                    failedReason:status.errors[0].message
+                    failedReason:status.errors?.[0]?.message??null,
                    },
                   
 

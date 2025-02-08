@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import axios, { AxiosInstance } from 'axios';
 import path from 'path';
 
@@ -29,8 +29,12 @@ export class ShopifyService {
         query,
         variables,
       });
+      console.log(JSON.stringify(response.data,null,2));
+     
       return response.data;
+
     } catch (error) {
+      console.error(error);
       throw new Error(`GraphQL query failed: ${error.message}`);
     }
   }

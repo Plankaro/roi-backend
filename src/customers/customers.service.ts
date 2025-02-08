@@ -90,7 +90,9 @@ export class CustomersService {
         existingCustomers.map((customer) => customer.shopify_id),
       );
       const filteredData = response.data.customers.edges
-        .filter(({ node }) => !existingCustomerIds.has(node.id.match(/\d+$/)[0])) // Exclude matching IDs
+        .filter(
+          ({ node }) => !existingCustomerIds.has(node.id.match(/\d+$/)[0]),
+        ) // Exclude matching IDs
         .map(({ node }) => ({
           id: node.id,
           name: `${node.firstName || ''} ${node.lastName || ''}`.trim(),
@@ -109,8 +111,6 @@ export class CustomersService {
         }));
 
       return filteredData;
-
-     
     } catch (error) {
       throw new InternalServerErrorException(
         'An error occurred while fetching products',
@@ -162,8 +162,8 @@ export class CustomersService {
 
     const variables = { id: `gid://shopify/Customer/${customerId}` };
 
-    const response = await  this.shopifyService.executeGraphQL(query, variables);
-    // const filteredData = response.data.customers.edges 
+    const response = await this.shopifyService.executeGraphQL(query, variables);
+    // const filteredData = response.data.customers.edges
     // .map(({ node }) => ({
     //   id: node.id,
     //   name: `${node.firstName || ''} ${node.lastName || ''}`.trim(),
@@ -180,9 +180,87 @@ export class CustomersService {
     //   orders: node.orders.nodes,
     //   image: node.image?.url || '', // Handle cases where image might be null
     // }));
-    return response.data.customer
+    return response.data.customer;
   }
 
+  async getAllSegments(): Promise<{ id: string; name: string }[]> {
+    const query = `
+      query GetAllSegments($first: Int!) {
+        segments(first: $first) {
+          edges {
+            node {
+              id
+              name
+                query
+            }
+          }
+        }
+      }
+    `;
+    const variables = { first: 250 };
+    const result = await this.shopifyService.executeGraphQL(query, variables);
+    const segmentsEdges = result.data?.segments?.edges || [];
+    return segmentsEdges.map((edge: any) => ({
+      id: edge.node.id,
+      name: edge.node.name,
+      query: edge.node.query,
+    }));
+  }
+
+  async getAllContactsForSegment(segmentId: string): Promise<any[]> {
+    let contacts: any[] = [];
+    let hasNextPage = true;
+    let after: string = null;
+    const first = 250;
+  
+    const query = `
+      query GetSegmentMembers($segmentId: ID!, $first: Int!, $after: String) {
+        customerSegmentMembers(segmentId: $segmentId, first: $first, after: $after) {
+          totalCount
+          edges {
+            node {
+              id
+              defaultPhoneNumber {
+                phoneNumber
+              }
+            }
+          }
+          pageInfo {
+            hasNextPage
+            endCursor
+          }
+        }
+      }
+    `;
+  
+    try {
+      while (hasNextPage) {
+        const variables = { segmentId, first, after };
+        const result = await this.shopifyService.executeGraphQL(query, variables);
+        // Log any errors if present:
+        if (result.errors && result.errors.length) {
+          console.error('GraphQL errors:', result.errors);
+          throw new InternalServerErrorException(result.errors[0].message || "Failed to get data");
+        }
+        const membersConnection = result.data?.customerSegmentMembers;
+        if (!membersConnection) {
+          break;
+        }
+        const edges = membersConnection.edges || [];
+        contacts = contacts.concat(
+          edges.map((edge: any) =>
+            edge.node.defaultPhoneNumber ? edge.node.defaultPhoneNumber.phoneNumber : null
+          ).filter((phone: string | null): phone is string => phone !== null)
+        );
+        hasNextPage = membersConnection.pageInfo.hasNextPage;
+        after = membersConnection.pageInfo.endCursor;
+      }
+      return contacts;
+    } catch (error) {
+      console.error("Error in getAllContactsForSegment:", error);
+      throw new InternalServerErrorException({message:error.message,statusCode:error.statusCode});
+    }
+  }
   update(id: number, updateCustomerDto: UpdateCustomerDto) {
     return `This action updates a #${id} customer`;
   }
