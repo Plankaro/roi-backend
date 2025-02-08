@@ -238,7 +238,12 @@ export class ChatsService {
           
                 const result = await this.databaseService.chat.update({
                   where: { chatId: status.id },
-                  data: { Status: status.status },
+                  data: { 
+                    Status: status.status,
+                    failedReason:status.errors[0].message
+                   },
+                  
+
                 });
                 processedResults.push(result);
               } catch (error) {

@@ -28,6 +28,13 @@ export class BroadcastService {
       MarketingmessageLimit,
       MarketingmessageLimitTiming,
       SkipDuplicates,
+      utm_params,
+      utm_source,
+      utm_campaign,
+      price,
+      is_utm_id_embeded,
+      scheduledTime
+      
 
       // scheduledTime is now set automatically (for demo, 1 minute from now)
     } = createBroadcastDto;
@@ -84,7 +91,7 @@ export class BroadcastService {
           type: 'button',
           sub_type: 'copy_code',
           index: index,
-          parameters: [{ type: 'otp', text: button.value }],
+          parameters: [{ type: 'otp', text: encodeURI(button.value) }],
         });
       }
     });
@@ -96,6 +103,12 @@ export class BroadcastService {
         type: type,
         broadastContact: recipientNo,
         status: 'pending',
+        utm_source: utm_source,
+        utm_campaign: utm_campaign,
+        utm_params: utm_params,
+        price: price,
+        is_utm_id_embeded: is_utm_id_embeded,
+        isScheduled: scheduledTime ? true : false,
       },
     });
 
@@ -103,7 +116,7 @@ export class BroadcastService {
     const recipientsArray = Array.isArray(recipientNo) ? recipientNo : [recipientNo];
 
     // For demonstration, schedule the job 1 minute from now.
-    const scheduledTime = new Date(Date.now() + 1 * 60 * 1000);
+    // const scheduledTime = new Date(Date.now() + 1 * 60 * 1000);
     const delay = scheduledTime ? scheduledTime.getTime() - Date.now() : 0;
 
 
@@ -150,9 +163,20 @@ export class BroadcastService {
         where: {
           id: id,
         },
+      
       });
+      const statusCounts = await this.databaseService.chat.groupBy({
+        by: ['Status'],
+        where: {
+          broadcastId: id, // replace with your broadcast ID
+        },
+        _count: {
+          _all: true,
+        },
+      });
+
       if(!result) throw new NotFoundException("Couldn't find broadcast")
-      return result;
+      return {result,statusCounts};
     } catch (error) {
       throw new InternalServerErrorException(error);
     }

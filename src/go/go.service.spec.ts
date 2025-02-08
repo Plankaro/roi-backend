@@ -1,15 +1,15 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { RedirectService } from './redirect.service';
+import { GoService } from './go.service';
 
-describe('RedirectService', () => {
-  let service: RedirectService;
+describe('GoService', () => {
+  let service: GoService;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [RedirectService],
+      providers: [GoService],
     }).compile();
 
-    service = module.get<RedirectService>(RedirectService);
+    service = module.get<GoService>(GoService);
   });
 
   it('should be defined', () => {

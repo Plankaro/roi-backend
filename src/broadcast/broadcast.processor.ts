@@ -35,6 +35,14 @@ export class BroadcastProcessor extends WorkerHost {
     } = job.data;
 
     console.log(`Processing job for recipients: ${JSON.stringify(recipients)}`);
+    this.databaseService.broadcast.update({
+      where: {
+        id: broadastContactId,
+      },
+      data: {
+        status: 'running',
+      },
+    })
 
     const unsentRecipients: string[] = [];
     let uniqueRecipients = recipients;
@@ -137,6 +145,7 @@ export class BroadcastProcessor extends WorkerHost {
           },
         });
       } catch (error) {
+        console.log(JSON.stringify(error,null,2));
         // If a rate limit error occurs, capture the remaining recipients.
         if (error.response && error.response.status === 429) {
           console.error(
@@ -154,8 +163,9 @@ export class BroadcastProcessor extends WorkerHost {
       }
 
       // Introduce a delay between sends to further reduce risk of rate limiting.
-      await new Promise((resolve) => setTimeout(resolve, 3000));
+      await new Promise((resolve) => setTimeout(resolve, 100));
     }
+
 
     // If there are unsent recipients due to rate limiting, requeue them for a retry after 24 hours.
     if (unsentRecipients.length > 0) {
@@ -177,6 +187,15 @@ export class BroadcastProcessor extends WorkerHost {
           attempts: 1,
         },
       );
+    }else{
+      this.databaseService.broadcast.update({
+        where: {
+          id: broadastContactId,
+        },
+        data: {
+          status: 'completed',
+        },
+      })
     }
   }
 }

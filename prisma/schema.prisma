@@ -30,7 +30,7 @@ model User {
   broadcasts     Broadcast[]     @relation("CreatedBroadcasts")
   templates      Template[]      @relation("CreatedTemplates")
   flashResponses FlashResponse[] @relation("CreatedFlashResponses")
-
+  
   Business Business[] @relation("BusinessEmployees")
 }
 
@@ -157,6 +157,7 @@ model Chat {
   updatedAt  DateTime      @updatedAt
   deleted    Boolean       @default(false)
   Status     MessageStatus @default(pending)
+  failedReason String?
   Prospect   Prospect?     @relation(fields: [prospectId], references: [id])
   prospectId String?
   isForBroadcast Boolean @default(false)
@@ -206,8 +207,14 @@ model Broadcast {
   updatedAt     DateTime  @updatedAt
   isScheduled   Boolean   @default(false)
   scheduledDate DateTime?
-  
+  utm_params    String?
+  utm_campaign   String?
+ price          String
+ is_utm_id_embeded Boolean @default(false)
+  utm_source    String?
+  utm_term      String?
   Chat Chat[]
+  links_visit   Int @default(0)
 }
 
 model Template {

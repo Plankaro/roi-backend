@@ -25,7 +25,9 @@ import { BroadcastModule } from './broadcast/broadcast.module';
 import { BullModule } from '@nestjs/bullmq';
 
 import { TemplateModule } from './template/template.module';
-import { RedirectModule } from './redirect/redirect.module';
+
+import { EventsModule } from './events/events.module';
+import { GoModule } from './go/go.module';
 
 
 
@@ -67,7 +69,9 @@ import { RedirectModule } from './redirect/redirect.module';
     FlashresponseModule,
     BroadcastModule,
     TemplateModule,
-    RedirectModule,
+  
+    EventsModule,
+    GoModule,
   
    
   ],
