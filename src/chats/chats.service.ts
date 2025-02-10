@@ -5,13 +5,15 @@ import { ChatsGateway } from './chats.gateway';
 import { DatabaseService } from 'src/database/database.service';
 import { MediaDto } from './dto/media-chat-dto';
 import { HeaderType } from '@prisma/client';
-
+import { getFirstAndLastName, sanitizePhoneNumber } from 'utils/usefulfunction';
+import { ShopifyService } from 'src/shopify/shopify.service';
 @Injectable()
 export class ChatsService {
   constructor(
     private readonly whatsappService: WhatsappService,
     private readonly chatsGateway: ChatsGateway,
     private readonly databaseService: DatabaseService,
+    private readonly ShopifyService: ShopifyService
   ) {}
   async create(sendTemplateMessageDto: any) {
     const {
@@ -26,6 +28,7 @@ export class ChatsService {
       template_type,
       // Template name
     } = sendTemplateMessageDto;
+
 
     console.log(JSON.stringify(sendTemplateMessageDto,null, 2));
 
@@ -161,6 +164,23 @@ export class ChatsService {
     // });
 
     try {
+      const prospect = await this.databaseService.prospect.upsert({
+        where: {
+          buisnessNo_phoneNo: { // Correct format for compound unique constraint
+            phoneNo: recipientNo as string,
+            buisnessNo: '15551365364'
+          }
+        },
+        update: {
+          // Add the fields you want to update when the record exists
+        },
+        create: {
+          phoneNo: recipientNo as string,
+          buisnessNo: '15551365364',
+          lead :"LEAD"
+          // Add other required fields for new record creation
+        }
+      });
       const message: any = await this.whatsappService.sendTemplateMessage({
         recipientNo: recipientNo,
         templateName: template_name,
@@ -171,6 +191,7 @@ export class ChatsService {
 
       const addTodb = await this.databaseService.chat.create({
         data: {
+          prospectId:prospect.id,
           chatId: message?.messages[0]?.id ?? '',
           template_used: true,
           template_name:template_name,
@@ -198,29 +219,64 @@ export class ChatsService {
   async receiveMessage(receiveMessageDto: any) {
     try {
       console.log(JSON.stringify(receiveMessageDto, null, 2));
-
       const { entry } = receiveMessageDto;
-     
       const processedResults = [];
 
       for (const individualEntry of entry) {
         for (const change of individualEntry.changes) {
           const { value } = change;
 
-          // Process each message in parallel
+          // Process messages
           if (value.messages) {
             const messagePromises = value.messages.map(async (message) => {
               try {
+                const rawPhoneNumber = `+${sanitizePhoneNumber(message.from)}`;
+                // Attempt to get the customer from Shopify
+                let shopifyCustomer = await this.getShopifyProspectUsingPhoneNumber(rawPhoneNumber);
+                // If not found, create a new customer using the contact name
+                if (!shopifyCustomer) {
+                  const name = getFirstAndLastName(value.contacts?.[0]?.profile?.name);
+                  shopifyCustomer = await this.createShopifyusingPhoneNumber({
+                    firstName: name.firstName,
+                    lastName: name.lastName,
+                    phone: rawPhoneNumber,
+                  });
+                }
+                console.log(shopifyCustomer);
+
+                const prospect = await this.databaseService.prospect.upsert({
+                  where: {
+                    buisnessNo_phoneNo: {
+                      phoneNo: sanitizePhoneNumber(message.from),
+                      buisnessNo: sanitizePhoneNumber(value.metadata.display_phone_number),
+                    },
+                  },
+                  update: {
+                    // fields to update if record exists
+                  },
+                  create: {
+                    shopify_id: shopifyCustomer?.id ?? null,
+                    phoneNo: sanitizePhoneNumber(message.from),
+                    buisnessNo: sanitizePhoneNumber(value.metadata.display_phone_number),
+                    image:shopifyCustomer?.image.url ?? null,
+                    lead: "LEAD",
+                    name: shopifyCustomer
+                      ? `${shopifyCustomer.firstName} ${shopifyCustomer.lastName}`
+                      : value.contacts?.[0]?.profile?.name,
+                    email: shopifyCustomer?.email ?? null,
+                    // other required fields
+                  },
+                });
                 const result = await this.databaseService.chat.create({
                   data: {
+                    prospectId: prospect.id,
                     chatId: message.id,
                     senderPhoneNo: message.from,
                     receiverPhoneNo: value.metadata.display_phone_number,
                     sendDate: new Date(),
-                    // body_type: message.type,
                     body_text: message.text?.body,
                     Status: 'delivered',
-                    type:"personal" // Handle non-text messages
+                    type: "personal",
                   },
                 });
                 processedResults.push(result);
@@ -231,19 +287,16 @@ export class ChatsService {
             await Promise.allSettled(messagePromises);
           }
 
-          // Process each status update in parallel
+          // Process statuses
           if (value.statuses) {
             const statusPromises = value.statuses.map(async (status) => {
               try {
-          
                 const result = await this.databaseService.chat.update({
                   where: { chatId: status.id },
-                  data: { 
+                  data: {
                     Status: status.status,
-                    failedReason:status.errors?.[0]?.message??null,
-                   },
-                  
-
+                    failedReason: status.errors?.[0]?.message ?? null,
+                  },
                 });
                 processedResults.push(result);
               } catch (error) {
@@ -257,12 +310,11 @@ export class ChatsService {
 
       // Notify clients via WebSocket of all processed results
       this.chatsGateway.handleMessage(processedResults);
-
       return { success: true, processed: processedResults.length };
     } catch (error) {
       console.error('Error in receiveMessage:', error);
       throw new InternalServerErrorException(
-        error || 'Failed to fetch products from Shopify',
+        error || 'Failed to process messages from Shopify'
       );
     }
   }
@@ -271,6 +323,25 @@ export class ChatsService {
     console.log(sendChatDto);
     const { recipientNo, message } = sendChatDto;
     try {
+
+      await this.databaseService.prospect.upsert({
+        where: {
+          buisnessNo_phoneNo: { // Correct format for compound unique constraint
+            phoneNo: recipientNo as string,
+            buisnessNo: '15551365364',
+
+          }
+        },
+        update: {
+          // Add the fields you want to update when the record exists
+        },
+        create: {
+          phoneNo: recipientNo as string,
+          buisnessNo: '15551365364',
+          lead :"LEAD"
+          // Add other required fields for new record creation
+        }
+      });
       const sendMessage = await this.whatsappService.sendMessage(
         recipientNo,
         message,
@@ -299,8 +370,7 @@ export class ChatsService {
 
   async findAllChats(client: string, prospect: string) {
     try {
-      const sanitizePhoneNumber = (phone: string) =>
-        phone.startsWith('+') ? phone.slice(1) : phone;
+      
 
       const chats = await this.databaseService.chat.findMany({
         where: {
@@ -315,6 +385,7 @@ export class ChatsService {
               receiverPhoneNo: sanitizePhoneNumber(client),
             },
           ],
+
         },
       });
 
@@ -380,5 +451,71 @@ export class ChatsService {
     }
   }
   
- 
+  async getShopifyProspectUsingPhoneNumber(phoneNumber: string) {
+    const query = `
+      query getCustomerByPhone($query: String!) {
+        customers(first: 1, query: $query) {
+          edges {
+            node {
+              id
+              firstName
+              lastName
+              email
+              phone
+                 image {
+              url
+              src
+            }
+            }
+          }
+        }
+      }
+    `;
+    const variables = {
+      query: `phone:${phoneNumber}`,
+    };
+
+    try {
+      console.log(JSON.stringify(variables));
+      const result = await this.ShopifyService.executeGraphQL(query, variables);
+      if (result.data.customers.edges && result.data.customers.edges.length > 0) {
+        return result.data.customers.edges[0].node;
+      }
+      return null;
+    } catch (error) {
+      console.error('Error executing GraphQL query:', error);
+      throw new InternalServerErrorException(
+        'Failed to fetch customer data from Shopify'
+      );
+    }
+  }
+
+  async createShopifyusingPhoneNumber(data: { firstName?: string; lastName?: string; phone?: string }) {
+    const query = `mutation createCustomer($input: CustomerInput!) {
+      customerCreate(input: $input) {
+        customer {
+          id
+          firstName
+          lastName
+          email
+          phone
+             image {
+              url
+              src
+            }
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }`;
+    const variables = { input: data };
+    const response = await this.ShopifyService.executeGraphQL(query, variables);
+    if (response.data.customerCreate && response.data.customerCreate.customer) {
+      return response.data.customerCreate.customer;
+    } else {
+      throw new InternalServerErrorException('Failed to create customer on Shopify');
+    }
+  }
 }

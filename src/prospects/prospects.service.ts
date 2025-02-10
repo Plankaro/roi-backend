@@ -6,69 +6,57 @@ import { InternalServerErrorException } from '@nestjs/common';
 
 @Injectable()
 export class ProspectsService {
-   constructor(
-      private readonly databaseService: DatabaseService,
-   ){}
+  constructor(private readonly databaseService: DatabaseService) {}
   create(createProspectDto: CreateProspectDto) {
     try {
-      const {shopify_id, name, email, phone,image} = createProspectDto
+      const { shopify_id, name, email, phone, image } = createProspectDto;
       return this.databaseService.prospect.create({
         data: {
           shopify_id,
           name,
           email,
           image,
-          phoneNo:phone,
-          lead:"LEAD"
-        }
-      })
-
-      
+          phoneNo: phone,
+          lead: 'LEAD',
+          buisnessNo: '15551365364',
+        },
+      });
     } catch (error) {
-      throw new InternalServerErrorException(error.message)
+      throw new InternalServerErrorException(error.message);
     }
   }
 
   async findAll() {
-   try {
-     const response =await this.databaseService.prospect.findMany(
-       {
-        include:{
-           chats: {
-             take: 1, // Get only the last message
-             orderBy: {
-               sendDate: 'desc', // Sort by sendDate in descending order
-             },
-            
-           },
-           
- 
-         }
-       }
-     );
-  
-     return response
-   } catch (error) {
-    console.log(error);
-    throw new InternalServerErrorException(error);
-   }
+    try {
+      const response = await this.databaseService.prospect.findMany({
+        include: {
+          chats: true,
+        },
+      });
+
+      return response;
+    } catch (error) {
+      console.log(error);
+      throw new InternalServerErrorException(error);
+    }
   }
 
   async findOne(id: string) {
-   try {
-    const response = await this.databaseService.prospect.findUnique({
-      where: {
-        shopify_id:id
-      },
-      include: {
-        order: true
-      }
-    })
-    return response
-
-   } catch (error) {
-    throw new InternalServerErrorException(error)
-   }
+    try {
+      const response = await this.databaseService.prospect.findUnique({
+        where: {
+          id,
+        },
+        include: {
+          order: true,
+         
+        },
+      });
+      console.log
+      return response;
+    } catch (error) {
+      throw new InternalServerErrorException(error);
+    }
   }
 
   update(id: number, updateProspectDto: UpdateProspectDto) {

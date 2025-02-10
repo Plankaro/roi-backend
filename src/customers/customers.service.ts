@@ -258,7 +258,7 @@ export class CustomersService {
       return contacts;
     } catch (error) {
       console.error("Error in getAllContactsForSegment:", error);
-      throw new InternalServerErrorException({message:error.message,statusCode:error.statusCode});
+      throw new InternalServerErrorException({message:error.message});
     }
   }
   update(id: number, updateCustomerDto: UpdateCustomerDto) {
