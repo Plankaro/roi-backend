@@ -10,6 +10,10 @@ export class MediaDto {
   @IsString()
   recipientNo: string;
 
+  @IsString()
+ 
+  prospectId: string; // Maps to `id`
+
   @IsUrl()
   mediaUrl: string;
 

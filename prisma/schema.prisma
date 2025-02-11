@@ -83,7 +83,7 @@ model Business {
 
 model Prospect {
   id           String    @id @default(cuid())
-  shopify_id   String?    @unique
+  shopify_id   String?   @unique
   name         String?
   email        String?
   image        String?
@@ -101,8 +101,26 @@ model Prospect {
   created_at   DateTime  @default(now())
   updated_at   DateTime  @updatedAt
 
+  // Many-to-Many Relationship with Broadcast via BroadcastContact
+  broadastContacts BroadcastContact[]
+
   @@unique([buisnessNo, phoneNo]) 
 }
+
+model BroadcastContact {
+  id          String    @id @default(cuid())
+  prospectId  String
+  broadcastId String
+  phoneNo     String
+  buisnessNo  String
+
+  prospect    Prospect  @relation(fields: [prospectId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  broadcast   Broadcast @relation(fields: [broadcastId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@unique([prospectId, broadcastId]) // Prevents duplicate entries
+}
+
+
 
 model Order {
   id                String     @id @default(cuid())
@@ -163,8 +181,9 @@ model Chat {
   deleted    Boolean       @default(false)
   Status     MessageStatus @default(pending)
   failedReason String?
-  Prospect   Prospect?     @relation(fields: [prospectId], references: [id])
-  prospectId String?
+  Prospect   Prospect    @relation(fields: [prospectId], references: [id])
+  prospectId String
+  
   isForBroadcast Boolean @default(false)
   Broadcast  Broadcast?     @relation(fields: [broadcastId], references: [id])
   broadcastId String?
@@ -203,7 +222,7 @@ model Broadcast {
   template      String
   type          String
   status        String
-  broadastContact String[]
+
   createdBy     String?
   creator       User?      @relation("CreatedBroadcasts", fields: [createdBy], references: [id])
   createdForId  String?
@@ -220,6 +239,7 @@ model Broadcast {
   utm_term      String?
   Chat Chat[]
   links_visit   Int @default(0)
+    broadastContacts BroadcastContact[]
 }
 
 model Template {

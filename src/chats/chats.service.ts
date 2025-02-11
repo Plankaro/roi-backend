@@ -181,6 +181,7 @@ export class ChatsService {
           // Add other required fields for new record creation
         }
       });
+      
       const message: any = await this.whatsappService.sendTemplateMessage({
         recipientNo: recipientNo,
         templateName: template_name,
@@ -204,7 +205,7 @@ export class ChatsService {
           footer_included:previewSection.footer.length > 0,
           footer_text:previewSection.footer,
           Buttons:previewSection.buttons,
-          type:template_type
+          type:template_type||"text"
 
 
         },
@@ -221,133 +222,152 @@ export class ChatsService {
       console.log(JSON.stringify(receiveMessageDto, null, 2));
       const { entry } = receiveMessageDto;
       const processedResults = [];
-
+  
       for (const individualEntry of entry) {
         for (const change of individualEntry.changes) {
           const { value } = change;
-
-          // Process messages
+          const businessPhoneNumber = sanitizePhoneNumber(value.metadata.display_phone_number);
+          console.log(businessPhoneNumber); // Receiver's phone number
+  
           if (value.messages) {
             const messagePromises = value.messages.map(async (message) => {
               try {
                 const rawPhoneNumber = `+${sanitizePhoneNumber(message.from)}`;
-                // Attempt to get the customer from Shopify
-                let shopifyCustomer = await this.getShopifyProspectUsingPhoneNumber(rawPhoneNumber);
-                // If not found, create a new customer using the contact name
-                if (!shopifyCustomer) {
+  
+                let prospect = await this.databaseService.prospect.findUnique({
+                  where: {
+                    buisnessNo_phoneNo: {
+                      phoneNo: sanitizePhoneNumber(message.from),
+                      buisnessNo: businessPhoneNumber,
+                    },
+                  },
+                });
+  
+                if (!prospect) {
                   const name = getFirstAndLastName(value.contacts?.[0]?.profile?.name);
-                  shopifyCustomer = await this.createShopifyusingPhoneNumber({
+                  let shopifyCustomer = await this.createShopifyusingPhoneNumber({
                     firstName: name.firstName,
                     lastName: name.lastName,
                     phone: rawPhoneNumber,
                   });
-                }
-                console.log(shopifyCustomer);
-
-                const prospect = await this.databaseService.prospect.upsert({
-                  where: {
-                    buisnessNo_phoneNo: {
+  
+                  prospect = await this.databaseService.prospect.create({
+                    data: {
+                      shopify_id: shopifyCustomer?.id?.match(/\d+$/)?.[0] ?? null,
                       phoneNo: sanitizePhoneNumber(message.from),
-                      buisnessNo: sanitizePhoneNumber(value.metadata.display_phone_number),
+                      buisnessNo: businessPhoneNumber,
+                      image: shopifyCustomer?.image?.url ?? null,
+                      lead: "LEAD",
+                      name: shopifyCustomer
+                        ? `${shopifyCustomer.firstName} ${shopifyCustomer.lastName}`
+                        : value.contacts?.[0]?.profile?.name,
+                      email: shopifyCustomer?.email ?? null,
                     },
-                  },
-                  update: {
-                    // fields to update if record exists
-                  },
-                  create: {
-                    shopify_id: shopifyCustomer?.id ?? null,
-                    phoneNo: sanitizePhoneNumber(message.from),
-                    buisnessNo: sanitizePhoneNumber(value.metadata.display_phone_number),
-                    image:shopifyCustomer?.image.url ?? null,
-                    lead: "LEAD",
-                    name: shopifyCustomer
-                      ? `${shopifyCustomer.firstName} ${shopifyCustomer.lastName}`
-                      : value.contacts?.[0]?.profile?.name,
-                    email: shopifyCustomer?.email ?? null,
-                    // other required fields
-                  },
-                });
-                const result = await this.databaseService.chat.create({
+                  });
+                   // Send prospect update to clients subscribed to the business phone
+                this.chatsGateway.sendMessageToSubscribedClients(
+                  businessPhoneNumber,
+                  "prospect",
+                  prospect
+                );
+                }
+  
+               
+  
+                const chatMessage = await this.databaseService.chat.create({
                   data: {
                     prospectId: prospect.id,
                     chatId: message.id,
                     senderPhoneNo: message.from,
-                    receiverPhoneNo: value.metadata.display_phone_number,
+                    receiverPhoneNo: businessPhoneNumber,
                     sendDate: new Date(),
                     body_text: message.text?.body,
-                    Status: 'delivered',
+                    Status: "delivered",
                     type: "personal",
                   },
                 });
-                processedResults.push(result);
+                processedResults.push(chatMessage);
+  
+       
+                this.chatsGateway.sendMessageToSubscribedClients(
+                  businessPhoneNumber,
+                  "messages",
+                  chatMessage
+                );
               } catch (error) {
-                console.error('Error processing message:', error);
+                console.error("Error processing message:", error);
               }
             });
+  
             await Promise.allSettled(messagePromises);
           }
-
-          // Process statuses
+  
           if (value.statuses) {
             const statusPromises = value.statuses.map(async (status) => {
               try {
-                const result = await this.databaseService.chat.update({
+                const updatedChat = await this.databaseService.chat.update({
                   where: { chatId: status.id },
                   data: {
                     Status: status.status,
                     failedReason: status.errors?.[0]?.message ?? null,
                   },
                 });
-                processedResults.push(result);
+                processedResults.push(updatedChat);
+  
+                this.chatsGateway.sendMessageToSubscribedClients(
+                  businessPhoneNumber,
+                  "messages",
+                  updatedChat
+                );
               } catch (error) {
-                console.error('Error updating status:', error);
+                console.error("Error updating status:", error);
               }
             });
             await Promise.allSettled(statusPromises);
           }
         }
       }
-
-      // Notify clients via WebSocket of all processed results
-      this.chatsGateway.handleMessage(processedResults);
+  
       return { success: true, processed: processedResults.length };
     } catch (error) {
-      console.error('Error in receiveMessage:', error);
+      console.error("Error in receiveMessage:", error);
       throw new InternalServerErrorException(
-        error || 'Failed to process messages from Shopify'
+        error || "Failed to process messages from Shopify"
       );
     }
   }
-
+  
+  
   async sendMessage(sendChatDto: any) {
     console.log(sendChatDto);
-    const { recipientNo, message } = sendChatDto;
+    const { recipientNo, message,prospect_id } = sendChatDto;
     try {
 
-      await this.databaseService.prospect.upsert({
-        where: {
-          buisnessNo_phoneNo: { // Correct format for compound unique constraint
-            phoneNo: recipientNo as string,
-            buisnessNo: '15551365364',
+      // const prospect = await this.databaseService.prospect.upsert({
+      //   where: {
+      //     buisnessNo_phoneNo: { // Correct format for compound unique constraint
+      //       phoneNo: recipientNo as string,
+      //       buisnessNo: '15551365364',
 
-          }
-        },
-        update: {
-          // Add the fields you want to update when the record exists
-        },
-        create: {
-          phoneNo: recipientNo as string,
-          buisnessNo: '15551365364',
-          lead :"LEAD"
-          // Add other required fields for new record creation
-        }
-      });
+      //     }
+      //   },
+      //   update: {
+      //     // Add the fields you want to update when the record exists
+      //   },
+      //   create: {
+      //     phoneNo: recipientNo as string,
+      //     buisnessNo: '15551365364',
+      //     lead :"LEAD"
+      //     // Add other required fields for new record creation
+      //   }
+      // });
       const sendMessage = await this.whatsappService.sendMessage(
         recipientNo,
         message,
       );
       const result = await this.databaseService.chat.create({
         data: {
+          prospectId:prospect_id,
           chatId: sendMessage?.messages[0]?.id ?? '',
           senderPhoneNo: '15551365364',
           receiverPhoneNo: sendMessage?.contacts[0].input,
@@ -368,23 +388,14 @@ export class ChatsService {
     }
   }
 
-  async findAllChats(client: string, prospect: string) {
+  async findAllChats(prospect_id:string) {
     try {
       
 
       const chats = await this.databaseService.chat.findMany({
         where: {
           // ✅ `where` clause is required
-          OR: [
-            {
-              senderPhoneNo: sanitizePhoneNumber(client),
-              receiverPhoneNo: sanitizePhoneNumber(prospect),
-            },
-            {
-              senderPhoneNo: sanitizePhoneNumber(prospect),
-              receiverPhoneNo: sanitizePhoneNumber(client),
-            },
-          ],
+        prospectId:prospect_id,
 
         },
       });
@@ -432,6 +443,7 @@ export class ChatsService {
       );
       const result = await this.databaseService.chat.create({
         data: {
+          prospectId:MediaDto.prospectId,
           chatId: sendMessage?.messages[0]?.id ?? '',
           senderPhoneNo: '15551365364',
           receiverPhoneNo: sendMessage?.contacts[0].input,

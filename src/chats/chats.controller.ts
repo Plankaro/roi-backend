@@ -38,10 +38,10 @@ export class ChatsController {
   @Get('/')
 
   findAllChats(
-    @Query('client_no') client: string,
-    @Query('prospect_no') prospect: string,
+   
+    @Query('prospect_id') prospect: string,
   ) {
-    return this.chatsService.findAllChats(client,prospect);
+    return this.chatsService.findAllChats(prospect);
 
   }
 

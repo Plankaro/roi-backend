@@ -126,6 +126,7 @@ export class BroadcastProcessor extends WorkerHost {
         // Save the successful send in the database.
         await this.databaseService.chat.create({
           data: {
+            prospectId:"",
             chatId: response?.messages[0]?.id ?? '',
             template_used: true,
             template_name: templateName,

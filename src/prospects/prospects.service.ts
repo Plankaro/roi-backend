@@ -30,11 +30,17 @@ export class ProspectsService {
     try {
       const response = await this.databaseService.prospect.findMany({
         include: {
-          chats: true,
+          chats: {
+            take: 1,
+            orderBy: {
+              createdAt: 'desc', // Adjust this field based on your schema
+            },
+          },
         },
       });
-
       return response;
+
+  
     } catch (error) {
       console.log(error);
       throw new InternalServerErrorException(error);

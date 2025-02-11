@@ -101,7 +101,7 @@ export class BroadcastService {
       data: {
         template: template_name,
         type: type,
-        broadastContact: recipientNo,
+        broadastContacts: recipientNo,
         status: 'pending',
         utm_source: utm_source,
         utm_campaign: utm_campaign,
