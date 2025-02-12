@@ -56,6 +56,12 @@ export class CustomersService {
                 closed
                 closedAt
                 id
+                 fulfillments(first: 1) {
+        nodes {
+          status
+          createdAt
+        }
+      }
                 totalPriceSet {
                   shopMoney {
                     amount
@@ -120,45 +126,46 @@ export class CustomersService {
 
   async getCustomerById(customerId: string) {
     const query = `
-      query ($id: ID!) {
-        customer(id: $id) {
+  query ($id: ID!) {
+    customer(id: $id) {
+      id
+      firstName
+      lastName
+      email
+      image {
+        url
+        src
+      }
+      phone
+      amountSpent {
+        amount
+        currencyCode
+      }
+      orders(first: 5) {
+        nodes {
           id
-          firstName
-          lastName
-          email
-          image {
-              url
-              src
-            }
-          phone
-          amountSpent {
-            amount
-            currencyCode
-          }
-          orders(first: 5) {
-            nodes {
-              id
-              name
-              totalPriceSet {
-                shopMoney {
-                  amount
-                  currencyCode
-                }
-              }
-              createdAt
-             
+          name
+          totalPriceSet {
+            shopMoney {
+              amount
+              currencyCode
             }
           }
-          addresses {
-            address1
-            address2
-            city
-            country
-            zip
-          }
+          createdAt
+          
+        
         }
       }
-    `;
+      addresses {
+        address1
+        address2
+        city
+        country
+        zip
+      }
+    }
+  }
+`;
 
     const variables = { id: `gid://shopify/Customer/${customerId}` };
 
@@ -180,6 +187,7 @@ export class CustomersService {
     //   orders: node.orders.nodes,
     //   image: node.image?.url || '', // Handle cases where image might be null
     // }));
+    console.log(JSON.stringify(response.data, null, 2)); // Log the response)
     return response.data.customer;
   }
 
@@ -212,7 +220,7 @@ export class CustomersService {
     let hasNextPage = true;
     let after: string = null;
     const first = 250;
-  
+
     const query = `
       query GetSegmentMembers($segmentId: ID!, $first: Int!, $after: String) {
         customerSegmentMembers(segmentId: $segmentId, first: $first, after: $after) {
@@ -232,15 +240,20 @@ export class CustomersService {
         }
       }
     `;
-  
+
     try {
       while (hasNextPage) {
         const variables = { segmentId, first, after };
-        const result = await this.shopifyService.executeGraphQL(query, variables);
+        const result = await this.shopifyService.executeGraphQL(
+          query,
+          variables,
+        );
         // Log any errors if present:
         if (result.errors && result.errors.length) {
           console.error('GraphQL errors:', result.errors);
-          throw new InternalServerErrorException(result.errors[0].message || "Failed to get data");
+          throw new InternalServerErrorException(
+            result.errors[0].message || 'Failed to get data',
+          );
         }
         const membersConnection = result.data?.customerSegmentMembers;
         if (!membersConnection) {
@@ -248,17 +261,21 @@ export class CustomersService {
         }
         const edges = membersConnection.edges || [];
         contacts = contacts.concat(
-          edges.map((edge: any) =>
-            edge.node.defaultPhoneNumber ? edge.node.defaultPhoneNumber.phoneNumber : null
-          ).filter((phone: string | null): phone is string => phone !== null)
+          edges
+            .map((edge: any) =>
+              edge.node.defaultPhoneNumber
+                ? edge.node.defaultPhoneNumber.phoneNumber
+                : null,
+            )
+            .filter((phone: string | null): phone is string => phone !== null),
         );
         hasNextPage = membersConnection.pageInfo.hasNextPage;
         after = membersConnection.pageInfo.endCursor;
       }
       return contacts;
     } catch (error) {
-      console.error("Error in getAllContactsForSegment:", error);
-      throw new InternalServerErrorException({message:error.message});
+      console.error('Error in getAllContactsForSegment:', error);
+      throw new InternalServerErrorException({ message: error.message });
     }
   }
   update(id: number, updateCustomerDto: UpdateCustomerDto) {

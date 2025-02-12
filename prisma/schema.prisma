@@ -30,7 +30,7 @@ model User {
   broadcasts     Broadcast[]     @relation("CreatedBroadcasts")
   templates      Template[]      @relation("CreatedTemplates")
   flashResponses FlashResponse[] @relation("CreatedFlashResponses")
-  
+
   Business Business[] @relation("BusinessEmployees")
 }
 
@@ -74,7 +74,7 @@ model Business {
   tags         Tag[]
 
   shopifyApi String?
-  
+
   Broadcast     Broadcast[]
   Template      Template[]
   FlashResponse FlashResponse[]
@@ -88,7 +88,7 @@ model Prospect {
   email        String?
   image        String?
   phoneNo      String
-  lead         Lead @default(LEAD)
+  lead         Lead      @default(LEAD)
   tags         Tag[]
   assignedToId String?
   assignedTo   User?     @relation("AssignedProspects", fields: [assignedToId], references: [id])
@@ -102,35 +102,21 @@ model Prospect {
   updated_at   DateTime  @updatedAt
 
   // Many-to-Many Relationship with Broadcast via BroadcastContact
-  broadastContacts BroadcastContact[]
 
-  @@unique([buisnessNo, phoneNo]) 
+  @@unique([buisnessNo, phoneNo])
 }
-
-model BroadcastContact {
-  id          String    @id @default(cuid())
-  prospectId  String
-  broadcastId String
-  phoneNo     String
-  buisnessNo  String
-
-  prospect    Prospect  @relation(fields: [prospectId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  broadcast   Broadcast @relation(fields: [broadcastId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-
-  @@unique([prospectId, broadcastId]) // Prevents duplicate entries
-}
-
-
 
 model Order {
-  id                String     @id @default(cuid())
-  shopify_id        String     @unique
-  prospect_shopify_id       String
-  prospect          Prospect @relation(fields: [prospect_shopify_id], references: [shopify_id] )
-  status        Status @default(PENDING)
-  amount        String
-  Date          DateTime @default(now())
-
+  id                  String     @id @default(cuid())
+  shopify_id          String     @unique
+  prospect_shopify_id String?
+  prospect            Prospect?  @relation(fields: [prospect_shopify_id], references: [shopify_id])
+  status              Status     @default(PENDING)
+  amount              String
+  Date                DateTime   @default(now())
+  fromBroadcast       Boolean    @default(false)
+  BroadCastId         String?
+  BroadCast           Broadcast? @relation(fields: [BroadCastId], references: [id])
 }
 
 enum Status {
@@ -154,40 +140,43 @@ model Tag {
   prospects  Prospect[]
 }
 
-
 model Chat {
-  id                 String      @id @default(cuid())
-  chatId             String      @unique
-  senderPhoneNo      String
-  receiverPhoneNo    String
-  sendDate           DateTime
-  template_used      Boolean     @default(false)
-  template_name      String?
-  header_type        HeaderType?
-  header_value         String?
+  id              String      @id @default(cuid())
+  chatId          String      @unique
+  senderPhoneNo   String
+  receiverPhoneNo String
+  sendDate        DateTime
+  template_used   Boolean     @default(false)
+  template_name   String?
+  header_type     HeaderType?
+  header_value    String?
   // body_type          BodyType    @default(text)
   // body_attachmentUrl String[]
 
   body_text String?
 
-  footer_included Boolean @default(false)
+  footer_included Boolean  @default(false)
   // footer_type     String?
   // footer_url      String?
   footer_text     String?
   Buttons         String[]
 
-  createdAt  DateTime      @default(now())
-  updatedAt  DateTime      @updatedAt
-  deleted    Boolean       @default(false)
-  Status     MessageStatus @default(pending)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  deleted      Boolean       @default(false)
+  Status       MessageStatus @default(pending)
   failedReason String?
-  Prospect   Prospect    @relation(fields: [prospectId], references: [id])
-  prospectId String
-  
-  isForBroadcast Boolean @default(false)
-  Broadcast  Broadcast?     @relation(fields: [broadcastId], references: [id])
-  broadcastId String?
-  type        String
+  Prospect     Prospect?     @relation(fields: [prospectId], references: [id])
+  prospectId   String?
+
+  isForBroadcast Boolean    @default(false)
+  Broadcast      Broadcast? @relation(fields: [broadcastId], references: [id])
+  broadcastId    String?
+  ContactId      String?
+
+  type String
+
+  Contacts Contacts[]
 }
 
 enum MessageStatus {
@@ -202,7 +191,7 @@ enum HeaderType {
   IMAGE
   VIDEO
   DOCUMENT
-  TEXT// Added document support
+  TEXT // Added document support
 }
 
 enum BodyType {
@@ -218,32 +207,48 @@ enum OrderStatus {
 }
 
 model Broadcast {
-  id            String    @id @default(cuid())
-  template      String
-  type          String
-  status        String
+  id       String @id @default(cuid())
+  template String
+  type     String
+  status   String
 
-  createdBy     String?
-  creator       User?      @relation("CreatedBroadcasts", fields: [createdBy], references: [id])
-  createdForId  String?
-  createdFor    Business?  @relation(fields: [createdForId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  isScheduled   Boolean   @default(false)
-  scheduledDate DateTime?
-  utm_params    String?
-  utm_campaign   String?
- price          String
- is_utm_id_embeded Boolean @default(false)
-  utm_source    String?
-  utm_term      String?
-  Chat Chat[]
-  links_visit   Int @default(0)
-    broadastContacts BroadcastContact[]
+  createdBy          String?
+  creator            User?      @relation("CreatedBroadcasts", fields: [createdBy], references: [id])
+  createdForId       String?
+  createdFor         Business?  @relation(fields: [createdForId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+  isScheduled        Boolean    @default(false)
+  scheduledDate      DateTime?
+  utm_params         String?
+  utm_campaign       String?
+  price              String
+  is_utm_id_embeded  Boolean    @default(false)
+  utm_source         String?
+  utm_term           String?
+  Chat               Chat[]
+  links_visit        Int        @default(0)
+  BroadCast_Contacts Contacts[]
+  order_created      Int        @default(0)
+
+  Order Order[]
+}
+
+model Contacts {
+  id          String    @id @default(cuid())
+  phoneNo     String
+  name        String?
+  email       String?
+  status      String?
+  createdBy   String?
+  BroadCastId String
+  Broadcast   Broadcast @relation(fields: [BroadCastId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  chatId      String
+  Chat        Chat      @relation(fields: [chatId], references: [id], onUpdate: Cascade, onDelete: Cascade)
 }
 
 model Template {
-  id           String   @id @default(cuid())
+  id           String    @id @default(cuid())
   message      String
   name         String
   status       String
@@ -252,21 +257,21 @@ model Template {
   creator      User?     @relation("CreatedTemplates", fields: [createdBy], references: [id])
   createdForId String?
   createdFor   Business? @relation(fields: [createdForId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 }
 
 model FlashResponse {
-  id           String   @id @default(cuid())
+  id           String    @id @default(cuid())
   short        String
   message      String
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
   createdBy    String?
   creator      User?     @relation("CreatedFlashResponses", fields: [createdBy], references: [id])
   createdForId String?
   createdFor   Business? @relation(fields: [createdForId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  isPrivate    Boolean  @default(false)
+  isPrivate    Boolean   @default(false)
 }
 
 model Payment {

@@ -1,11 +1,51 @@
 import { Injectable } from '@nestjs/common';
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
-
+import { sanitizePhoneNumber } from 'utils/usefulfunction';
+import { DatabaseService } from 'src/database/database.service';
 @Injectable()
 export class EventsService {
-  create(createEventDto: CreateEventDto) {
-    return 'This action adds a new event';
+  constructor(private databaseService: DatabaseService) {}
+  async manipulateOrder(orderData: any) {
+    try {
+      const contact =
+        orderData.billing_address.phone || orderData.customer.phone;
+      const sanitizedContact = sanitizePhoneNumber(contact);
+      const threeDaysAgo = new Date();
+      threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+      console.log(orderData);
+      const latestBroadcast = await this.databaseService.broadcast.findFirst({
+        where: {
+          createdAt: {
+            gte: threeDaysAgo,
+          },
+          BroadCast_Contacts: {
+            some: {
+              phoneNo: sanitizedContact,
+              Chat: {
+                Status: 'read',
+              },
+            },
+          },
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+      });
+
+      if (latestBroadcast) {
+        // Update only that broadcast record by its unique ID
+        const updatedBroadcast = await this.databaseService.broadcast.update({
+          where: { id: latestBroadcast.id },
+          data: {
+            order_created: { increment: 1 },
+          },
+        });
+        console.log(updatedBroadcast);
+      } else {
+        console.log('No matching broadcast found.');
+      }
+    } catch (error) {}
   }
 
   findAll() {

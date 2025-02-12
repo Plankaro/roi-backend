@@ -137,7 +137,8 @@ mutation OrderCreate($order: OrderCreateOrderInput!, $options: OrderCreateOption
           shopify_id:getId(response?.data?.orderCreate?.order?.id??""),
           amount:response?.data?.orderCreate?.order?.currentTotalPriceSet?.shopMoney?.amount??"",
           
-          prospect_shopify_id:getId(customerId)
+          
+        
 
 
         }

@@ -219,7 +219,7 @@ export class ChatsService {
   }
   async receiveMessage(receiveMessageDto: any) {
     try {
-      console.log(JSON.stringify(receiveMessageDto, null, 2));
+      
       const { entry } = receiveMessageDto;
       const processedResults = [];
   
@@ -227,7 +227,7 @@ export class ChatsService {
         for (const change of individualEntry.changes) {
           const { value } = change;
           const businessPhoneNumber = sanitizePhoneNumber(value.metadata.display_phone_number);
-          console.log(businessPhoneNumber); // Receiver's phone number
+      // Receiver's phone number
   
           if (value.messages) {
             const messagePromises = value.messages.map(async (message) => {

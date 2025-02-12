@@ -7,10 +7,15 @@ import { UpdateEventDto } from './dto/update-event.dto';
 export class EventsController {
   constructor(private readonly eventsService: EventsService) {}
 
-  @Post()
-  create(@Body() createEventDto: any) {
-    console.log(createEventDto)
-    return createEventDto
+  @Post('/checkout')
+  create(@Body() checkoutdata: any) {
+    console.log("checkout",checkoutdata)
+    return checkoutdata
+  }
+  @Post('/order')
+  createOrder(@Body() orderData: any) {
+  
+    this.eventsService.manipulateOrder(orderData)
   }
 
   @Get()

@@ -101,7 +101,7 @@ export class BroadcastService {
       data: {
         template: template_name,
         type: type,
-        broadastContacts: recipientNo,
+       
         status: 'pending',
         utm_source: utm_source,
         utm_campaign: utm_campaign,
@@ -115,6 +115,9 @@ export class BroadcastService {
     // Convert recipientNo to array if it isn’t already.
     const recipientsArray = Array.isArray(recipientNo) ? recipientNo : [recipientNo];
 
+ 
+  
+ 
     // For demonstration, schedule the job 1 minute from now.
     // const scheduledTime = new Date(Date.now() + 1 * 60 * 1000);
     const delay = scheduledTime ? scheduledTime.getTime() - Date.now() : 0;
@@ -161,6 +164,7 @@ export class BroadcastService {
     try {
       const result = await this.databaseService.broadcast.findUnique({
         where: {
+
           id: id,
         },
         include:{
@@ -184,5 +188,6 @@ export class BroadcastService {
       throw new InternalServerErrorException(error);
     }
   }
-  
+ 
+
 }

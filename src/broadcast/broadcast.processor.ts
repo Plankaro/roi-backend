@@ -5,6 +5,7 @@ import { WhatsappService } from 'src/whatsapp/whatsapp.service';
 import { DatabaseService } from 'src/database/database.service';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
+import { sanitizePhoneNumber } from 'utils/usefulfunction';
 
 @Processor('broadcastQueue')
 @Injectable()
@@ -121,12 +122,20 @@ export class BroadcastProcessor extends WorkerHost {
           languageCode,
           components,
         });
-        console.log(`Message sent to ${recipientNo}:`, response);
+       
+      const isprospectrelated = await this.databaseService.prospect.findUnique({
+        where:{
+          buisnessNo_phoneNo:{
+            phoneNo: sanitizePhoneNumber(response?.contacts[0].input.replace(/^\+/, '')),
+            buisnessNo: '15551365364',
+          }
+        }
+      })
 
         // Save the successful send in the database.
-        await this.databaseService.chat.create({
+        const chat = await this.databaseService.chat.create({
           data: {
-            prospectId:"",
+         prospectId:isprospectrelated.id,
             chatId: response?.messages[0]?.id ?? '',
             template_used: true,
             template_name: templateName,
@@ -145,6 +154,14 @@ export class BroadcastProcessor extends WorkerHost {
             type: templatetype || 'personal',
           },
         });
+        await this.databaseService.contacts.create({
+          data:{
+            phoneNo:sanitizePhoneNumber(recipientNo),
+            BroadCastId:broadastContactId,
+            chatId:chat.id
+
+          }
+        })
       } catch (error) {
         console.log(JSON.stringify(error,null,2));
         // If a rate limit error occurs, capture the remaining recipients.
