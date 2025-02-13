@@ -28,6 +28,7 @@ import { TemplateModule } from './template/template.module';
 
 import { EventsModule } from './events/events.module';
 import { GoModule } from './go/go.module';
+import { AgentsModule } from './agents/agents.module';
 
 
 
@@ -72,6 +73,7 @@ import { GoModule } from './go/go.module';
   
     EventsModule,
     GoModule,
+    AgentsModule,
   
    
   ],

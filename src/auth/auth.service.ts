@@ -34,7 +34,11 @@ export class AuthService {
       const user = await this.databaseService.user.findUnique({
         where: {
           email: LoginDto.email,
+          
         },
+        include:{
+          Business:true,
+        }
       });
 
       if (!user) throw new UnauthorizedException('Invalid email or password');
@@ -59,6 +63,8 @@ export class AuthService {
           id: user.id,
           name: user.name,
           email: user.email,
+          role:user.role,
+          buisness:user.Business
         },
       };
     } catch (error) {
@@ -83,14 +89,22 @@ export class AuthService {
       const user = await this.databaseService.user.create({
         data: {
           email: registerAuthDto.email,
+          role:"ADMIN",
           password: hashedPassword,
           name: name, // Save the hashed password
         } as Prisma.UserCreateInput,
+        
+        
       });
-      const jwtPayload: { sub: string; email: string } = {
-        sub: user.id,
-        email: user.email,
-      };
+    
+      await this.databaseService.business.create({
+        data: {
+          businessName: registerAuthDto.buisnessname,
+          createdBy: user.id,
+
+
+        }
+      })
 
       // Return the user details excluding the password
       return {

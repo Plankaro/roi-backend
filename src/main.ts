@@ -7,6 +7,7 @@ import { JwtModule, JwtService } from '@nestjs/jwt';
 
 import { Reflector } from '@nestjs/core';
 import { MicroserviceOptions, Transport } from '@nestjs/microservices';
+import { DatabaseService } from 'src/database/database.service';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   app.use(cookieParser());
@@ -15,7 +16,7 @@ async function bootstrap() {
   const jwtService = app.get(JwtService); 
 
 
-  // app.useGlobalGuards(new AuthGuard(jwtService, reflector));
+  app.useGlobalGuards(new AuthGuard(jwtService, reflector, app.get(DatabaseService)));
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,

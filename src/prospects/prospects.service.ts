@@ -7,10 +7,12 @@ import { InternalServerErrorException } from '@nestjs/common';
 @Injectable()
 export class ProspectsService {
   constructor(private readonly databaseService: DatabaseService) {}
-  create(createProspectDto: CreateProspectDto) {
+  create(createProspectDto: CreateProspectDto,req:any) {
     try {
       const { shopify_id, name, email, phone, image } = createProspectDto;
-      return this.databaseService.prospect.create({
+      const buisnessNo = req.user.Business[0].whatsapp_mobile
+console.log(buisnessNo)
+      const prospect =  this.databaseService.prospect.create({
         data: {
           shopify_id,
           name,
@@ -18,17 +20,25 @@ export class ProspectsService {
           image,
           phoneNo: phone,
           lead: 'LEAD',
-          buisnessNo: '15551365364',
+          buisnessNo: buisnessNo,
         },
       });
+      return prospect
     } catch (error) {
+      console.log(error)
       throw new InternalServerErrorException(error.message);
     }
   }
 
-  async findAll() {
+  async findAll(req:any) {
+    console.log(req.user)
+    
     try {
+      const buisnessNo = req.user.Business[0].whatsapp_mobile
       const response = await this.databaseService.prospect.findMany({
+        where: {
+          buisnessNo:buisnessNo,
+        },
         include: {
           chats: {
             take: 1,

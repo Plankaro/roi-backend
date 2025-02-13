@@ -21,21 +21,21 @@ model User {
   createdAt       DateTime   @default(now())
   updatedAt       DateTime   @updatedAt
   isEmailVerified Boolean    @default(false)
-  role            Role       @default(USER) // Role field added
-  businesses      Business[] @relation("createdBusinesses")
-  accounts        Account[] // Keep this if you have OAuth or linked accounts.
+  role            Role       // e.g., ADMIN, AGENT, etc.
 
-  // Relations for other models
-  prospects      Prospect[]      @relation("AssignedProspects") // User can be assigned to Prospects
-  broadcasts     Broadcast[]     @relation("CreatedBroadcasts")
-  templates      Template[]      @relation("CreatedTemplates")
-  flashResponses FlashResponse[] @relation("CreatedFlashResponses")
+  // Each user (employee) can belong to one business.
+  business        Business?  @relation("BusinessEmployees", fields: [businessId], references: [id])
+  businessId      String?    // foreign key; optional if user is not linked to any business
 
-  Business Business[] @relation("BusinessEmployees")
+  accounts        Account[]
+  prospects       Prospect[]      @relation("AssignedProspects")
+  broadcasts      Broadcast[]     @relation("CreatedBroadcasts")
+  templates       Template[]      @relation("CreatedTemplates")
+  flashResponses  FlashResponse[] @relation("CreatedFlashResponses")
 }
 
 enum Role {
-  USER
+  
   ADMIN
   AGENT
 }
@@ -64,21 +64,25 @@ model Account {
 }
 
 model Business {
-  id           String     @id @default(cuid())
-  businessName String
-  createdBy    String
-  creator      User       @relation("createdBusinesses", fields: [createdBy], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  createdAt    DateTime   @default(now())
-  employees    User[]     @relation("BusinessEmployees") // Users as employees
-  prospects    Prospect[]
-  tags         Tag[]
+  id                   String     @id @default(cuid())
+  businessName         String
+  createdAt            DateTime   @default(now())
+  // List of employees (admins, agents, etc.) who are associated with this business.
+  employees            User[]     @relation("BusinessEmployees")
+  prospects            Prospect[]
+  tags                 Tag[]
 
-  shopifyApi String?
+  shopify_Token        String?
+  shopify_domain       String?
+  whatsapp_mobile_id   String?
+  whatsapp_mobile      String?    @unique
+  whatsapp_token       String?
+  whatsapp_buisness_id String?
 
-  Broadcast     Broadcast[]
-  Template      Template[]
-  FlashResponse FlashResponse[]
-  Payment       Payment[]
+  Broadcast            Broadcast[]
+  Template             Template[]
+  FlashResponse        FlashResponse[]
+  Payment              Payment[]
 }
 
 model Prospect {
@@ -87,14 +91,16 @@ model Prospect {
   name         String?
   email        String?
   image        String?
+  last_Online  DateTime?
   phoneNo      String
   lead         Lead      @default(LEAD)
   tags         Tag[]
   assignedToId String?
   assignedTo   User?     @relation("AssignedProspects", fields: [assignedToId], references: [id])
-  business     Business? @relation(fields: [businessId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  businessId   String?
+
+
   buisnessNo   String
+business         Business? @relation(fields: [buisnessNo], references: [whatsapp_mobile], onDelete: Cascade, onUpdate: Cascade)
   chats        Chat[]
   order        Order[]
   is_blocked   Boolean   @default(false)

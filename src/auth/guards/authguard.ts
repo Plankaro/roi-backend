@@ -9,11 +9,13 @@ import { JwtService } from '@nestjs/jwt';
 import { Request } from 'express';
 import { PUBLIC_KEY } from '../decorator/public.decorator'; // Adjust the path
 import { Reflector } from '@nestjs/core';
+import { DatabaseService } from 'src/database/database.service';
 @Injectable()
 export class AuthGuard implements CanActivate {
   constructor(
     private readonly jwtService: JwtService,
     private readonly reflector: Reflector,
+    private readonly databaseService: DatabaseService
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -22,27 +24,45 @@ export class AuthGuard implements CanActivate {
       context.getClass(),
     ]);
     if (isPublic) {
-      return true; // Skip the guard if the route is marked as public
+      return true; // Skip auth if public
     }
-
-
+  
     const request = context.switchToHttp().getRequest<Request>();
     const token = this.extractTokenFromHeader(request);
     if (!token) {
       throw new UnauthorizedException('Authentication failed');
     }
-
+  
     try {
       const payload = await this.jwtService.verifyAsync(token, {
         secret: process.env.ACCESS_TOKEN_JWT_SECRET,
       });
-      console.log(payload);
-      request['user'] = payload.sub; // Attach the user to the request
+  
+      if (!payload || !payload.sub) {
+        throw new UnauthorizedException('Authentication failed');
+      }
+  
+      const user = await this.databaseService.user.findUnique({
+        where: {
+          id: payload.sub,
+          
+        },
+        include:{
+          Business:true
+        }
+      });
+  
+      if (!user) {
+        throw new UnauthorizedException('Authentication failed');
+      }
+  
+      request['user'] = user; // ✅ Attach the user to the request
+  
     } catch (err) {
       throw new UnauthorizedException('Authentication failed');
     }
-
-    return true; // Grant access if the token is valid
+  
+    return true; // ✅ Ensure request['user'] is always set before returning true
   }
 
   private extractTokenFromHeader(request: Request): string | null {

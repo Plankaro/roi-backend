@@ -26,7 +26,7 @@ export class CustomersService {
         edges {
           cursor
           node {
-          id
+            id
             addresses {
               address1
               address2
@@ -42,26 +42,16 @@ export class CustomersService {
             email
             firstName
             lastName
-             phone
+            phone
             image {
               url
               src
             }
-              amountSpent {
-        amount
-        currencyCode
-      }
             orders(first: 5) {
               nodes {
                 closed
                 closedAt
                 id
-                 fulfillments(first: 1) {
-        nodes {
-          status
-          createdAt
-        }
-      }
                 totalPriceSet {
                   shopMoney {
                     amount
@@ -78,9 +68,9 @@ export class CustomersService {
       }
     }
   `;
-
     try {
       const response = await this.shopifyService.executeGraphQL(query);
+      
 
       // Validate response structure
       if (!response || !response.data || !response.data.customers) {

@@ -4,12 +4,14 @@ import { ChatsService } from './chats.service';
 import { SendTemplateMessageDto } from './dto/template-chat';
 import { Public } from 'src/auth/decorator/public.decorator';
 import { MediaDto } from './dto/media-chat-dto';
+import { Request } from 'express';
 
 
 @Controller('chats')
 export class ChatsController {
   constructor(private readonly chatsService: ChatsService, ) {}
 
+  @Public()
   @Get('/webhook')
   verifyWebhook(
     @Query('hub.mode') mode: string,
@@ -46,6 +48,7 @@ export class ChatsController {
   }
 
 
+  @Public()
   @Post('/webhook')
   receiveMessage(@Body() receievemessageDto: any) {
    

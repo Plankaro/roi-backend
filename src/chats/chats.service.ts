@@ -7,6 +7,7 @@ import { MediaDto } from './dto/media-chat-dto';
 import { HeaderType } from '@prisma/client';
 import { getFirstAndLastName, sanitizePhoneNumber } from 'utils/usefulfunction';
 import { ShopifyService } from 'src/shopify/shopify.service';
+import { Public } from 'src/auth/decorator/public.decorator';
 @Injectable()
 export class ChatsService {
   constructor(
@@ -217,6 +218,7 @@ export class ChatsService {
       throw new InternalServerErrorException(error);
     }
   }
+ 
   async receiveMessage(receiveMessageDto: any) {
     try {
       
@@ -234,30 +236,46 @@ export class ChatsService {
               try {
                 const rawPhoneNumber = `+${sanitizePhoneNumber(message.from)}`;
   
-                let prospect = await this.databaseService.prospect.findUnique({
-                  where: {
-                    buisnessNo_phoneNo: {
+              let shopifyCustomer
+              shopifyCustomer = await this.getShopifyProspectUsingPhoneNumber(rawPhoneNumber)
+              if(!shopifyCustomer) {
+                const name = getFirstAndLastName(value.contacts?.[0]?.profile?.name);
+                shopifyCustomer = await this.createShopifyusingPhoneNumber({
+                 firstName: name.firstName,
+                 lastName: name.lastName,
+                 phone: rawPhoneNumber,
+               });
+              }
+                
+                 console.log(shopifyCustomer)
+  
+                  const prospect = await this.databaseService.prospect.upsert({
+                    where: {
+                      buisnessNo_phoneNo: {
+                        phoneNo: sanitizePhoneNumber(message.from),
+                        buisnessNo: businessPhoneNumber,
+
+                      },
+                    },
+                    update: {
+                     
                       phoneNo: sanitizePhoneNumber(message.from),
                       buisnessNo: businessPhoneNumber,
+                      image: shopifyCustomer?.image?.url ?? null,
+                      last_Online:new Date(),
+                    
+                      name: shopifyCustomer
+                        ? `${shopifyCustomer.firstName} ${shopifyCustomer.lastName}`
+                        : value.contacts?.[0]?.profile?.name,
+                      email: shopifyCustomer?.email ?? null,
                     },
-                  },
-                });
-  
-                if (!prospect) {
-                  const name = getFirstAndLastName(value.contacts?.[0]?.profile?.name);
-                  let shopifyCustomer = await this.createShopifyusingPhoneNumber({
-                    firstName: name.firstName,
-                    lastName: name.lastName,
-                    phone: rawPhoneNumber,
-                  });
-  
-                  prospect = await this.databaseService.prospect.create({
-                    data: {
+                    create: {
                       shopify_id: shopifyCustomer?.id?.match(/\d+$/)?.[0] ?? null,
                       phoneNo: sanitizePhoneNumber(message.from),
                       buisnessNo: businessPhoneNumber,
                       image: shopifyCustomer?.image?.url ?? null,
                       lead: "LEAD",
+                      last_Online:new Date(),
                       name: shopifyCustomer
                         ? `${shopifyCustomer.firstName} ${shopifyCustomer.lastName}`
                         : value.contacts?.[0]?.profile?.name,
@@ -270,7 +288,7 @@ export class ChatsService {
                   "prospect",
                   prospect
                 );
-                }
+           
   
                
   

@@ -6,6 +6,10 @@ export class RegisterAuthDto {
   firstName: string;
 
   @IsString()
+  @MinLength(2, { message: "First name must be at least 2 characters." })
+  buisnessname: string;
+
+  @IsString()
   @MinLength(2, { message: "Last name must be at least 2 characters." })
   lastName: string;
 
