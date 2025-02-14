@@ -48,6 +48,10 @@ export class ChatsController {
 
   }
 
+  @Delete('/')
+  removeAll(@Query('prospect_id') prospect: string,) {
+   
+  }
 
   @Public()
   @Post('/webhook')

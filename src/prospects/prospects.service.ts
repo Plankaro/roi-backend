@@ -81,9 +81,23 @@ console.log(buisnessNo)
     }
   }
 
-  update(id: string, updateProspectDto: UpdateProspectDto,req:any) {
-
-    
+  async update(id: string, updateProspectDto: UpdateProspectDto,req:any) {
+    const buisnessNo = req.user.business.whatsapp_mobile
+    try {
+      const updateProspect = await this.databaseService.prospect.update({
+        where: {
+          id,
+          buisnessNo: buisnessNo,
+        },
+        data: {
+         ...updateProspectDto,
+        },
+      })
+      console.log(updateProspect)
+      return updateProspect
+    } catch (error) {
+      throw new InternalServerErrorException(error)
+    }
   }
 
   remove(id: number) {
