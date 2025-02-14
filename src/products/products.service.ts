@@ -6,12 +6,16 @@ import {
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { ShopifyService } from 'src/shopify/shopify.service';
+import { getShopifyConfig } from 'utils/usefulfunction';
+import { config } from 'process';
 
 @Injectable()
 export class ProductsService {
   constructor(private readonly shopifyService: ShopifyService) {}
 
-  async findAll() {
+  async findAll(req:any) {
+    const buisness = req.user.business
+    const config = getShopifyConfig(buisness)
     const query = `
     query ($cursor: String) {
       products(first: 50, after: $cursor) {
@@ -64,9 +68,9 @@ export class ProductsService {
       }
     }
   `;
-
+const variables = {}
     try {
-      const response = await this.shopifyService.executeGraphQL(query);
+      const response = await this.shopifyService.executeGraphQL(query,variables,config);
       console.log(response);
       // Validate response structure
       if (!response || !response.data || !response.data.products) {
@@ -106,7 +110,7 @@ export class ProductsService {
     }
   }
 
-  async findOne(productId: number) {
+  async findOne(productId: string,req:any) {
     const query = `
       query ($id: ID!) {
         product(id: $id) {
@@ -135,14 +139,15 @@ export class ProductsService {
         }
       }
     `;
-
+    const buisness = req.user.business
+    const config = getShopifyConfig(buisness)
     // Construct the full `gid` for the product
     const productGID = `gid://shopify/Product/${productId}`;
 
     try {
       const response = await this.shopifyService.executeGraphQL(query, {
         id: productGID,
-      });
+      },config);
 
       console.log('GraphQL Response:', response); // Log the full response for debugging
 

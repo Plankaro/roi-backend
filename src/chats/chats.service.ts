@@ -4,7 +4,7 @@ import { WhatsappService } from 'src/whatsapp/whatsapp.service';
 import { ChatsGateway } from './chats.gateway';
 import { DatabaseService } from 'src/database/database.service';
 import { MediaDto } from './dto/media-chat-dto';
-import { HeaderType } from '@prisma/client';
+import { Business, HeaderType } from '@prisma/client';
 import { getFirstAndLastName, sanitizePhoneNumber } from 'utils/usefulfunction';
 import { ShopifyService } from 'src/shopify/shopify.service';
 import { Public } from 'src/auth/decorator/public.decorator';
@@ -16,7 +16,7 @@ export class ChatsService {
     private readonly databaseService: DatabaseService,
     private readonly ShopifyService: ShopifyService
   ) {}
-  async create(sendTemplateMessageDto: any) {
+  async sendTemplatemessage(sendTemplateMessageDto: any,req:any) {
     const {
       body, // Array of body objects
       buttons, // Array of buttons
@@ -27,6 +27,7 @@ export class ChatsService {
       template_name,
       previewSection,
       template_type,
+
       // Template name
     } = sendTemplateMessageDto;
 
@@ -34,7 +35,7 @@ export class ChatsService {
     console.log(JSON.stringify(sendTemplateMessageDto,null, 2));
 
     const components = [];
- 
+    const buisness = req.user.business
 
     if (header && header.isEditable) {
       if (header.type === 'TEXT') {
@@ -129,47 +130,14 @@ export class ChatsService {
 
     console.log(JSON.stringify(components,null, 2))
  
- 
-    // components.push({
-    //   type: 'button',
-    //   sub_type: 'url',
-    //   index: '0',
-    //   parameters: [
-    //     {
-    //       type: 'text',
-    //       text: 'https://default-url.com',
-    //     },
-    //   ],
-    // },
-    // {
-    //   type: 'button',
-    //   sub_type: 'copy_code',
-    //   index: '1',
-    //   parameters: [
-    //     {
-    //       type: 'text',
-    //       text: 'DEFAULT_CODE',
-    //     },
-    //   ],
-    // },
-    // {
-    //   type: 'button',
-    //   sub_type: 'phone_number',
-    //   index: '2',
-    //   parameters: [
-    //     {
-    //       type: 'text',
-    //       text:'+1234567890',
-    //     },
-    //   ],
-    // });
+//  const buisnessNo = 
 
     try {
       const prospect = await this.databaseService.prospect.upsert({
         where: {
           buisnessNo_phoneNo: { // Correct format for compound unique constraint
             phoneNo: recipientNo as string,
-            buisnessNo: '15551365364'
+            buisnessNo: buisness.whatsapp_mobile
           }
         },
         update: {
@@ -177,7 +145,7 @@ export class ChatsService {
         },
         create: {
           phoneNo: recipientNo as string,
-          buisnessNo: '15551365364',
+          buisnessNo: buisness.whatsapp_mobile,
           lead :"LEAD"
           // Add other required fields for new record creation
         }
@@ -188,6 +156,9 @@ export class ChatsService {
         templateName: template_name,
         languageCode: language,
         components: components,
+      },{
+        whatsappMobileId: buisness.whatsapp_mobile_id,
+        whatsappApiToken: buisness.whatsapp_token,
       });
       console.log(message)
 
@@ -229,25 +200,36 @@ export class ChatsService {
         for (const change of individualEntry.changes) {
           const { value } = change;
           const businessPhoneNumber = sanitizePhoneNumber(value.metadata.display_phone_number);
-      // Receiver's phone number
+
+          
+      const buisness = await this.databaseService.business.findUnique({
+        where: {
+          whatsapp_mobile: businessPhoneNumber,
+        },
+      });
+      
+      if(!buisness){
+        return
+      }
   
           if (value.messages) {
+
             const messagePromises = value.messages.map(async (message) => {
               try {
                 const rawPhoneNumber = `+${sanitizePhoneNumber(message.from)}`;
   
-              let shopifyCustomer
-              shopifyCustomer = await this.getShopifyProspectUsingPhoneNumber(rawPhoneNumber)
-              if(!shopifyCustomer) {
-                const name = getFirstAndLastName(value.contacts?.[0]?.profile?.name);
-                shopifyCustomer = await this.createShopifyusingPhoneNumber({
-                 firstName: name.firstName,
-                 lastName: name.lastName,
-                 phone: rawPhoneNumber,
-               });
-              }
+              // let shopifyCustomer
+              // shopifyCustomer = await this.getShopifyProspectUsingPhoneNumber(rawPhoneNumber)
+              // if(!shopifyCustomer) {
+              //   const name = getFirstAndLastName(value.contacts?.[0]?.profile?.name);
+              //   shopifyCustomer = await this.createShopifyusingPhoneNumber({
+              //    firstName: name.firstName,
+              //    lastName: name.lastName,
+              //    phone: rawPhoneNumber,
+              //  });
+              // }
                 
-                 console.log(shopifyCustomer)
+                 console.log(businessPhoneNumber)
   
                   const prospect = await this.databaseService.prospect.upsert({
                     where: {
@@ -259,27 +241,27 @@ export class ChatsService {
                     },
                     update: {
                      
-                      phoneNo: sanitizePhoneNumber(message.from),
-                      buisnessNo: businessPhoneNumber,
-                      image: shopifyCustomer?.image?.url ?? null,
+                      // phoneNo: sanitizePhoneNumber(message.from),
+                      // buisnessNo: businessPhoneNumber,
+                      // image: shopifyCustomer?.image?.url ?? null,
                       last_Online:new Date(),
                     
-                      name: shopifyCustomer
-                        ? `${shopifyCustomer.firstName} ${shopifyCustomer.lastName}`
-                        : value.contacts?.[0]?.profile?.name,
-                      email: shopifyCustomer?.email ?? null,
+                      // name: shopifyCustomer
+                      //   ? `${shopifyCustomer.firstName} ${shopifyCustomer.lastName}`
+                      //   : value.contacts?.[0]?.profile?.name,
+                      // email: shopifyCustomer?.email ?? null,
                     },
                     create: {
-                      shopify_id: shopifyCustomer?.id?.match(/\d+$/)?.[0] ?? null,
+                      // shopify_id: shopifyCustomer?.id?.match(/\d+$/)?.[0] ?? null,
                       phoneNo: sanitizePhoneNumber(message.from),
                       buisnessNo: businessPhoneNumber,
-                      image: shopifyCustomer?.image?.url ?? null,
+                      // image: shopifyCustomer?.image?.url ?? null,
                       lead: "LEAD",
                       last_Online:new Date(),
-                      name: shopifyCustomer
-                        ? `${shopifyCustomer.firstName} ${shopifyCustomer.lastName}`
-                        : value.contacts?.[0]?.profile?.name,
-                      email: shopifyCustomer?.email ?? null,
+                      // name: shopifyCustomer
+                      //   ? `${shopifyCustomer.firstName} ${shopifyCustomer.lastName}`
+                      //   : value.contacts?.[0]?.profile?.name,
+                      // email: shopifyCustomer?.email ?? null,
                     },
                   });
                    // Send prospect update to clients subscribed to the business phone
@@ -356,11 +338,16 @@ export class ChatsService {
   }
   
   
-  async sendMessage(sendChatDto: any) {
+  async sendMessage(sendChatDto: any,req:any) {
     console.log(sendChatDto);
     const { recipientNo, message,prospect_id } = sendChatDto;
     try {
 
+ const buisness = req.user.business
+      const config = {
+        whatsappMobileId: buisness.whatsapp_mobile_id,
+        whatsappApiToken: buisness.whatsapp_token,
+      }
       // const prospect = await this.databaseService.prospect.upsert({
       //   where: {
       //     buisnessNo_phoneNo: { // Correct format for compound unique constraint
@@ -382,6 +369,7 @@ export class ChatsService {
       const sendMessage = await this.whatsappService.sendMessage(
         recipientNo,
         message,
+        config
       );
       const result = await this.databaseService.chat.create({
         data: {
@@ -425,10 +413,17 @@ export class ChatsService {
     }
   }
 
-  async findAllTemplate() {
+  async findAllTemplate(req:any) {
+
+    const buisness = req.user.business
+    const config = {
+      whatsappBusinessId: buisness.whatsapp_buisness_id,
+      whatsappApiToken: buisness.whatsapp_token,
+    }
+
     try {
       console.log('fetching templates');
-      const Chats = await this.whatsappService.getTemplates();
+      const Chats = await this.whatsappService.getTemplates(config);
 
       return Chats.data;
     } catch (error) {
@@ -436,7 +431,13 @@ export class ChatsService {
       throw new InternalServerErrorException('Failed to fetch templates');
     }
   }
-  async sendMedia(MediaDto:MediaDto) {
+  async sendMedia(MediaDto:MediaDto,req:any) {
+    const buisness:Business = req.user.business
+    const config={
+      whatsappMobileId: buisness.whatsapp_mobile_id,
+      whatsappApiToken: buisness.whatsapp_token,
+    }
+
     try {
       function mapMediaTypeToHeaderType(mediaType: string): HeaderType {
         switch (mediaType.toLowerCase()) {
@@ -457,13 +458,14 @@ export class ChatsService {
         MediaDto.recipientNo,
         MediaDto.mediaUrl,
         MediaDto.type,
+        config,
         MediaDto.caption,
       );
       const result = await this.databaseService.chat.create({
         data: {
           prospectId:MediaDto.prospectId,
           chatId: sendMessage?.messages[0]?.id ?? '',
-          senderPhoneNo: '15551365364',
+          senderPhoneNo: buisness.whatsapp_mobile,
           receiverPhoneNo: sendMessage?.contacts[0].input,
           sendDate: new Date(),
           header_type:mapMediaTypeToHeaderType(MediaDto.type),
@@ -481,71 +483,71 @@ export class ChatsService {
     }
   }
   
-  async getShopifyProspectUsingPhoneNumber(phoneNumber: string) {
-    const query = `
-      query getCustomerByPhone($query: String!) {
-        customers(first: 1, query: $query) {
-          edges {
-            node {
-              id
-              firstName
-              lastName
-              email
-              phone
-                 image {
-              url
-              src
-            }
-            }
-          }
-        }
-      }
-    `;
-    const variables = {
-      query: `phone:${phoneNumber}`,
-    };
+  // async getShopifyProspectUsingPhoneNumber(phoneNumber: string) {
+  //   const query = `
+  //     query getCustomerByPhone($query: String!) {
+  //       customers(first: 1, query: $query) {
+  //         edges {
+  //           node {
+  //             id
+  //             firstName
+  //             lastName
+  //             email
+  //             phone
+  //                image {
+  //             url
+  //             src
+  //           }
+  //           }
+  //         }
+  //       }
+  //     }
+  //   `;
+  //   const variables = {
+  //     query: `phone:${phoneNumber}`,
+  //   };
 
-    try {
-      console.log(JSON.stringify(variables));
-      const result = await this.ShopifyService.executeGraphQL(query, variables);
-      if (result.data.customers.edges && result.data.customers.edges.length > 0) {
-        return result.data.customers.edges[0].node;
-      }
-      return null;
-    } catch (error) {
-      console.error('Error executing GraphQL query:', error);
-      throw new InternalServerErrorException(
-        'Failed to fetch customer data from Shopify'
-      );
-    }
-  }
+  //   try {
+  //     console.log(JSON.stringify(variables));
+  //     const result = await this.ShopifyService.executeGraphQL(query, variables);
+  //     if (result.data.customers.edges && result.data.customers.edges.length > 0) {
+  //       return result.data.customers.edges[0].node;
+  //     }
+  //     return null;
+  //   } catch (error) {
+  //     console.error('Error executing GraphQL query:', error);
+  //     throw new InternalServerErrorException(
+  //       'Failed to fetch customer data from Shopify'
+  //     );
+  //   }
+  // }
 
-  async createShopifyusingPhoneNumber(data: { firstName?: string; lastName?: string; phone?: string }) {
-    const query = `mutation createCustomer($input: CustomerInput!) {
-      customerCreate(input: $input) {
-        customer {
-          id
-          firstName
-          lastName
-          email
-          phone
-             image {
-              url
-              src
-            }
-        }
-        userErrors {
-          field
-          message
-        }
-      }
-    }`;
-    const variables = { input: data };
-    const response = await this.ShopifyService.executeGraphQL(query, variables);
-    if (response.data.customerCreate && response.data.customerCreate.customer) {
-      return response.data.customerCreate.customer;
-    } else {
-      throw new InternalServerErrorException('Failed to create customer on Shopify');
-    }
-  }
+  // async createShopifyusingPhoneNumber(data: { firstName?: string; lastName?: string; phone?: string }) {
+  //   const query = `mutation createCustomer($input: CustomerInput!) {
+  //     customerCreate(input: $input) {
+  //       customer {
+  //         id
+  //         firstName
+  //         lastName
+  //         email
+  //         phone
+  //            image {
+  //             url
+  //             src
+  //           }
+  //       }
+  //       userErrors {
+  //         field
+  //         message
+  //       }
+  //     }
+  //   }`;
+  //   const variables = { input: data };
+  //   const response = await this.ShopifyService.executeGraphQL(query, variables);
+  //   if (response.data.customerCreate && response.data.customerCreate.customer) {
+  //     return response.data.customerCreate.customer;
+  //   } else {
+  //     throw new InternalServerErrorException('Failed to create customer on Shopify');
+  //   }
+  // }
 }

@@ -3,11 +3,13 @@ import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
 import { ShopifyService } from 'src/shopify/shopify.service';
 import { DatabaseService } from 'src/database/database.service';
-
+import { getShopifyConfig } from 'utils/usefulfunction';
 @Injectable()
 export class OrdersService {
   constructor(private readonly shopifyService: ShopifyService,private readonly databaseService: DatabaseService) {}
-  async create(CreateOrderDto: any) {
+  async create(CreateOrderDto: any,req:any) {
+      const buisness = req.user.business
+        const config = getShopifyConfig(buisness)
     console.log(CreateOrderDto);
     const { customerId, Items, shippingAddress, totalPrice } = CreateOrderDto;
     console.log(customerId);
@@ -124,6 +126,7 @@ mutation OrderCreate($order: OrderCreateOrderInput!, $options: OrderCreateOption
       const response = await this.shopifyService.executeGraphQL(
         query,
         variables,
+        config
       );
       if(!response.data){
         throw new BadRequestException('Order creation failed')
@@ -153,7 +156,7 @@ mutation OrderCreate($order: OrderCreateOrderInput!, $options: OrderCreateOption
     
   }
 
-  findAll() {
+  findAll(req:any) {
     return `This action returns all orders`;
   }
 

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Query, Res } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query, Res, Req } from '@nestjs/common';
 import { Response } from 'express';
 import { ChatsService } from './chats.service';
 import { SendTemplateMessageDto } from './dto/template-chat';
@@ -28,13 +28,13 @@ export class ChatsController {
     }
   }
   @Post('/template')
-  create(@Body() sendTemplateMessageDto: any) {
-    return this.chatsService.create(sendTemplateMessageDto);
+  create(@Body() sendTemplateMessageDto: any,@Req() req: Request ) {
+    return this.chatsService.sendTemplatemessage(sendTemplateMessageDto,req);
   }
 
   @Post('/text')
-  SendText(@Body() sendChatDto:any){
-    return this.chatsService.sendMessage(sendChatDto)
+  SendText(@Body() sendChatDto:any,@Req() req: Request ){
+    return this.chatsService.sendMessage(sendChatDto,req)
   }
 
   @Get('/')
@@ -42,6 +42,7 @@ export class ChatsController {
   findAllChats(
    
     @Query('prospect_id') prospect: string,
+    @Req() req: Request 
   ) {
     return this.chatsService.findAllChats(prospect);
 
@@ -58,15 +59,15 @@ export class ChatsController {
    
   }
 
-  @Get("/template")
-  findAll() {
-    return this.chatsService.findAllTemplate();
+  @Get("/template",)
+  findAll(@Req() req: Request) {
+    return this.chatsService.findAllTemplate(req);
   }
 
  
   @Post('/media')
-  sendMedia(@Body() mediaDto: MediaDto){
-    return this.chatsService.sendMedia(mediaDto)
+  sendMedia(@Body() mediaDto: MediaDto,@Req() req: Request ){
+    return this.chatsService.sendMedia(mediaDto,req)
   }
 
 

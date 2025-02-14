@@ -30,25 +30,26 @@ export class AuthService {
 
   async login(LoginDto: LoginDto) {
     try {
-      console.log(LoginDto)
+      console.log(LoginDto);
       const user = await this.databaseService.user.findUnique({
         where: {
           email: LoginDto.email,
-          
         },
-        include:{
-          Business:true,
-        }
+        include: {
+          business: true,
+        },
       });
+      console.log(user);
 
       if (!user) throw new UnauthorizedException('Invalid email or password');
       if (!user.password)
         throw new BadRequestException('User is registered with auth provider');
-      const isUserVErified = user.isEmailVerified
+      const isUserVErified = user.isEmailVerified;
       if (!isUserVErified) throw new ForbiddenException('User is not verified');
       const isMatch = await compare(LoginDto.password, user.password);
 
-      if (!isMatch) throw new UnauthorizedException('Invalid email or password');
+      if (!isMatch)
+        throw new UnauthorizedException('Invalid email or password');
       const userTokens = await this.getTokens(user.id, user.email);
       await this.databaseService.user.update({
         where: { id: user.id },
@@ -63,8 +64,8 @@ export class AuthService {
           id: user.id,
           name: user.name,
           email: user.email,
-          role:user.role,
-          buisness:user.Business
+          role: user.role,
+          buisness: user.business,
         },
       };
     } catch (error) {
@@ -81,31 +82,29 @@ export class AuthService {
         throw new BadRequestException(
           'Password and confirm password does not match',
         );
+  
       const name = `${registerAuthDto.firstName} ${registerAuthDto.lastName}`;
-
       const hashedPassword = await hash(registerAuthDto.password, 10);
       console.log(registerAuthDto);
-      // Create the user in the database
+  
+      // Create the business in the database
+      const buisness = await this.databaseService.business.create({
+        data: {
+          businessName: registerAuthDto.buisnessname,
+        },
+      });
+  
+      // Create the user in the database and connect the business using its unique id
       const user = await this.databaseService.user.create({
         data: {
           email: registerAuthDto.email,
-          role:"ADMIN",
+          role: 'ADMIN',
           password: hashedPassword,
-          name: name, // Save the hashed password
+          name: name,
+          business: { connect: { id: buisness.id } },
         } as Prisma.UserCreateInput,
-        
-        
       });
-    
-      await this.databaseService.business.create({
-        data: {
-          businessName: registerAuthDto.buisnessname,
-          createdBy: user.id,
-
-
-        }
-      })
-
+  
       // Return the user details excluding the password
       return {
         id: user.id,
@@ -120,14 +119,15 @@ export class AuthService {
           'A user with this email or phone number already exists.',
         );
       }
-
+  
       // Log and rethrow unexpected errors
       console.error('Error during user registration:', error);
       throw new InternalServerErrorException(
-        error.message || 'An unexpected error occurred during login.',
+        error.message || 'An unexpected error occurred during registration.',
       );
     }
   }
+  
 
   async getTokenLink(email: string) {
     try {

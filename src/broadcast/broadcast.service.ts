@@ -2,6 +2,7 @@ import { Injectable, InternalServerErrorException, NotFoundException } from '@ne
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { DatabaseService } from 'src/database/database.service';
+import { getWhatsappConfig } from 'utils/usefulfunction';
 
 @Injectable()
 export class BroadcastService {
@@ -10,7 +11,7 @@ export class BroadcastService {
     private readonly databaseService: DatabaseService,
   ) {}
 
-  async create(createBroadcastDto: any): Promise<string> {
+  async create(createBroadcastDto: any,req:any): Promise<string> {
     const {
       body,              // Array of body objects
       buttons,           // Array of buttons
@@ -96,6 +97,8 @@ export class BroadcastService {
       }
     });
 
+    const buisness = req.user.business
+    const config = getWhatsappConfig(buisness)
     // Save broadcast record to database.
     const createBroadcast = await this.databaseService.broadcast.create({
       data: {
@@ -109,6 +112,7 @@ export class BroadcastService {
         price: price,
         is_utm_id_embeded: is_utm_id_embeded,
         isScheduled: scheduledTime ? true : false,
+        createdForId: buisness.id
       },
     });
 
@@ -139,6 +143,7 @@ export class BroadcastService {
         MarketingmessageLimit,
         MarketingmessageLimitTiming,
         SkipDuplicates,
+        config
         
       },
       {
@@ -152,30 +157,38 @@ export class BroadcastService {
     return 'Broadcast created successfully';
   }
 
-  async getAllBroadcasts(){
+  async getAllBroadcasts(req:any){
     try {
-      const result = await this.databaseService.broadcast.findMany({})
+      const buisness = req.user.business
+    const config = getWhatsappConfig(buisness)
+      const result = await this.databaseService.broadcast.findMany({
+        where:{
+          createdForId:config.whatsappMobile
+        }
+      })
       return result;
     } catch (error) {
       throw new InternalServerErrorException(error);
     }
   }
-  async getBroadcastById(id: string){
+  async getBroadcastById(id: string,req:any){
     try {
+      const buisness = req.user.business
+    const config = getWhatsappConfig(buisness)
       const result = await this.databaseService.broadcast.findUnique({
         where: {
 
           id: id,
+          createdForId:config.whatsappMobile
         },
-        include:{
-          Chat:true
-        }
+
+      
       
       });
       const statusCounts = await this.databaseService.chat.groupBy({
         by: ['Status'],
         where: {
-          broadcastId: id, // replace with your broadcast ID
+          broadcastId: result.id, // replace with your broadcast ID
         },
         _count: {
           _all: true,

@@ -33,6 +33,7 @@ export class BroadcastProcessor extends WorkerHost {
       MarketingmessageLimit,
       MarketingmessageLimitTiming,
       SkipDuplicates,
+      config
     } = job.data;
 
     console.log(`Processing job for recipients: ${JSON.stringify(recipients)}`);
@@ -63,11 +64,11 @@ export class BroadcastProcessor extends WorkerHost {
             OR: [
               {
                 receiverPhoneNo: recipientNo,
-                senderPhoneNo: '15551365364',
+                senderPhoneNo: config.whatsappMobile,
                 createdAt: timeLimit,
               },
               {
-                receiverPhoneNo: '15551365364',
+                receiverPhoneNo: config.whatsappMobile,
                 senderPhoneNo: recipientNo,
                 createdAt: timeLimit,
               },
@@ -93,7 +94,7 @@ export class BroadcastProcessor extends WorkerHost {
             OR: [
               {
                 receiverPhoneNo: recipientNo,
-                senderPhoneNo: '15551365364',
+                senderPhoneNo: config.whatsappMobile,
                 type: 'marketing',
                 createdAt: {
                   gte: new Date(
@@ -121,13 +122,14 @@ export class BroadcastProcessor extends WorkerHost {
           templateName,
           languageCode,
           components,
-        });
+        },
+      config);
        
       const isprospectrelated = await this.databaseService.prospect.findUnique({
         where:{
           buisnessNo_phoneNo:{
             phoneNo: sanitizePhoneNumber(response?.contacts[0].input.replace(/^\+/, '')),
-            buisnessNo: '15551365364',
+            buisnessNo: config.whatsappMobile,
           }
         }
       })

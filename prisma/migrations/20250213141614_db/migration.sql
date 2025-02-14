@@ -37,6 +37,7 @@ CREATE TABLE "User" (
     "updatedAt" TIMESTAMP(3) NOT NULL,
     "isEmailVerified" BOOLEAN NOT NULL DEFAULT false,
     "role" "Role" NOT NULL,
+    "businessId" TEXT,
 
     CONSTRAINT "User_pkey" PRIMARY KEY ("id")
 );
@@ -66,7 +67,6 @@ CREATE TABLE "Account" (
 CREATE TABLE "Business" (
     "id" TEXT NOT NULL,
     "businessName" TEXT NOT NULL,
-    "createdBy" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "shopify_Token" TEXT,
     "shopify_domain" TEXT,
@@ -85,6 +85,7 @@ CREATE TABLE "Prospect" (
     "name" TEXT,
     "email" TEXT,
     "image" TEXT,
+    "last_Online" TIMESTAMP(3),
     "phoneNo" TEXT NOT NULL,
     "lead" "Lead" NOT NULL DEFAULT 'LEAD',
     "assignedToId" TEXT,
@@ -232,14 +233,6 @@ CREATE TABLE "Payment" (
 );
 
 -- CreateTable
-CREATE TABLE "_BusinessEmployees" (
-    "A" TEXT NOT NULL,
-    "B" TEXT NOT NULL,
-
-    CONSTRAINT "_BusinessEmployees_AB_pkey" PRIMARY KEY ("A","B")
-);
-
--- CreateTable
 CREATE TABLE "_ProspectToTag" (
     "A" TEXT NOT NULL,
     "B" TEXT NOT NULL,
@@ -281,16 +274,13 @@ CREATE UNIQUE INDEX "Order_shopify_id_key" ON "Order"("shopify_id");
 CREATE UNIQUE INDEX "Chat_chatId_key" ON "Chat"("chatId");
 
 -- CreateIndex
-CREATE INDEX "_BusinessEmployees_B_index" ON "_BusinessEmployees"("B");
-
--- CreateIndex
 CREATE INDEX "_ProspectToTag_B_index" ON "_ProspectToTag"("B");
 
 -- AddForeignKey
-ALTER TABLE "Account" ADD CONSTRAINT "Account_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "User" ADD CONSTRAINT "User_businessId_fkey" FOREIGN KEY ("businessId") REFERENCES "Business"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Business" ADD CONSTRAINT "Business_createdBy_fkey" FOREIGN KEY ("createdBy") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "Account" ADD CONSTRAINT "Account_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Prospect" ADD CONSTRAINT "Prospect_assignedToId_fkey" FOREIGN KEY ("assignedToId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
@@ -339,12 +329,6 @@ ALTER TABLE "FlashResponse" ADD CONSTRAINT "FlashResponse_createdForId_fkey" FOR
 
 -- AddForeignKey
 ALTER TABLE "Payment" ADD CONSTRAINT "Payment_businessId_fkey" FOREIGN KEY ("businessId") REFERENCES "Business"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "_BusinessEmployees" ADD CONSTRAINT "_BusinessEmployees_A_fkey" FOREIGN KEY ("A") REFERENCES "Business"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "_BusinessEmployees" ADD CONSTRAINT "_BusinessEmployees_B_fkey" FOREIGN KEY ("B") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "_ProspectToTag" ADD CONSTRAINT "_ProspectToTag_A_fkey" FOREIGN KEY ("A") REFERENCES "Prospect"("id") ON DELETE CASCADE ON UPDATE CASCADE;

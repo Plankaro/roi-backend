@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { CreateProspectDto } from './dto/create-prospect.dto';
 import { UpdateProspectDto } from './dto/update-prospect.dto';
 import { DatabaseService } from 'src/database/database.service';
@@ -10,7 +10,10 @@ export class ProspectsService {
   create(createProspectDto: CreateProspectDto,req:any) {
     try {
       const { shopify_id, name, email, phone, image } = createProspectDto;
-      const buisnessNo = req.user.Business[0].whatsapp_mobile
+      const buisnessNo = req.user.business.whatsapp_mobile
+      if(!buisnessNo){
+        throw new BadRequestException("Please complete whatsapp onboarding to acess this feature")
+      }
 console.log(buisnessNo)
       const prospect =  this.databaseService.prospect.create({
         data: {
@@ -34,7 +37,10 @@ console.log(buisnessNo)
     console.log(req.user)
     
     try {
-      const buisnessNo = req.user.Business[0].whatsapp_mobile
+      const buisnessNo = req.user.business.whatsapp_mobile
+      if(!buisnessNo){
+        throw new BadRequestException("Please complete whatsapp onboarding to acess this feature")
+      }
       const response = await this.databaseService.prospect.findMany({
         where: {
           buisnessNo:buisnessNo,
@@ -75,8 +81,9 @@ console.log(buisnessNo)
     }
   }
 
-  update(id: number, updateProspectDto: UpdateProspectDto) {
-    return `This action updates a #${id} prospect`;
+  update(id: string, updateProspectDto: UpdateProspectDto,req:any) {
+
+    
   }
 
   remove(id: number) {

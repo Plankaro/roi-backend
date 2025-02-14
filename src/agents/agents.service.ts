@@ -45,10 +45,10 @@ export class AgentsService {
     const agents = this.databaseService.user.findMany({
       where: {
         role: "AGENT",
-        Business:{
-          some: {
-            id: user.Business[0].id
-          }
+        business:{
+         
+            id: user.Business.id
+         
         }
       }
     })
@@ -76,10 +76,10 @@ export class AgentsService {
       where: {
         id,
         role: "AGENT",
-        Business:{
-          some: {
+        business:{
+         
             id: user.Business[0].id
-          }
+        
         }
       }
     })

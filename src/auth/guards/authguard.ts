@@ -48,7 +48,7 @@ export class AuthGuard implements CanActivate {
           
         },
         include:{
-          Business:true
+          business:true
         }
       });
   

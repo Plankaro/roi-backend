@@ -8,6 +8,7 @@ import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
 import { ShopifyService } from 'src/shopify/shopify.service';
 import { DatabaseService } from 'src/database/database.service';
+import { getShopifyConfig } from 'utils/usefulfunction';
 @Injectable()
 export class CustomersService {
   constructor(
@@ -15,11 +16,13 @@ export class CustomersService {
     private readonly databaseService: DatabaseService,
   ) {}
 
-  create(createCustomerDto: CreateCustomerDto) {
+  create(createCustomerDto: CreateCustomerDto,req:any) {
     return 'This action adds a new customer';
   }
 
-  async getAllCustomers() {
+  async getAllCustomers(req:any) {
+    const buisness = req.user.business
+    const config = getShopifyConfig(buisness)
     const query = `
     query ($cursor: String) {
       customers(first: 50, after: $cursor) {
@@ -69,7 +72,8 @@ export class CustomersService {
     }
   `;
     try {
-      const response = await this.shopifyService.executeGraphQL(query);
+      const variable = {}
+      const response = await this.shopifyService.executeGraphQL(query,variable,config);
       
 
       // Validate response structure
@@ -114,7 +118,9 @@ export class CustomersService {
     }
   }
 
-  async getCustomerById(customerId: string) {
+  async getCustomerById(customerId: string,req:any) {
+    const buisness = req.user.business
+    const config = getShopifyConfig(buisness)
     const query = `
   query ($id: ID!) {
     customer(id: $id) {
@@ -159,7 +165,7 @@ export class CustomersService {
 
     const variables = { id: `gid://shopify/Customer/${customerId}` };
 
-    const response = await this.shopifyService.executeGraphQL(query, variables);
+    const response = await this.shopifyService.executeGraphQL(query, variables,config);
     // const filteredData = response.data.customers.edges
     // .map(({ node }) => ({
     //   id: node.id,
@@ -181,7 +187,9 @@ export class CustomersService {
     return response.data.customer;
   }
 
-  async getAllSegments(): Promise<{ id: string; name: string }[]> {
+  async getAllSegments(req:any): Promise<{ id: string; name: string }[]> {
+    const buisness = req.user.business
+    const config = getShopifyConfig(buisness)
     const query = `
       query GetAllSegments($first: Int!) {
         segments(first: $first) {
@@ -196,7 +204,7 @@ export class CustomersService {
       }
     `;
     const variables = { first: 250 };
-    const result = await this.shopifyService.executeGraphQL(query, variables);
+    const result = await this.shopifyService.executeGraphQL(query, variables,config);
     const segmentsEdges = result.data?.segments?.edges || [];
     return segmentsEdges.map((edge: any) => ({
       id: edge.node.id,
@@ -205,12 +213,13 @@ export class CustomersService {
     }));
   }
 
-  async getAllContactsForSegment(segmentId: string): Promise<any[]> {
+  async getAllContactsForSegment(segmentId: string,req:any): Promise<any[]> {
     let contacts: any[] = [];
     let hasNextPage = true;
     let after: string = null;
     const first = 250;
-
+    const buisness = req.user.business
+    const config = getShopifyConfig(buisness)
     const query = `
       query GetSegmentMembers($segmentId: ID!, $first: Int!, $after: String) {
         customerSegmentMembers(segmentId: $segmentId, first: $first, after: $after) {
@@ -237,6 +246,7 @@ export class CustomersService {
         const result = await this.shopifyService.executeGraphQL(
           query,
           variables,
+          config
         );
         // Log any errors if present:
         if (result.errors && result.errors.length) {
