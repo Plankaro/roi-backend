@@ -1,4 +1,4 @@
-import { IsEnum, IsOptional } from 'class-validator';
+import { IsBoolean, IsEnum, IsOptional } from 'class-validator';
 import { PartialType, PickType } from '@nestjs/mapped-types';
 import { CreateProspectDto } from './create-prospect.dto';
 import { Lead } from '@prisma/client';
@@ -9,4 +9,7 @@ export class UpdateProspectDto extends PartialType(
   @IsOptional()
   @IsEnum(Lead)
   lead?: Lead;
+
+ 
+
 }

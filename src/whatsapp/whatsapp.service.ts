@@ -198,4 +198,66 @@ export class WhatsappService {
       );
     }
   }
+
+  async blockNumber(
+    phoneNumber: string,
+    config: WhatsappConfig
+  ): Promise<any> {
+    if (!config.whatsappMobileId) {
+      throw new InternalServerErrorException('Missing whatsappMobileId in config');
+    }
+    try {
+      const client = this.createClient(config.whatsappApiToken);
+      const payload:any = {
+        messaging_product: 'whatsapp',
+        // phoneNumber should be in E.164 format, e.g., "+14155552671"
+        block_users: [
+          {
+          user: phoneNumber,
+          }
+        ],
+      };
+      console.log(JSON.stringify(payload, null, 2));
+      const response = await client.post(`/${config.whatsappMobileId}/block_users`, payload);
+      console.log(JSON.stringify(response.data, null, 2));
+      return response.data;
+    } catch (error: any) {
+      console.error(
+        'Error blocking number:',
+        error?.response?.data || error.message,
+      );
+      throw new InternalServerErrorException('Failed to block the number.', error);
+    }
+  }
+  async unblockNumber(
+    phoneNumber: string,
+    config: WhatsappConfig
+  ): Promise<any> {
+    if (!config.whatsappMobileId) {
+      throw new InternalServerErrorException('Missing whatsappMobileId in config');
+    }
+    try {
+      const client = this.createClient(config.whatsappApiToken);
+      const payload = {
+        block_users: [
+          {
+            user: phoneNumber, // must be in E.164 format (e.g., "+14155552671")
+          }
+        ],
+      };
+      const response = await client.request({
+        method: 'delete',
+        url: `/${config.whatsappMobileId}/block_users?messaging_product=whatsapp`,
+        data: payload,
+      });
+      console.log(JSON.stringify(response.data, null, 2));
+      return response.data;
+    } catch (error: any) {
+      console.error(
+        'Error unblocking number:',
+        error?.response?.data || error.message,
+      );
+      throw new InternalServerErrorException('Failed to unblock the number.', error);
+    }
+  }
 }

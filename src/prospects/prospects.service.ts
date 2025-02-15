@@ -3,10 +3,12 @@ import { CreateProspectDto } from './dto/create-prospect.dto';
 import { UpdateProspectDto } from './dto/update-prospect.dto';
 import { DatabaseService } from 'src/database/database.service';
 import { InternalServerErrorException } from '@nestjs/common';
+import { WhatsappService } from 'src/whatsapp/whatsapp.service';
+import { getWhatsappConfig } from 'utils/usefulfunction';
 
 @Injectable()
 export class ProspectsService {
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(private readonly databaseService: DatabaseService,private readonly whatsappService: WhatsappService) {}
   create(createProspectDto: CreateProspectDto,req:any) {
     try {
       const { shopify_id, name, email, phone, image } = createProspectDto;
@@ -103,4 +105,49 @@ console.log(buisnessNo)
   remove(id: number) {
     return `This action removes a #${id} prospect`;
   }
+
+  async changeblockstatus(id: string,req:any) {
+    const buisness = req.user.business
+    console.log(id)
+    console.log(buisness)
+    try {
+      const findPropspect = await this.databaseService.prospect.findUnique({
+        where: {
+          id,
+          // buisnessNo: buisness.whatsapp_mobile,
+        }
+      })
+    
+      if (!findPropspect) {
+        throw new BadRequestException('Prospect not found')
+      }
+      const config = getWhatsappConfig(buisness)
+      if(!findPropspect.is_blocked){
+        console.log("blocking")
+        await this.whatsappService.blockNumber(findPropspect.phoneNo,config)
+      }else{
+        console.log("unblocking")
+        await this.whatsappService.unblockNumber(findPropspect.phoneNo,config)
+      }
+      
+      const updateProspect = await this.databaseService.prospect.update({
+        where: {
+          id,
+          buisnessNo: buisness.whatsapp_mobile,
+        },
+        data: {
+          is_blocked: !findPropspect.is_blocked,
+        },
+      })
+      return updateProspect
+
+    } catch (error) {
+      console.error(error)
+    }
+
+  }
+
+
+
+  
 }

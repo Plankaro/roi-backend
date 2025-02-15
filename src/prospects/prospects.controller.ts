@@ -34,4 +34,9 @@ export class ProspectsController {
   remove(@Param('id') id: string) {
     return this.prospectsService.remove(+id);
   }
+
+  @Patch('block/:id')
+  changeblockstatus(@Param('id') id: string,@Req() req: Request) {
+    return this.prospectsService.changeblockstatus(id,req);
+  }
 }
