@@ -260,4 +260,27 @@ export class WhatsappService {
       throw new InternalServerErrorException('Failed to unblock the number.', error);
     }
   }
+
+  async markstatusasread(id: string, config: WhatsappConfig): Promise<any> {
+    if (!config.whatsappApiToken || !config.whatsappMobileId) {
+      throw new InternalServerErrorException('Missing required configuration (whatsappApiToken or whatsappMobileId)');
+    }
+    try {
+      const client = this.createClient(config.whatsappApiToken);
+      const response = await client.put(
+        `/${config.whatsappMobileId}/messages/${id}`,
+        null,
+        { params: { status: 'read' } }
+      );
+      return response.data;
+    } catch (error: any) {
+      console.error(
+        'Error marking status as read:',
+        error?.response?.data || error.message,
+      );
+      throw new InternalServerErrorException('Failed to mark status as read.', error);
+    }
+  }
+
+  
 }

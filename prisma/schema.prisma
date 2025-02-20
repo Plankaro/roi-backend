@@ -9,33 +9,32 @@ datasource db {
 }
 
 model User {
-  id              String     @id @default(cuid())
+  id              String    @id @default(cuid())
   name            String
-  username        String?    @unique
-  email           String     @unique
-  phone           String?    @unique
+  username        String?   @unique
+  email           String    @unique
+  phone           String?   @unique
   password        String?
-  refreshToken    String?    @db.Text
+  refreshToken    String?   @db.Text
   emailVerified   DateTime?
   image           String?
-  createdAt       DateTime   @default(now())
-  updatedAt       DateTime   @updatedAt
-  isEmailVerified Boolean    @default(false)
-  role            Role       // e.g., ADMIN, AGENT, etc.
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  isEmailVerified Boolean   @default(false)
+  role            Role // e.g., ADMIN, AGENT, etc.
 
   // Each user (employee) can belong to one business.
-  business        Business?  @relation("BusinessEmployees", fields: [businessId], references: [id])
-  businessId      String?    // foreign key; optional if user is not linked to any business
+  business   Business? @relation("BusinessEmployees", fields: [businessId], references: [id])
+  businessId String? // foreign key; optional if user is not linked to any business
 
-  accounts        Account[]
-  prospects       Prospect[]      @relation("AssignedProspects")
-  broadcasts      Broadcast[]     @relation("CreatedBroadcasts")
-  templates       Template[]      @relation("CreatedTemplates")
-  flashResponses  FlashResponse[] @relation("CreatedFlashResponses")
+  accounts       Account[]
+  prospects      Prospect[]      @relation("AssignedProspects")
+  broadcasts     Broadcast[]     @relation("CreatedBroadcasts")
+  templates      Template[]      @relation("CreatedTemplates")
+  flashResponses FlashResponse[] @relation("CreatedFlashResponses")
 }
 
 enum Role {
-  
   ADMIN
   AGENT
 }
@@ -64,48 +63,47 @@ model Account {
 }
 
 model Business {
-  id                   String     @id @default(cuid())
-  businessName         String
-  createdAt            DateTime   @default(now())
+  id           String     @id @default(cuid())
+  businessName String
+  createdAt    DateTime   @default(now())
   // List of employees (admins, agents, etc.) who are associated with this business.
-  employees            User[]     @relation("BusinessEmployees")
-  prospects            Prospect[]
-  tags                 Tag[]
+  employees    User[]     @relation("BusinessEmployees")
+  prospects    Prospect[]
+  tags         Tag[]
 
   shopify_Token        String?
   shopify_domain       String?
   whatsapp_mobile_id   String?
-  whatsapp_mobile      String?    @unique
+  whatsapp_mobile      String? @unique
   whatsapp_token       String?
   whatsapp_buisness_id String?
 
-  Broadcast            Broadcast[]
-  Template             Template[]
-  FlashResponse        FlashResponse[]
-  Payment              Payment[]
+  Broadcast     Broadcast[]
+  Template      Template[]
+  FlashResponse FlashResponse[]
+  Payment       Payment[]
 }
 
 model Prospect {
-  id           String    @id @default(cuid())
-  shopify_id   String?   @unique
-  name         String?
-  email        String?
-  image        String?
-  last_Online  DateTime?
-  phoneNo      String
-  lead         Lead      @default(LEAD)
- 
+  id          String    @id @default(cuid())
+  shopify_id  String?   @unique
+  name        String?
+  email       String?
+  image       String?
+  last_Online DateTime?
+  phoneNo     String
+  lead        Lead      @default(LEAD)
+
   assignedToId String?
-  assignedTo   User?     @relation("AssignedProspects", fields: [assignedToId], references: [id])
+  assignedTo   User?   @relation("AssignedProspects", fields: [assignedToId], references: [id])
 
-
-  buisnessNo   String
-business         Business? @relation(fields: [buisnessNo], references: [whatsapp_mobile], onDelete: Cascade, onUpdate: Cascade)
-  chats        Chat[]
-  order        Order[]
-  is_blocked   Boolean   @default(false)
-  created_at   DateTime  @default(now())
-  updated_at   DateTime  @updatedAt
+  buisnessNo String
+  business   Business? @relation(fields: [buisnessNo], references: [whatsapp_mobile], onDelete: Cascade, onUpdate: Cascade)
+  chats      Chat[]
+  order      Order[]
+  is_blocked Boolean   @default(false)
+  created_at DateTime  @default(now())
+  updated_at DateTime  @updatedAt
 
   // Many-to-Many Relationship with Broadcast via BroadcastContact
 
@@ -139,11 +137,10 @@ enum Lead {
 }
 
 model Tag {
-  id         String     @id @default(cuid())
+  id         String    @id @default(cuid())
   title      String
-  business   Business?  @relation(fields: [businessId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  business   Business? @relation(fields: [businessId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   businessId String?
-  
 }
 
 model Chat {
@@ -158,6 +155,7 @@ model Chat {
   header_value    String?
   // body_type          BodyType    @default(text)
   // body_attachmentUrl String[]
+ 
 
   body_text String?
 
@@ -215,7 +213,7 @@ enum OrderStatus {
 model Broadcast {
   id       String @id @default(cuid())
   template String
-  type     String
+  type    BroadCastType 
   status   String
 
   createdBy          String?
@@ -239,6 +237,12 @@ model Broadcast {
 
   Order Order[]
 }
+
+enum BroadCastType {
+PROMOTIONAL
+TRANSACTIONAL
+}
+   
 
 model Contacts {
   id          String    @id @default(cuid())

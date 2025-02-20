@@ -14,11 +14,11 @@ import { hash, compare } from 'bcrypt';
 import { LoginDto } from './dto/login-auth.dto';
 import { JwtService } from '@nestjs/jwt';
 import { ResetPasswordDto } from './dto/forget-password.dto';
-import { generateOtp } from 'utils/otp';
+
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import Redis from 'ioredis';
 import { SendgridService } from 'src/sendgrid/sendgrid.service';
-import { error } from 'console';
+
 @Injectable()
 export class AuthService {
   constructor(

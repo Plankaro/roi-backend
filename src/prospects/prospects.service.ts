@@ -50,9 +50,14 @@ console.log(buisnessNo)
         include: {
           chats: {
             take: 1,
+            
             orderBy: {
               createdAt: 'desc', // Adjust this field based on your schema
             },
+            where: {
+              deleted: false
+            }
+            
           },
         },
       });

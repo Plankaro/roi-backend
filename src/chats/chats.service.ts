@@ -5,9 +5,10 @@ import { ChatsGateway } from './chats.gateway';
 import { DatabaseService } from 'src/database/database.service';
 import { MediaDto } from './dto/media-chat-dto';
 import { Business, HeaderType } from '@prisma/client';
-import { getFirstAndLastName, sanitizePhoneNumber } from 'utils/usefulfunction';
+import { getFirstAndLastName, getWhatsappConfig, sanitizePhoneNumber } from 'utils/usefulfunction';
 import { ShopifyService } from 'src/shopify/shopify.service';
 import { Public } from 'src/auth/decorator/public.decorator';
+import { Buisness } from 'src/buisness/entities/buisness.entity';
 @Injectable()
 export class ChatsService {
   constructor(
@@ -394,14 +395,16 @@ export class ChatsService {
     }
   }
 
-  async findAllChats(prospect_id:string) {
+  async findAllChats(prospect_id:string,req:any) {
     try {
-      
+      const buisness = req.user.business
 
       const chats = await this.databaseService.chat.findMany({
         where: {
           // ✅ `where` clause is required
         prospectId:prospect_id,
+        deleted:false,
+        
 
         },
       });
@@ -550,4 +553,49 @@ export class ChatsService {
   //     throw new InternalServerErrorException('Failed to create customer on Shopify');
   //   }
   // }
+
+  async deleteMessage(prospectorId: string){
+    try {
+      const result = await this.databaseService.chat.updateMany({
+        where: {
+          prospectId:prospectorId
+        },
+        data:{
+          deleted:true
+        }
+      })
+      return result
+    } catch (error) {
+      throw new InternalServerErrorException(error)
+    }
+  }
+
+  async markMessageAsRead(prospectorId: string,req,ids:string[]){
+    try {
+      const buisness:Business = req.user.business
+
+      // const findprospect = await this.databaseService.prospect.findUnique({
+      //   where: {
+      //     id:prospectorId
+      //   }
+      // })
+      // const chats = await this.databaseService.chat.findMany({
+      //   where: {
+      //     prospectId:prospectorId,
+      //     deleted:false,
+      //     receiverPhoneNo:findprospect.phoneNo
+      //   }
+      // })
+      const config = getWhatsappConfig(buisness)
+      ids.forEach(async (chat) => {
+        const updatechat = await this.whatsappService.markstatusasread(chat,config)
+        console.log(updatechat)
+
+      })
+
+      return "success"
+    } catch (error) {
+      console.error(error)
+    }
+  }
 }

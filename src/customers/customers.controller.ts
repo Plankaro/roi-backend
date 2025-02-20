@@ -16,7 +16,8 @@ export class CustomersController {
 
   @Get('/segments')
   GetAllSegments(@Req() req:Request) {
-    return this.customersService.getAllSegments(req);
+    console.log("hitting")
+    return this.customersService.getSegmentsWithCustomerCounts(req);
   }
   @Get('/segments/:id')
   getSegment(@Param('id') id: string,@Req() req:Request) {

@@ -8,6 +8,7 @@ export class EventsService {
   constructor(private databaseService: DatabaseService) {}
   async manipulateOrder(orderData: any) {
     try {
+      console.log("order",orderData);
       const contact =
         orderData.billing_address.phone || orderData.customer.phone;
       const sanitizedContact = sanitizePhoneNumber(contact);
@@ -35,15 +36,15 @@ export class EventsService {
 
       if (latestBroadcast) {
         // Update only that broadcast record by its unique ID
-        const updatedBroadcast = await this.databaseService.broadcast.update({
+        await this.databaseService.broadcast.update({
           where: { id: latestBroadcast.id },
           data: {
             order_created: { increment: 1 },
           },
-        });
-        console.log(updatedBroadcast);
+      });
+       
       } else {
-        console.log('No matching broadcast found.');
+        console.log("no broadcast found");
       }
     } catch (error) {}
   }

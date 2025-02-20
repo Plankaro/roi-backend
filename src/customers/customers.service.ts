@@ -9,20 +9,24 @@ import { UpdateCustomerDto } from './dto/update-customer.dto';
 import { ShopifyService } from 'src/shopify/shopify.service';
 import { DatabaseService } from 'src/database/database.service';
 import { getShopifyConfig } from 'utils/usefulfunction';
+import { console } from 'inspector';
+import { InjectRedis } from '@nestjs-modules/ioredis';
+import Redis from 'ioredis';
 @Injectable()
 export class CustomersService {
   constructor(
     private readonly shopifyService: ShopifyService,
     private readonly databaseService: DatabaseService,
+    @InjectRedis() private readonly redis: Redis,
   ) {}
 
-  create(createCustomerDto: CreateCustomerDto,req:any) {
+  create(createCustomerDto: CreateCustomerDto, req: any) {
     return 'This action adds a new customer';
   }
 
-  async getAllCustomers(req:any) {
-    const buisness = req.user.business
-    const config = getShopifyConfig(buisness)
+  async getAllCustomers(req: any) {
+    const buisness = req.user.business;
+    const config = getShopifyConfig(buisness);
     const query = `
     query ($cursor: String) {
       customers(first: 50, after: $cursor) {
@@ -72,9 +76,12 @@ export class CustomersService {
     }
   `;
     try {
-      const variable = {}
-      const response = await this.shopifyService.executeGraphQL(query,variable,config);
-      
+      const variable = {};
+      const response = await this.shopifyService.executeGraphQL(
+        query,
+        variable,
+        config,
+      );
 
       // Validate response structure
       if (!response || !response.data || !response.data.customers) {
@@ -118,9 +125,9 @@ export class CustomersService {
     }
   }
 
-  async getCustomerById(customerId: string,req:any) {
-    const buisness = req.user.business
-    const config = getShopifyConfig(buisness)
+  async getCustomerById(customerId: string, req: any) {
+    const buisness = req.user.business;
+    const config = getShopifyConfig(buisness);
     const query = `
   query ($id: ID!) {
     customer(id: $id) {
@@ -165,31 +172,23 @@ export class CustomersService {
 
     const variables = { id: `gid://shopify/Customer/${customerId}` };
 
-    const response = await this.shopifyService.executeGraphQL(query, variables,config);
-    // const filteredData = response.data.customers.edges
-    // .map(({ node }) => ({
-    //   id: node.id,
-    //   name: `${node.firstName || ''} ${node.lastName || ''}`.trim(),
-    //   email: node.email || '',
-    //   phone: node.phone || '',
-    //   address: node.addresses.map((address) => ({
-    //     address1: address.address1 || '',
-    //     address2: address.address2 || '',
-    //     city: address.city || '',
-    //     country: address.country || '',
-    //     zip: address.zip || '',
-    //   })),
-    //   amountSpent: node.amountSpent,
-    //   orders: node.orders.nodes,
-    //   image: node.image?.url || '', // Handle cases where image might be null
-    // }));
+    const response = await this.shopifyService.executeGraphQL(
+      query,
+      variables,
+      config,
+    );
+
     console.log(JSON.stringify(response.data, null, 2)); // Log the response)
     return response.data.customer;
   }
 
-  async getAllSegments(req:any): Promise<{ id: string; name: string }[]> {
-    const buisness = req.user.business
-    const config = getShopifyConfig(buisness)
+  async getAllSegments(
+    req: any,
+  ): Promise<
+    { id: string; name: string; query: string; totalContacts: number }[]
+  > {
+    const business = req.user.business;
+    const config = getShopifyConfig(business);
     const query = `
       query GetAllSegments($first: Int!) {
         segments(first: $first) {
@@ -197,39 +196,99 @@ export class CustomersService {
             node {
               id
               name
-                query
+              query
+              
             }
           }
         }
       }
     `;
     const variables = { first: 250 };
-    const result = await this.shopifyService.executeGraphQL(query, variables,config);
+    const result = await this.shopifyService.executeGraphQL(
+      query,
+      variables,
+      config,
+    );
     const segmentsEdges = result.data?.segments?.edges || [];
+    console.log(result);
     return segmentsEdges.map((edge: any) => ({
       id: edge.node.id,
       name: edge.node.name,
       query: edge.node.query,
+      totalContacts: edge.node.contacts?.totalCount || 0,
     }));
   }
+  async getSegmentsWithCustomerCounts(
+    req: any,
+  ): Promise<
+    { id: string; name: string; query: string; totalCount: number }[]
+  > {
+    const business = req.user.business;
+    const config = getShopifyConfig(business);
 
-  async getAllContactsForSegment(segmentId: string,req:any): Promise<any[]> {
+    // Retrieve all segments first
+    const segments = await this.getAllSegments(req);
+    const cacheKey = `shopify:segments:${config.store}`;
+    const cachedData = await this.redis.get(cacheKey);
+    if (cachedData) {
+      console.log('Returning cached data');
+      return JSON.parse(cachedData);
+    }
+
+    // For each segment, run a query to get its customer count
+    const segmentsWithCounts = await Promise.all(
+      segments.map(async (segment) => {
+        const customerCountQuery = `
+          query GetSegmentMembers($segmentId: ID!, $first: Int!, $after: String) {
+            customerSegmentMembers(segmentId: $segmentId, first: $first, after: $after) {
+              totalCount
+            }
+          }
+        `;
+        const variables = { segmentId: segment.id, first: 1, after: null };
+        const response = await this.shopifyService.executeGraphQL(
+          customerCountQuery,
+          variables,
+          config,
+        );
+        const totalCount =
+          response.data?.customerSegmentMembers?.totalCount ?? 0;
+        return {
+          id: segment.id,
+          name: segment.name,
+          query: segment.query,
+          totalCount,
+        };
+      }),
+    );
+    await this.redis.set(cacheKey, JSON.stringify(segmentsWithCounts));
+
+    return segmentsWithCounts;
+  }
+
+  async getAllContactsForSegment(segmentId: string, req: any): Promise<any[]> {
     let contacts: any[] = [];
     let hasNextPage = true;
     let after: string = null;
     const first = 250;
-    const buisness = req.user.business
-    const config = getShopifyConfig(buisness)
+    const buisness = req.user.business;
+    const config = getShopifyConfig(buisness);
     const query = `
       query GetSegmentMembers($segmentId: ID!, $first: Int!, $after: String) {
         customerSegmentMembers(segmentId: $segmentId, first: $first, after: $after) {
           totalCount
           edges {
             node {
-              id
-              defaultPhoneNumber {
-                phoneNumber
-              }
+              displayName
+        firstName
+        id
+        lastName
+        defaultEmailAddress {
+          emailAddress
+        }
+        defaultPhoneNumber {
+          phoneNumber
+        }
             }
           }
           pageInfo {
@@ -246,7 +305,7 @@ export class CustomersService {
         const result = await this.shopifyService.executeGraphQL(
           query,
           variables,
-          config
+          config,
         );
         // Log any errors if present:
         if (result.errors && result.errors.length) {
@@ -260,15 +319,7 @@ export class CustomersService {
           break;
         }
         const edges = membersConnection.edges || [];
-        contacts = contacts.concat(
-          edges
-            .map((edge: any) =>
-              edge.node.defaultPhoneNumber
-                ? edge.node.defaultPhoneNumber.phoneNumber
-                : null,
-            )
-            .filter((phone: string | null): phone is string => phone !== null),
-        );
+        contacts = 
         hasNextPage = membersConnection.pageInfo.hasNextPage;
         after = membersConnection.pageInfo.endCursor;
       }

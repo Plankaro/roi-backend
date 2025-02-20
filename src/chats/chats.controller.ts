@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Query, Res, Req } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query, Res, Req, Put } from '@nestjs/common';
 import { Response } from 'express';
 import { ChatsService } from './chats.service';
 import { SendTemplateMessageDto } from './dto/template-chat';
@@ -44,13 +44,13 @@ export class ChatsController {
     @Query('prospect_id') prospect: string,
     @Req() req: Request 
   ) {
-    return this.chatsService.findAllChats(prospect);
+    return this.chatsService.findAllChats(prospect,req);
 
   }
 
   @Delete('/')
   removeAll(@Query('prospect_id') prospect: string,) {
-   
+   return this.chatsService.deleteMessage(prospect);
   }
 
   @Public()
@@ -74,6 +74,10 @@ export class ChatsController {
     return this.chatsService.sendMedia(mediaDto,req)
   }
 
+  @Patch('/')
+  markMessageAsRead(@Query('prospect_id') prospectId: string,@Req() req: Request,@Body() ids: string[]) {
+    return this.chatsService.markMessageAsRead(prospectId,req,ids);
+  }
 
 
 

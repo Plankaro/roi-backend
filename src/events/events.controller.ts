@@ -1,22 +1,37 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete,Headers } from '@nestjs/common';
 import { EventsService } from './events.service';
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
-
+import { Public } from 'src/auth/decorator/public.decorator';
 @Controller('events')
 export class EventsController {
   constructor(private readonly eventsService: EventsService) {}
 
+  @Public()
   @Post('/checkout')
-  create(@Body() checkoutdata: any) {
-    console.log("checkout",checkoutdata)
-    return checkoutdata
+  createCheckout(
+    @Body() checkoutData: any,
+    @Headers() headers: Record<string, string>,
+  ) {
+    console.log("Received Checkout Payload:", checkoutData);
+    console.log("Checkout Headers:", headers);
+    // You can access, for example, headers['x-shopify-shop-domain']
+    return checkoutData;
   }
+
+  @Public()
   @Post('/order')
-  createOrder(@Body() orderData: any) {
-  
-    this.eventsService.manipulateOrder(orderData)
+  createOrder(
+    @Body() orderData: any,
+    @Headers() headers: Record<string, string>,
+  ) {
+    console.log("Received Order Payload:", orderData);
+    console.log("Order Headers:", headers);
+    // Pass the order data to your service for further processing
+    this.eventsService.manipulateOrder(orderData);
+    return { success: true };
   }
+
 
   @Get()
   findAll() {
