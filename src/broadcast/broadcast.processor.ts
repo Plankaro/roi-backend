@@ -5,7 +5,8 @@ import { WhatsappService } from 'src/whatsapp/whatsapp.service';
 import { DatabaseService } from 'src/database/database.service';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
-import { sanitizePhoneNumber } from 'utils/usefulfunction';
+import { getFromDate, getWhatsappConfig, sanitizePhoneNumber } from 'utils/usefulfunction';
+import { CustomersService } from 'src/customers/customers.service';
 
 @Processor('broadcastQueue')
 @Injectable()
@@ -14,208 +15,268 @@ export class BroadcastProcessor extends WorkerHost {
     private readonly whatsappService: WhatsappService,
     private readonly databaseService: DatabaseService,
     @InjectQueue('broadcastQueue') private readonly broadcastQueue: Queue,
+    private readonly customersService: CustomersService,
   ) {
     super();
   }
 
   async process(job: Job<any, any, string>): Promise<void> {
-    const {
-      recipients, // Array of recipient numbers
-      templateName,
-      templatetype,
-      languageCode,
-      components,
-      previewSection,
-      broadastContactId,
-      DeadAudienceFilteringEnabled,
-      DeadAudienceFilteringTiming,
-      MarketingmessagesfreqControlEnabled,
-      MarketingmessageLimit,
-      MarketingmessageLimitTiming,
-      SkipDuplicates,
-      config
-    } = job.data;
+    try {
+      const {
+        // recipients, // Array of recipient numbers
+        // templateName,
+        // templatetype,
+        // languageCode,
+        // components,
+        // previewSection,
+        // broadastContactId,
+        // DeadAudienceFilteringEnabled,
+        // DeadAudienceFilteringTiming,
+        // MarketingmessagesfreqControlEnabled,
+        // MarketingmessageLimit,
+        // MarketingmessageLimitTiming,
+        // SkipDuplicates,
+        // config
+        id,
+        template,
+      } = job.data;
 
-    console.log(`Processing job for recipients: ${JSON.stringify(recipients)}`);
-    this.databaseService.broadcast.update({
-      where: {
-        id: broadastContactId,
-      },
-      data: {
-        status: 'running',
-      },
-    })
-
-    const unsentRecipients: string[] = [];
-    let uniqueRecipients = recipients;
-    if (SkipDuplicates) {
-      const recipientSet = new Set(recipients);
-      uniqueRecipients = Array.from(recipientSet); // Remove duplicates
-      console.log(`Filtered unique recipients: ${JSON.stringify(uniqueRecipients)}`);
-    }
-  
-    for (let i = 0; i < uniqueRecipients.length; i++) {
-      const recipientNo = recipients[i];
-      const timeLimitInSeconds = DeadAudienceFilteringTiming; // e.g., 3600 (1 hour), 7200 (2 hours).
-      const timeLimit = new Date(Date.now() - timeLimitInSeconds * 1000);
-      if (DeadAudienceFilteringEnabled && DeadAudienceFilteringTiming) {
-        const findMessage = await this.databaseService.chat.findMany({
-          where: {
-            OR: [
-              {
-                receiverPhoneNo: recipientNo,
-                senderPhoneNo: config.whatsappMobile,
-                createdAt: timeLimit,
-              },
-              {
-                receiverPhoneNo: config.whatsappMobile,
-                senderPhoneNo: recipientNo,
-                createdAt: timeLimit,
-              },
-            ],
-          },
-        });
-
-        if (findMessage.length > 0) {
-          console.log(
-            `Skipping recipient ${recipientNo} due to Dead Audience Filtering.`,
-          );
-          continue;
-        }
-      }
-
-      if (
-        MarketingmessagesfreqControlEnabled &&
-        MarketingmessageLimit &&
-        MarketingmessageLimitTiming
-      ) {
-        const findMessage = await this.databaseService.chat.findMany({
-          where: {
-            OR: [
-              {
-                receiverPhoneNo: recipientNo,
-                senderPhoneNo: config.whatsappMobile,
-                type: 'marketing',
-                createdAt: {
-                  gte: new Date(
-                    Date.now() - MarketingmessageLimitTiming * 1000,
-                  ),
-                },
-              },
-            ],
-          },
-        });
-
-        if (findMessage.length >= MarketingmessageLimit) {
-          console.log(
-            `Skipping recipient ${recipientNo} due to Marketing messages frequency control.`,
-          );
-          continue;
-        }
-      }
-     
-
-      try {
-        // Attempt to send the WhatsApp message.
-        const response: any = await this.whatsappService.sendTemplateMessage({
-          recipientNo,
-          templateName,
-          languageCode,
-          components,
-        },
-      config);
-       
-      const isprospectrelated = await this.databaseService.prospect.findUnique({
-        where:{
-          buisnessNo_phoneNo:{
-            phoneNo: sanitizePhoneNumber(response?.contacts[0].input.replace(/^\+/, '')),
-            buisnessNo: config.whatsappMobile,
-          }
-        }
-      })
-
-        // Save the successful send in the database.
-        const chat = await this.databaseService.chat.create({
-          data: {
-         prospectId:isprospectrelated.id,
-            chatId: response?.messages[0]?.id ?? '',
-            template_used: true,
-            template_name: templateName,
-            senderPhoneNo: '15551365364',
-            receiverPhoneNo: response?.contacts[0].input.replace(/^\+/, ''),
-            sendDate: new Date(),
-            header_type: previewSection.header.type,
-            header_value: previewSection.header.value,
-            body_text: previewSection.bodyText,
-            footer_included: previewSection.footer.length > 0,
-            footer_text: previewSection.footer,
-            Buttons: previewSection.buttons,
-            isForBroadcast: true,
-            broadcastId: broadastContactId,
-            Status: 'pending',
-            type: templatetype || 'personal',
-          },
-        });
-        await this.databaseService.contacts.create({
-          data:{
-            phoneNo:sanitizePhoneNumber(recipientNo),
-            BroadCastId:broadastContactId,
-            chatId:chat.id
-
-          }
-        })
-      } catch (error) {
-        console.log(JSON.stringify(error,null,2));
-        // If a rate limit error occurs, capture the remaining recipients.
-        if (error.response && error.response.status === 429) {
-          console.error(
-            `Rate limit hit for ${recipientNo}. Capturing unsent recipients from index ${i}.`,
-          );
-          unsentRecipients.push(...recipients.slice(i));
-          break;
-        } else {
-          console.error(
-            `Error sending message to ${recipientNo}:`,
-            error?.response?.data || error.message,
-          );
-          // Optionally, you could log the failure or decide to skip this recipient.
-        }
-      }
-
-      // Introduce a delay between sends to further reduce risk of rate limiting.
-      await new Promise((resolve) => setTimeout(resolve, 100));
-    }
-
-
-    // If there are unsent recipients due to rate limiting, requeue them for a retry after 24 hours.
-    if (unsentRecipients.length > 0) {
-      console.log(
-        `Requeuing unsent recipients: ${JSON.stringify(unsentRecipients)}`,
-      );
-      await this.broadcastQueue.add(
-        'sendBroadcast',
-        {
-          broadastContactId,
-          recipients: unsentRecipients,
-          templateName,
-          languageCode,
-          components,
-          previewSection,
-        },
-        {
-          delay: 24 * 60 * 60 * 1000, // 24 hours delay
-          attempts: 1,
-        },
-      );
-    }else{
-      this.databaseService.broadcast.update({
+      console.log(job.data);
+      const broadcast = await this.databaseService.broadcast.update({
         where: {
-          id: broadastContactId,
+          id: id,
         },
         data: {
-          status: 'completed',
+          status: 'running',
         },
-      })
+        include: {
+          creator: {
+            include: {
+              business: true,
+            },
+          },
+        },
+      });
+      console.log(broadcast);
+
+      let data: any;
+
+      if (broadcast.contacts_type === 'shopify' && broadcast.segment_id) {
+        console.log('hitting');
+        console.log(broadcast.segment_id);
+        const shopify: any =
+          await this.customersService.getAllContactsForSegment(
+            broadcast.segment_id,
+            broadcast.creator,
+          );
+        console.log(shopify);
+        data = shopify;
+      } else if (broadcast.contacts_type === 'excel' && broadcast.excelData) {
+        const exceldata: any = broadcast.excelData;
+        data = exceldata.data.map((item) => ({
+          ...item,
+          phone: item[exceldata.selectedField],
+        }));
+      } else {
+        throw new Error('Invalid contacts type');
+      }
+
+      console.log(data);
+
+      for (const broadcastData of data) {
+        let contact = sanitizePhoneNumber(`${broadcastData.phone}`);
+        let prospect;
+        prospect = await this.databaseService.prospect.findUnique({
+          where: {
+            phoneNo: contact,
+          },
+        });
+
+        //logic for dead filters
+        if (
+          broadcast.skip_inactive_contacts_enabled &&
+          broadcast.skip_inactive_contacts_days > 0 &&
+          prospect
+        ) {
+          const fromDate = new Date(
+            Date.now() -
+              broadcast.skip_inactive_contacts_days * 24 * 60 * 60 * 1000,
+          );
+          const findMessage = await this.databaseService.chat.findMany({
+            where: {
+              OR: [
+                {
+                  receiverPhoneNo: contact,
+                  senderPhoneNo: broadcast.creator.business.whatsapp_mobile,
+                  createdAt: { gte: fromDate },
+                  Status: 'read',
+                },
+                {
+                  receiverPhoneNo: broadcast.creator.business.whatsapp_mobile,
+                  senderPhoneNo: contact,
+                  createdAt: { gte: fromDate },
+                },
+              ],
+            },
+          });
+          if (findMessage.length === 0) {
+            console.log(
+              `Skipping recipient ${contact} due to Dead Audience Filtering.`,
+            );
+            continue;
+          }
+        }
+        if (!prospect) {
+          prospect = await this.databaseService.prospect.create({
+            data: {
+              phoneNo: contact,
+              buisnessNo: broadcast.creator.business.whatsapp_mobile,
+            },
+          });
+        }
+
+        // logic for marketing messages frequency control
+        if (
+          broadcast.limit_marketing_message_enabled &&
+          broadcast.limit_marketing_message_messagenumber > 0 &&
+          broadcast.limit_marketing_message_duration
+        ) {
+          const getDate = getFromDate(
+            broadcast.limit_marketing_message_duration,
+          );
+          const checkMessage = await this.databaseService.chat.findMany({
+            where: {
+              senderPhoneNo: broadcast.creator.business.whatsapp_mobile,
+              receiverPhoneNo: contact,
+              createdAt: {
+                gte: getDate,
+              },
+            },
+          });
+          if (
+            checkMessage.length >=
+            broadcast.limit_marketing_message_messagenumber
+          ) {
+            console.log(
+              `Skipping recipient ${contact} due to Marketing Messages Frequency Control.`,
+            );
+            continue;
+          }
+
+          // logic for components
+        }
+
+        const components = [];
+
+        const { header, buttons, body } = broadcast.componentData as any;
+
+        if (header && header.isEditable) {
+          if (header.type === 'TEXT') {
+            let value;
+            if (header.fromsegment) {
+              value =
+                broadcastData[header.segmentname] || header.segmentAltValue;
+            } else {
+              value = header.value;
+            }
+
+            if (
+              template.parameter_format === 'NAMED' &&
+              template.components[0].example.header_text_named_params[0]
+                .param_name
+            ) {
+              components.push({
+                type: 'header',
+                parameters: [
+                  {
+                    type: 'text',
+                    parameter_name:
+                      template.components[0].example.header_text_named_params[0]
+                        .param_name,
+                    text: value,
+                  },
+                ],
+              });
+            } else {
+              components.push({
+                type: 'header',
+                parameters: [{ type: 'text', text: value }],
+              });
+            }
+          } else if (header.type === 'IMAGE') {
+            components.push({
+              type: 'header',
+              parameters: [{ type: 'image', image: { link: header.value } }],
+            });
+          } else if (header.type === 'VIDEO') {
+            components.push({
+              type: 'header',
+              parameters: [{ type: 'video', video: { link: header.value } }],
+            });
+          } else if (header.type === 'DOCUMENT') {
+            components.push({
+              type: 'header',
+              parameters: [
+                { type: 'document', document: { link: header.value } },
+              ],
+            });
+          }
+        }
+
+        const bodyParameters = body.map((param) => {
+          const value = param.fromsegment
+            ? broadcastData[param.segmentname] || param.segmentAltValue
+            : param.value;
+
+          template.parameter_format === 'NAMED'
+            ? {
+                type: 'text',
+                parameter_name: param.parameter_name,
+                text: value,
+              }
+            : { type: 'text', text: param.value };
+        });
+        components.push({ type: 'body', parameters: bodyParameters });
+        buttons.forEach((button, index) => {
+          if (button.type === 'URL' && button.isEditable === true) {
+            components.push({
+              type: 'button',
+              sub_type: 'url',
+              index: '0',
+              parameters: [{ type: 'text', text: button.value }],
+            });
+          } else if (button.type === 'COPY_CODE') {
+            components.push({
+              type: 'button',
+              sub_type: 'copy_code',
+              index: index,
+              parameters: [{ type: 'otp', text: encodeURI(button.value) }],
+            });
+          }
+        });
+
+        const config = getWhatsappConfig(broadcast.creator.business)
+
+        const response: any = await this.whatsappService.sendTemplateMessage({
+          recipientNo:contact,
+                  templateName:template.name,
+                  languageCode:template.language,
+                  components,
+                },
+              config
+            );
+
+            console.log(response);
+
+
+      }
+
+      
+    
+
+   
+    } catch (error) {
+      console.log(error);
     }
   }
 }

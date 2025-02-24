@@ -34,20 +34,20 @@ export class GoService {
       };
       
       // Check if at least one UTM parameter exists
-      const hasUtmParams = Object.values(utmParams).some(value => value !== null);
-      if (hasUtmParams) {
-         await this.databaseService.broadcast.updateMany({
-          where: {
-            utm_params: utmParams.utm_params,
-            utm_source: utmParams.utm_source,
-            utm_campaign: utmParams.utm_campaign,
-          },
-          data: {
-            links_visit: { increment: 1 },
-          },
-        });
+      // const hasUtmParams = Object.values(utmParams).some(value => value !== null);
+      // if (hasUtmParams) {
+      //    await this.databaseService.broadcast.updateMany({
+      //     where: {
+      //       utm_params: utmParams.utm_params,
+      //       utm_source: utmParams.utm_source,
+      //       utm_campaign: utmParams.utm_campaign,
+      //     },
+      //     data: {
+      //       links_visit: { increment: 1 },
+      //     },
+      //   });
         
-      }
+      // }
       
       return utmParams;
     } catch (error) {

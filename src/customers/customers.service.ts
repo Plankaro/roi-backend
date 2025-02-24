@@ -187,7 +187,8 @@ export class CustomersService {
   ): Promise<
     { id: string; name: string; query: string; totalContacts: number }[]
   > {
-    const business = req.user.business;
+    console.log(req.user)
+        const business = req.user.business;
     const config = getShopifyConfig(business);
     const query = `
       query GetAllSegments($first: Int!) {
@@ -223,7 +224,8 @@ export class CustomersService {
   ): Promise<
     { id: string; name: string; query: string; totalCount: number }[]
   > {
-    const business = req.user.business;
+    const business =await  req.user.business;
+
     const config = getShopifyConfig(business);
 
     // Retrieve all segments first
@@ -271,8 +273,12 @@ export class CustomersService {
     let hasNextPage = true;
     let after: string = null;
     const first = 250;
-    const buisness = req.user.business;
-    const config = getShopifyConfig(buisness);
+  
+  
+    // Retrieve the business configuration
+    const config = getShopifyConfig(req?.user?.business ?? req?.business ?? {});
+  
+    // Define the GraphQL query
     const query = `
       query GetSegmentMembers($segmentId: ID!, $first: Int!, $after: String) {
         customerSegmentMembers(segmentId: $segmentId, first: $first, after: $after) {
@@ -280,15 +286,15 @@ export class CustomersService {
           edges {
             node {
               displayName
-        firstName
-        id
-        lastName
-        defaultEmailAddress {
-          emailAddress
-        }
-        defaultPhoneNumber {
-          phoneNumber
-        }
+              firstName
+              id
+              lastName
+              defaultEmailAddress {
+                emailAddress
+              }
+              defaultPhoneNumber {
+                phoneNumber
+              }
             }
           }
           pageInfo {
@@ -298,37 +304,57 @@ export class CustomersService {
         }
       }
     `;
-
+  
     try {
+      // Loop to fetch all pages
       while (hasNextPage) {
-        const variables = { segmentId, first, after };
-        const result = await this.shopifyService.executeGraphQL(
-          query,
-          variables,
-          config,
-        );
-        // Log any errors if present:
+        const variables = { segmentId: `gid://shopify/Segment/${segmentId}`, first, after };
+        const result = await this.shopifyService.executeGraphQL(query, variables, config);
+  
+        // Log variables for debugging
+        console.log('Variables:', variables);
+  
+        // Check for GraphQL errors
         if (result.errors && result.errors.length) {
           console.error('GraphQL errors:', result.errors);
-          throw new InternalServerErrorException(
-            result.errors[0].message || 'Failed to get data',
-          );
+          throw new InternalServerErrorException(result.errors[0].message || 'Failed to get data');
         }
+  
+        // Extract members connection
         const membersConnection = result.data?.customerSegmentMembers;
         if (!membersConnection) {
           break;
         }
+  
+        // Extract edges and append nodes to contacts
         const edges = membersConnection.edges || [];
-        contacts = 
+        const nodes = edges.map(edge => {
+          const { displayName, firstName, id, lastName, defaultEmailAddress, defaultPhoneNumber } = edge.node;
+          return {
+            displayName,
+            firstName,
+            id,
+            lastName,
+            email: defaultEmailAddress?.emailAddress || null,
+            phone: defaultPhoneNumber?.phoneNumber || null,
+          };
+        });
+        contacts = contacts.concat(nodes);
+  
+        // Update pagination info
         hasNextPage = membersConnection.pageInfo.hasNextPage;
         after = membersConnection.pageInfo.endCursor;
       }
+  
       return contacts;
+  
     } catch (error) {
       console.error('Error in getAllContactsForSegment:', error);
       throw new InternalServerErrorException({ message: error.message });
     }
   }
+  
+  
   update(id: number, updateCustomerDto: UpdateCustomerDto) {
     return `This action updates a #${id} customer`;
   }

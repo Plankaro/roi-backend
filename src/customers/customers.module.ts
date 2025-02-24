@@ -9,5 +9,6 @@ import { DatabaseModule } from 'src/database/database.module';
   imports:[ShopifyModule,DatabaseModule],
   controllers: [CustomersController],
   providers: [CustomersService],
+  exports:[CustomersService]
 })
 export class CustomersModule {}

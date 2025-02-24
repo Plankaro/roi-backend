@@ -91,7 +91,7 @@ model Prospect {
   email       String?
   image       String?
   last_Online DateTime?
-  phoneNo     String
+  phoneNo     String @unique
   lead        Lead      @default(LEAD)
 
   assignedToId String?
@@ -151,11 +151,12 @@ model Chat {
   sendDate        DateTime
   template_used   Boolean     @default(false)
   template_name   String?
+  template_components Json?
+  
   header_type     HeaderType?
   header_value    String?
   // body_type          BodyType    @default(text)
   // body_attachmentUrl String[]
- 
 
   body_text String?
 
@@ -176,7 +177,11 @@ model Chat {
   isForBroadcast Boolean    @default(false)
   Broadcast      Broadcast? @relation(fields: [broadcastId], references: [id])
   broadcastId    String?
-  ContactId      String?
+  isForRetry     Boolean    @default(false)
+  retryId        String?
+  retry          Retry?     @relation(fields: [retryId], references: [id])
+
+  ContactId String?
 
   type String
 
@@ -211,38 +216,78 @@ enum OrderStatus {
 }
 
 model Broadcast {
-  id       String @id @default(cuid())
-  template String
-  type    BroadCastType 
-  status   String
-
-  createdBy          String?
-  creator            User?      @relation("CreatedBroadcasts", fields: [createdBy], references: [id])
-  createdForId       String?
-  createdFor         Business?  @relation(fields: [createdForId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  createdAt          DateTime   @default(now())
-  updatedAt          DateTime   @updatedAt
-  isScheduled        Boolean    @default(false)
-  scheduledDate      DateTime?
-  utm_params         String?
-  utm_campaign       String?
-  price              String
-  is_utm_id_embeded  Boolean    @default(false)
-  utm_source         String?
-  utm_term           String?
+  id       String        @id @default(cuid())
+  template_name String
+  name String
+  type     BroadCastType
+  status   broadcastStatus @default(pending)
+  template_language  String
+  createdBy     String?
+  creator       User?     @relation("CreatedBroadcasts", fields: [createdBy], references: [id])
+  createdForId  String?
+  createdFor    Business? @relation(fields: [createdForId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  isScheduled   Boolean   @default(false)
+  scheduledDate DateTime?
+  price String
   Chat               Chat[]
-  links_visit        Int        @default(0)
+  links_visit        Int         @default(0)
   BroadCast_Contacts Contacts[]
-  order_created      Int        @default(0)
+  order_created      Int         @default(0)
+  onlimit_exced      Limitexced
+  Order              Order[]
+  retry_limit        Int         @default(0)
+  retry              Retry[]
+  contacts_type      ContactType
+  segment_id         String?
+  componentData      Json
+  excelData          Json?
+  utm_campaign       String?
+  utm_medium       String?
+  utm_source       String?
+  utm_term         Boolean @default(false)
+  utm_id      Boolean? @default(false)
+  avoid_duplicate   Boolean @default(true)
+  limit_marketing_message_enabled Boolean @default(true)
+  limit_marketing_message_messagenumber Int?
+  limit_marketing_message_duration  String?
+  skip_inactive_contacts_enabled Boolean @default(true)
+  skip_inactive_contacts_days  Int?
 
-  Order Order[]
+
+}
+enum broadcastStatus {
+  pending
+  completed
+  running
+}
+
+enum ContactType {
+  excel
+  shopify
+}
+
+model Retry {
+  id          String    @id @default(cuid())
+  broadcastId String
+  Broadcast   Broadcast @relation(fields: [broadcastId], references: [id])
+  created_at  DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  Chat        Chat[]
+  status     broadcastStatus   @default(pending)
+
+}
+
+enum Limitexced {
+  pause
+  skip
 }
 
 enum BroadCastType {
-PROMOTIONAL
-TRANSACTIONAL
+  PROMOTIONAL
+  TRANSACTIONAL
 }
-   
 
 model Contacts {
   id          String    @id @default(cuid())

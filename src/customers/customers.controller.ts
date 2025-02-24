@@ -4,6 +4,7 @@ import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
 import { AuthGuard } from 'src/auth/guards/authguard';
 import { Request } from 'express';
+import { Public } from 'src/auth/decorator/public.decorator';
 
 @Controller('customers')
 export class CustomersController {
@@ -14,13 +15,16 @@ export class CustomersController {
     return this.customersService.create(createCustomerDto, req);
   }
 
+
   @Get('/segments')
-  GetAllSegments(@Req() req:Request) {
-    console.log("hitting")
+  GetAllSegments(@Req() req:any) {
+    console.log(req.user)
     return this.customersService.getSegmentsWithCustomerCounts(req);
   }
+
   @Get('/segments/:id')
   getSegment(@Param('id') id: string,@Req() req:Request) {
+
     return this.customersService.getAllContactsForSegment(id,req);
   }
 
