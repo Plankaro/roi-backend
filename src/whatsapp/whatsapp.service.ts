@@ -46,7 +46,7 @@ export class WhatsappService {
         },
       };
       const result = await client.post(`/${config.whatsappMobileId}/messages`, payload);
-      console.log(JSON.stringify(result.data, null, 2));
+    
       return result.data;
     } catch (error: any) {
       console.error(
@@ -59,6 +59,8 @@ export class WhatsappService {
       );
     }
   }
+
+  
 
   async getTemplates(config: WhatsappConfig): Promise<any> {
     if (!config.whatsappBusinessId) {

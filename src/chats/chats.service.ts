@@ -100,6 +100,8 @@ export class ChatsService {
       parameters: bodyParameters,
     });
 
+    console.log(buttons)
+
     buttons.map((button,index) => {
       if(button.type === 'URL' && button.isEditable==true) {
         components.push({
@@ -177,8 +179,9 @@ export class ChatsService {
           body_text: previewSection.bodyText,
           footer_included:previewSection.footer.length > 0,
           footer_text:previewSection.footer,
-          Buttons:previewSection.buttons,
-          type:template_type||"text"
+          Buttons:buttons,
+          type:template_type||"text",
+          template_components:components,
 
 
         },

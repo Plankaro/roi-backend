@@ -145,7 +145,7 @@ model Tag {
 
 model Chat {
   id              String      @id @default(cuid())
-  chatId          String      @unique
+  chatId          String?     @unique
   senderPhoneNo   String
   receiverPhoneNo String
   sendDate        DateTime
@@ -155,16 +155,14 @@ model Chat {
   
   header_type     HeaderType?
   header_value    String?
-  // body_type          BodyType    @default(text)
-  // body_attachmentUrl String[]
+
 
   body_text String?
 
   footer_included Boolean  @default(false)
-  // footer_type     String?
-  // footer_url      String?
+
   footer_text     String?
-  Buttons         String[]
+  Buttons         Json?
 
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
@@ -188,12 +186,15 @@ model Chat {
   Contacts Contacts[]
 }
 
+
+
 enum MessageStatus {
   pending
   sent
   delivered
   read
   failed
+  skipped
 }
 
 enum HeaderType {
@@ -217,6 +218,7 @@ enum OrderStatus {
 
 model Broadcast {
   id       String        @id @default(cuid())
+  
   template_name String
   name String
   type     BroadCastType

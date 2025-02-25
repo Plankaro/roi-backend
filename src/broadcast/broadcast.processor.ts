@@ -5,7 +5,11 @@ import { WhatsappService } from 'src/whatsapp/whatsapp.service';
 import { DatabaseService } from 'src/database/database.service';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
-import { getFromDate, getWhatsappConfig, sanitizePhoneNumber } from 'utils/usefulfunction';
+import {
+  getFromDate,
+  getWhatsappConfig,
+  sanitizePhoneNumber,
+} from 'utils/usefulfunction';
 import { CustomersService } from 'src/customers/customers.service';
 
 @Processor('broadcastQueue')
@@ -21,82 +25,226 @@ export class BroadcastProcessor extends WorkerHost {
   }
 
   async process(job: Job<any, any, string>): Promise<void> {
+    console.log('==== PROCESSING JOB ====');
+    console.log('Job ID:', job.id);
     try {
-      const {
-        // recipients, // Array of recipient numbers
-        // templateName,
-        // templatetype,
-        // languageCode,
-        // components,
-        // previewSection,
-        // broadastContactId,
-        // DeadAudienceFilteringEnabled,
-        // DeadAudienceFilteringTiming,
-        // MarketingmessagesfreqControlEnabled,
-        // MarketingmessageLimit,
-        // MarketingmessageLimitTiming,
-        // SkipDuplicates,
-        // config
-        id,
-        template,
-      } = job.data;
+      const { id, template } = job.data;
+      console.log('Job Data:', job.data);
 
-      console.log(job.data);
+      // Update broadcast status to running
       const broadcast = await this.databaseService.broadcast.update({
-        where: {
-          id: id,
-        },
-        data: {
-          status: 'running',
-        },
-        include: {
-          creator: {
-            include: {
-              business: true,
-            },
-          },
-        },
+        where: { id },
+        data: { status: 'running' },
+        include: { creator: { include: { business: true } } },
       });
-      console.log(broadcast);
+      console.log(
+        'Broadcast updated:',
+        broadcast.id,
+        'Status:',
+        broadcast.status,
+      );
 
+      // Retrieve contacts based on contacts type
       let data: any;
-
       if (broadcast.contacts_type === 'shopify' && broadcast.segment_id) {
-        console.log('hitting');
-        console.log(broadcast.segment_id);
-        const shopify: any =
-          await this.customersService.getAllContactsForSegment(
-            broadcast.segment_id,
-            broadcast.creator,
-          );
-        console.log(shopify);
-        data = shopify;
+        console.log(
+          'Fetching Shopify contacts for segment:',
+          broadcast.segment_id,
+        );
+        data = await this.customersService.getAllContactsForSegment(
+          broadcast.segment_id,
+          broadcast.creator,
+        );
       } else if (broadcast.contacts_type === 'excel' && broadcast.excelData) {
+        console.log('Processing Excel data.');
         const exceldata: any = broadcast.excelData;
         data = exceldata.data.map((item) => ({
           ...item,
           phone: item[exceldata.selectedField],
         }));
       } else {
+        console.error('Invalid contacts type');
         throw new Error('Invalid contacts type');
       }
+      console.log('Total contacts:', data.length);
 
-      console.log(data);
-
+      // Process each contact
       for (const broadcastData of data) {
-        let contact = sanitizePhoneNumber(`${broadcastData.phone}`);
-        let prospect;
-        prospect = await this.databaseService.prospect.findUnique({
-          where: {
-            phoneNo: contact,
+        console.log('===================================');
+        const contact = sanitizePhoneNumber(`${broadcastData.phone}`);
+        console.log('Processing contact:', contact);
+
+        // Build components for the template message
+        const components = [];
+        const { header, buttons, body } = broadcast.componentData as any;
+        console.log('Component Data:', { header, buttons, body });
+
+        // Process header component
+        if (header && header.isEditable) {
+          let headerValue = '';
+          if (header.type === 'TEXT') {
+            headerValue = header.fromsegment
+              ? broadcastData[header.segmentname] || header.segmentAltValue
+              : header.value;
+            if (
+              template.parameter_format === 'NAMED' &&
+              template.components[0]?.example?.header_text_named_params?.[0]
+                ?.param_name
+            ) {
+              components.push({
+                type: 'header',
+                parameters: [
+                  {
+                    type: 'text',
+                    parameter_name:
+                      template.components[0].example.header_text_named_params[0]
+                        .param_name,
+                    text: headerValue,
+                  },
+                ],
+              });
+            } else {
+              components.push({
+                type: 'header',
+                parameters: [{ type: 'text', text: headerValue }],
+              });
+            }
+          } else if (header.type === 'IMAGE') {
+            components.push({
+              type: 'header',
+              parameters: [{ type: 'image', image: { link: header.value } }],
+            });
+          } else if (header.type === 'VIDEO') {
+            components.push({
+              type: 'header',
+              parameters: [{ type: 'video', video: { link: header.value } }],
+            });
+          } else if (header.type === 'DOCUMENT') {
+            components.push({
+              type: 'header',
+              parameters: [{ type: 'document', document: { link: header.value } }],
+            });
+          }
+          console.log('Header processed with value:', headerValue);
+        }
+
+        // Process body component parameters
+        const bodyParameters = body.map((param) => {
+          const value = param.fromsegment
+            ? broadcastData[param.segmentname] ||
+              param.segmentAltValue ||
+              'test'
+            : param.value || 'test';
+          return template.parameter_format === 'NAMED'
+            ? {
+                type: 'text',
+                parameter_name: param.parameter_name,
+                text: value,
+              }
+            : { type: 'text', text: value };
+        });
+        components.push({ type: 'body', parameters: bodyParameters });
+        console.log('Body parameters processed:', bodyParameters);
+
+        // Process buttons
+        buttons.forEach((button, index) => {
+          if (button.type === 'URL' && button.isEditable === true) {
+            components.push({
+              type: 'button',
+              sub_type: 'url',
+              index: '0',
+              parameters: [{ type: 'text', text: button.value }],
+            });
+          } else if (button.type === 'COPY_CODE') {
+            components.push({
+              type: 'button',
+              sub_type: 'copy_code',
+              index: index,
+              parameters: [{ type: 'otp', text: button.value }],
+            });
+          }
+        });
+        console.log('Buttons processed:', buttons);
+
+        // Retrieve or create prospect for the contact
+        let prospect = await this.databaseService.prospect.findUnique({
+          where: { phoneNo: contact },
+        });
+        console.log('Prospect:', prospect ? prospect.id : 'Not found');
+        let uniqueContact = false;
+        if (!prospect) {
+          uniqueContact = true;
+          prospect = await this.databaseService.prospect.create({
+            data: {
+              phoneNo: contact,
+              buisnessNo: broadcast.creator.business.whatsapp_mobile,
+            },
+          });
+          console.log('New prospect created:', prospect.id);
+        }
+
+        // Process footer and body raw text replacement
+        const footer = template.components.find(
+          (component) => component.type === 'footer',
+        );
+        let bodycomponent = template.components.find(
+          (component) => component.type.toLowerCase() === 'body',
+        );
+        console.log('Body component found:', bodycomponent);
+        let bodyRawText = '';
+        if (bodycomponent && bodycomponent.text) {
+          bodyRawText = bodycomponent.text;
+          const mapping = body.reduce((acc, param) => {
+            acc[param.parameter_name] = param.fromsegment
+              ? broadcastData[param.segmentname] || param.segmentAltValue
+              : param.value;
+            return acc;
+          }, {});
+          console.log('Mapping for body text:', mapping);
+          Object.keys(mapping).forEach((placeholder) => {
+            const escapedPlaceholder = escapeRegExp(placeholder);
+            const regex = new RegExp(escapedPlaceholder, 'g');
+            bodyRawText = bodyRawText.replace(regex, mapping[placeholder]);
+          });
+        } else {
+          console.log('No valid body component text found.');
+        }
+        console.log('Final body raw text:', bodyRawText);
+
+        // Save chat record to the database
+        console.log('Creating chat record in DB for contact:', contact);
+        const addTodb = await this.databaseService.chat.create({
+          data: {
+            prospectId: prospect.id,
+            template_used: true,
+            template_name: broadcast.template_name,
+            senderPhoneNo: broadcast.creator.business.whatsapp_mobile,
+            receiverPhoneNo: contact,
+            sendDate: new Date(),
+            header_type: header?.type,
+            header_value:
+              header?.isEditable && header?.type === 'TEXT'
+                ? broadcastData[header.segmentname] || header.segmentAltValue
+                : header?.value,
+            body_text: bodyRawText,
+            footer_included: footer ? true : false,
+            footer_text: footer?.text || '',
+            Buttons: buttons,
+            type: template.type || 'text',
+            template_components: components,
+            isForBroadcast: true,
+            broadcastId: broadcast.id,
           },
         });
+        console.log('Chat record created:', addTodb);
+        console.log('Message processed successfully for contact:', contact);
 
-        //logic for dead filters
+        // Dead Audience Filtering check (post sending)
         if (
           broadcast.skip_inactive_contacts_enabled &&
           broadcast.skip_inactive_contacts_days > 0 &&
-          prospect
+          prospect &&
+          !uniqueContact
         ) {
           const fromDate = new Date(
             Date.now() -
@@ -120,163 +268,79 @@ export class BroadcastProcessor extends WorkerHost {
             },
           });
           if (findMessage.length === 0) {
-            console.log(
-              `Skipping recipient ${contact} due to Dead Audience Filtering.`,
-            );
+            console.log(`Skipping ${contact} due to Dead Audience Filtering.`);
+            await this.databaseService.chat.update({
+              where: { id: addTodb.id },
+              data: { Status: 'skipped' },
+            });
             continue;
           }
         }
-        if (!prospect) {
-          prospect = await this.databaseService.prospect.create({
-            data: {
-              phoneNo: contact,
-              buisnessNo: broadcast.creator.business.whatsapp_mobile,
-            },
-          });
-        }
 
-        // logic for marketing messages frequency control
+        // Marketing Messages Frequency Control check (post sending)
         if (
           broadcast.limit_marketing_message_enabled &&
           broadcast.limit_marketing_message_messagenumber > 0 &&
           broadcast.limit_marketing_message_duration
         ) {
-          const getDate = getFromDate(
-            broadcast.limit_marketing_message_duration,
-          );
+          const getDate = getFromDate(broadcast.limit_marketing_message_duration);
           const checkMessage = await this.databaseService.chat.findMany({
             where: {
               senderPhoneNo: broadcast.creator.business.whatsapp_mobile,
               receiverPhoneNo: contact,
-              createdAt: {
-                gte: getDate,
-              },
+              createdAt: { gte: getDate },
             },
           });
-          if (
-            checkMessage.length >=
-            broadcast.limit_marketing_message_messagenumber
-          ) {
-            console.log(
-              `Skipping recipient ${contact} due to Marketing Messages Frequency Control.`,
-            );
+          if (checkMessage.length >= broadcast.limit_marketing_message_messagenumber) {
+            console.log(`Skipping ${contact} due to Marketing Messages Frequency Control.`);
+            await this.databaseService.chat.update({
+              where: { id: addTodb.id },
+              data: { Status: 'skipped' },
+            })
             continue;
           }
-
-          // logic for components
         }
-
-        const components = [];
-
-        const { header, buttons, body } = broadcast.componentData as any;
-
-        if (header && header.isEditable) {
-          if (header.type === 'TEXT') {
-            let value;
-            if (header.fromsegment) {
-              value =
-                broadcastData[header.segmentname] || header.segmentAltValue;
-            } else {
-              value = header.value;
-            }
-
-            if (
-              template.parameter_format === 'NAMED' &&
-              template.components[0].example.header_text_named_params[0]
-                .param_name
-            ) {
-              components.push({
-                type: 'header',
-                parameters: [
-                  {
-                    type: 'text',
-                    parameter_name:
-                      template.components[0].example.header_text_named_params[0]
-                        .param_name,
-                    text: value,
-                  },
-                ],
-              });
-            } else {
-              components.push({
-                type: 'header',
-                parameters: [{ type: 'text', text: value }],
-              });
-            }
-          } else if (header.type === 'IMAGE') {
-            components.push({
-              type: 'header',
-              parameters: [{ type: 'image', image: { link: header.value } }],
-            });
-          } else if (header.type === 'VIDEO') {
-            components.push({
-              type: 'header',
-              parameters: [{ type: 'video', video: { link: header.value } }],
-            });
-          } else if (header.type === 'DOCUMENT') {
-            components.push({
-              type: 'header',
-              parameters: [
-                { type: 'document', document: { link: header.value } },
-              ],
-            });
-          }
-        }
-
-        const bodyParameters = body.map((param) => {
-          const value = param.fromsegment
-            ? broadcastData[param.segmentname] || param.segmentAltValue
-            : param.value;
-
-          template.parameter_format === 'NAMED'
-            ? {
-                type: 'text',
-                parameter_name: param.parameter_name,
-                text: value,
-              }
-            : { type: 'text', text: param.value };
-        });
-        components.push({ type: 'body', parameters: bodyParameters });
-        buttons.forEach((button, index) => {
-          if (button.type === 'URL' && button.isEditable === true) {
-            components.push({
-              type: 'button',
-              sub_type: 'url',
-              index: '0',
-              parameters: [{ type: 'text', text: button.value }],
-            });
-          } else if (button.type === 'COPY_CODE') {
-            components.push({
-              type: 'button',
-              sub_type: 'copy_code',
-              index: index,
-              parameters: [{ type: 'otp', text: encodeURI(button.value) }],
-            });
-          }
-        });
 
         const config = getWhatsappConfig(broadcast.creator.business)
+        console.log('Sending message to:', contact, 'with components:', components);
+        const message: any = await this.whatsappService.sendTemplateMessage(
+          {
+            recipientNo: contact,
+            templateName: template.name,
+            languageCode: template.language,
+            components,
+          },
+          config,
+        );
+        console.log('Template message sent:', message);
 
-        const response: any = await this.whatsappService.sendTemplateMessage({
-          recipientNo:contact,
-                  templateName:template.name,
-                  languageCode:template.language,
-                  components,
-                },
-              config
-            );
-
-            console.log(response);
-
-
-      }
-
+        if(message?.messages?.[0]?.id){
+          await this.databaseService.chat.update({
+            where: { id: addTodb.id },
+            data: {
+              Status: 'pending',
+              chatId: message?.messages?.[0]?.id ?? '',
+            },
+          });
+        }else{
+          await this.databaseService.chat.update({
+            where: { id: addTodb.id },
+            data: {
+              Status: 'failed',
+            },
+          })
+        }
+        // Update chat record with message details
       
-    
-
-   
+      }
+      console.log('==== JOB PROCESSING COMPLETE ====');
     } catch (error) {
-      console.log(error);
+      console.error('Error in BroadcastProcessor:', error);
     }
   }
+}
+
+// Helper function to escape regex special characters
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }

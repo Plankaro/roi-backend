@@ -23,10 +23,11 @@ export class BroadcastController {
     return this.broadcastService.getBroadcastById(id,req);
   }
 
-//   @Patch(':id')
-//   update(@Param('id') id: string, @Body() updateBroadcastDto: UpdateBroadcastDto) {
-//     return this.broadcastService.update(+id, updateBroadcastDto);
-//   }
+  @Post('/test')
+
+  test(@Body() sendChatDto:any,@Req() req: Request ){
+    return this.broadcastService.sendTestMessage(sendChatDto,req)
+  }
 
 
 // }
