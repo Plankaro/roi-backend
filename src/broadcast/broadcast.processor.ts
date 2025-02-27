@@ -122,7 +122,9 @@ export class BroadcastProcessor extends WorkerHost {
           } else if (header.type === 'DOCUMENT') {
             components.push({
               type: 'header',
-              parameters: [{ type: 'document', document: { link: header.value } }],
+              parameters: [
+                { type: 'document', document: { link: header.value } },
+              ],
             });
           }
           console.log('Header processed with value:', headerValue);
@@ -271,7 +273,10 @@ export class BroadcastProcessor extends WorkerHost {
             console.log(`Skipping ${contact} due to Dead Audience Filtering.`);
             await this.databaseService.chat.update({
               where: { id: addTodb.id },
-              data: { Status: 'skipped' },
+              data: {
+                Status: 'skipped',
+                failedReason: 'Skipped due to Dead Audience Filtering.',
+              },
             });
             continue;
           }
@@ -283,7 +288,9 @@ export class BroadcastProcessor extends WorkerHost {
           broadcast.limit_marketing_message_messagenumber > 0 &&
           broadcast.limit_marketing_message_duration
         ) {
-          const getDate = getFromDate(broadcast.limit_marketing_message_duration);
+          const getDate = getFromDate(
+            broadcast.limit_marketing_message_duration,
+          );
           const checkMessage = await this.databaseService.chat.findMany({
             where: {
               senderPhoneNo: broadcast.creator.business.whatsapp_mobile,
@@ -291,48 +298,79 @@ export class BroadcastProcessor extends WorkerHost {
               createdAt: { gte: getDate },
             },
           });
-          if (checkMessage.length >= broadcast.limit_marketing_message_messagenumber) {
-            console.log(`Skipping ${contact} due to Marketing Messages Frequency Control.`);
+          if (
+            checkMessage.length >=
+            broadcast.limit_marketing_message_messagenumber
+          ) {
+            console.log(
+              `Skipping ${contact} due to Marketing Messages Frequency Control.`,
+            );
             await this.databaseService.chat.update({
               where: { id: addTodb.id },
-              data: { Status: 'skipped' },
-            })
+              data: {
+                Status: 'skipped',
+                failedReason:
+                  'Skipped due to Marketing Messages Frequency Control.',
+              },
+            });
             continue;
           }
         }
 
-        const config = getWhatsappConfig(broadcast.creator.business)
-        console.log('Sending message to:', contact, 'with components:', components);
-        const message: any = await this.whatsappService.sendTemplateMessage(
-          {
-            recipientNo: contact,
-            templateName: template.name,
-            languageCode: template.language,
-            components,
-          },
-          config,
+        const config = getWhatsappConfig(broadcast.creator.business);
+        console.log(
+          'Sending message to:',
+          contact,
+          'with components:',
+          components,
         );
-        console.log('Template message sent:', message);
+        try {
+          const messageResponse =
+            await this.whatsappService.sendTemplateMessage(
+              {
+                recipientNo: contact,
+                templateName: template.name,
+                languageCode: template.language,
+                components,
+              },
+              config,
+            );
 
-        if(message?.messages?.[0]?.id){
+          if (messageResponse?.messages?.[0]?.id) {
+            await this.databaseService.chat.update({
+              where: { id: addTodb.id },
+              data: {
+                Status: 'pending',
+                chatId: messageResponse.messages[0].id,
+              },
+            });
+          } else {
+            await this.databaseService.chat.update({
+              where: { id: addTodb.id },
+              data: { Status: 'failed',failedReason:"failed due to unknown reason" },
+            });
+          }
+        } catch (error: any) {
+          // Capture detailed error info, using error.response.data if available
+          const errorDetail =
+            error.message
+
+          console.error('Error sending message:', errorDetail);
+
           await this.databaseService.chat.update({
             where: { id: addTodb.id },
-            data: {
-              Status: 'pending',
-              chatId: message?.messages?.[0]?.id ?? '',
-            },
+            data: { Status: 'failed', failedReason: errorDetail },
           });
-        }else{
-          await this.databaseService.chat.update({
-            where: { id: addTodb.id },
-            data: {
-              Status: 'failed',
-            },
-          })
         }
+
         // Update chat record with message details
-      
       }
+      await this.databaseService.broadcast.update({
+        where: { id: broadcast.id },
+        data: {
+          status: 'completed',
+        },
+      });
       console.log('==== JOB PROCESSING COMPLETE ====');
     } catch (error) {
       console.error('Error in BroadcastProcessor:', error);

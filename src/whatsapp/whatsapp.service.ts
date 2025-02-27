@@ -49,13 +49,13 @@ export class WhatsappService {
     
       return result.data;
     } catch (error: any) {
+      const errorMessage = error.response?.data.error.error_data.details
       console.error(
-        'Error sending template message:',
-        error?.response?.data || error.message,
-      );
+        errorMessage || "gjgyjf"
+      )
       throw new InternalServerErrorException(
-        'Failed to send WhatsApp template message.',
-        error,
+       
+        errorMessage || 'Failed to send WhatsApp template message due to unknown reasons.',
       );
     }
   }

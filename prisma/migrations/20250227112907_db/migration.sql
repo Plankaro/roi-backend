@@ -8,7 +8,7 @@ CREATE TYPE "Status" AS ENUM ('PENDING', 'COMPLETED', 'CANCELLED');
 CREATE TYPE "Lead" AS ENUM ('LEAD', 'LOST', 'NEGOTIATION', 'OTHER');
 
 -- CreateEnum
-CREATE TYPE "MessageStatus" AS ENUM ('pending', 'sent', 'delivered', 'read', 'failed');
+CREATE TYPE "MessageStatus" AS ENUM ('pending', 'sent', 'delivered', 'read', 'failed', 'skipped');
 
 -- CreateEnum
 CREATE TYPE "HeaderType" AS ENUM ('IMAGE', 'VIDEO', 'DOCUMENT', 'TEXT');
@@ -18,6 +18,18 @@ CREATE TYPE "BodyType" AS ENUM ('image', 'text', 'document');
 
 -- CreateEnum
 CREATE TYPE "OrderStatus" AS ENUM ('PENDING', 'COMPLETED', 'CANCELLED');
+
+-- CreateEnum
+CREATE TYPE "broadcastStatus" AS ENUM ('pending', 'completed', 'running');
+
+-- CreateEnum
+CREATE TYPE "ContactType" AS ENUM ('excel', 'shopify');
+
+-- CreateEnum
+CREATE TYPE "Limitexced" AS ENUM ('pause', 'skip');
+
+-- CreateEnum
+CREATE TYPE "BroadCastType" AS ENUM ('PROMOTIONAL', 'TRANSACTIONAL');
 
 -- CreateEnum
 CREATE TYPE "PaymentStatus" AS ENUM ('PENDING', 'SUCCESS', 'FAILED', 'REFUNDED');
@@ -123,18 +135,19 @@ CREATE TABLE "Tag" (
 -- CreateTable
 CREATE TABLE "Chat" (
     "id" TEXT NOT NULL,
-    "chatId" TEXT NOT NULL,
+    "chatId" TEXT,
     "senderPhoneNo" TEXT NOT NULL,
     "receiverPhoneNo" TEXT NOT NULL,
     "sendDate" TIMESTAMP(3) NOT NULL,
     "template_used" BOOLEAN NOT NULL DEFAULT false,
     "template_name" TEXT,
+    "template_components" JSONB,
     "header_type" "HeaderType",
     "header_value" TEXT,
     "body_text" TEXT,
     "footer_included" BOOLEAN NOT NULL DEFAULT false,
     "footer_text" TEXT,
-    "Buttons" TEXT[],
+    "Buttons" JSONB,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
     "deleted" BOOLEAN NOT NULL DEFAULT false,
@@ -143,6 +156,8 @@ CREATE TABLE "Chat" (
     "prospectId" TEXT,
     "isForBroadcast" BOOLEAN NOT NULL DEFAULT false,
     "broadcastId" TEXT,
+    "isForRetry" BOOLEAN NOT NULL DEFAULT false,
+    "retryId" TEXT,
     "ContactId" TEXT,
     "type" TEXT NOT NULL,
 
@@ -152,25 +167,51 @@ CREATE TABLE "Chat" (
 -- CreateTable
 CREATE TABLE "Broadcast" (
     "id" TEXT NOT NULL,
-    "template" TEXT NOT NULL,
-    "type" TEXT NOT NULL,
-    "status" TEXT NOT NULL,
+    "template_name" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "type" "BroadCastType" NOT NULL,
+    "status" "broadcastStatus" NOT NULL DEFAULT 'pending',
+    "template_language" TEXT NOT NULL,
+    "description" TEXT NOT NULL,
     "createdBy" TEXT,
     "createdForId" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
     "isScheduled" BOOLEAN NOT NULL DEFAULT false,
     "scheduledDate" TIMESTAMP(3),
-    "utm_params" TEXT,
-    "utm_campaign" TEXT,
     "price" TEXT NOT NULL,
-    "is_utm_id_embeded" BOOLEAN NOT NULL DEFAULT false,
-    "utm_source" TEXT,
-    "utm_term" TEXT,
     "links_visit" INTEGER NOT NULL DEFAULT 0,
     "order_created" INTEGER NOT NULL DEFAULT 0,
+    "onlimit_exced" "Limitexced" NOT NULL,
+    "retry_limit" INTEGER NOT NULL DEFAULT 0,
+    "contacts_type" "ContactType" NOT NULL,
+    "segment_id" TEXT,
+    "componentData" JSONB NOT NULL,
+    "excelData" JSONB,
+    "utm_campaign" TEXT,
+    "utm_medium" TEXT,
+    "utm_source" TEXT,
+    "utm_term" BOOLEAN NOT NULL DEFAULT false,
+    "utm_id" BOOLEAN DEFAULT false,
+    "avoid_duplicate" BOOLEAN NOT NULL DEFAULT true,
+    "limit_marketing_message_enabled" BOOLEAN NOT NULL DEFAULT true,
+    "limit_marketing_message_messagenumber" INTEGER,
+    "limit_marketing_message_duration" TEXT,
+    "skip_inactive_contacts_enabled" BOOLEAN NOT NULL DEFAULT true,
+    "skip_inactive_contacts_days" INTEGER,
 
     CONSTRAINT "Broadcast_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "Retry" (
+    "id" TEXT NOT NULL,
+    "broadcastId" TEXT NOT NULL,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "status" "broadcastStatus" NOT NULL DEFAULT 'pending',
+
+    CONSTRAINT "Retry_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -232,14 +273,6 @@ CREATE TABLE "Payment" (
     CONSTRAINT "Payment_pkey" PRIMARY KEY ("id")
 );
 
--- CreateTable
-CREATE TABLE "_ProspectToTag" (
-    "A" TEXT NOT NULL,
-    "B" TEXT NOT NULL,
-
-    CONSTRAINT "_ProspectToTag_AB_pkey" PRIMARY KEY ("A","B")
-);
-
 -- CreateIndex
 CREATE UNIQUE INDEX "User_username_key" ON "User"("username");
 
@@ -265,6 +298,9 @@ CREATE UNIQUE INDEX "Business_whatsapp_mobile_key" ON "Business"("whatsapp_mobil
 CREATE UNIQUE INDEX "Prospect_shopify_id_key" ON "Prospect"("shopify_id");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "Prospect_phoneNo_key" ON "Prospect"("phoneNo");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "Prospect_buisnessNo_phoneNo_key" ON "Prospect"("buisnessNo", "phoneNo");
 
 -- CreateIndex
@@ -272,9 +308,6 @@ CREATE UNIQUE INDEX "Order_shopify_id_key" ON "Order"("shopify_id");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Chat_chatId_key" ON "Chat"("chatId");
-
--- CreateIndex
-CREATE INDEX "_ProspectToTag_B_index" ON "_ProspectToTag"("B");
 
 -- AddForeignKey
 ALTER TABLE "User" ADD CONSTRAINT "User_businessId_fkey" FOREIGN KEY ("businessId") REFERENCES "Business"("id") ON DELETE SET NULL ON UPDATE CASCADE;
@@ -304,10 +337,16 @@ ALTER TABLE "Chat" ADD CONSTRAINT "Chat_prospectId_fkey" FOREIGN KEY ("prospectI
 ALTER TABLE "Chat" ADD CONSTRAINT "Chat_broadcastId_fkey" FOREIGN KEY ("broadcastId") REFERENCES "Broadcast"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "Chat" ADD CONSTRAINT "Chat_retryId_fkey" FOREIGN KEY ("retryId") REFERENCES "Retry"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "Broadcast" ADD CONSTRAINT "Broadcast_createdBy_fkey" FOREIGN KEY ("createdBy") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Broadcast" ADD CONSTRAINT "Broadcast_createdForId_fkey" FOREIGN KEY ("createdForId") REFERENCES "Business"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Retry" ADD CONSTRAINT "Retry_broadcastId_fkey" FOREIGN KEY ("broadcastId") REFERENCES "Broadcast"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Contacts" ADD CONSTRAINT "Contacts_BroadCastId_fkey" FOREIGN KEY ("BroadCastId") REFERENCES "Broadcast"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -329,9 +368,3 @@ ALTER TABLE "FlashResponse" ADD CONSTRAINT "FlashResponse_createdForId_fkey" FOR
 
 -- AddForeignKey
 ALTER TABLE "Payment" ADD CONSTRAINT "Payment_businessId_fkey" FOREIGN KEY ("businessId") REFERENCES "Business"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "_ProspectToTag" ADD CONSTRAINT "_ProspectToTag_A_fkey" FOREIGN KEY ("A") REFERENCES "Prospect"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "_ProspectToTag" ADD CONSTRAINT "_ProspectToTag_B_fkey" FOREIGN KEY ("B") REFERENCES "Tag"("id") ON DELETE CASCADE ON UPDATE CASCADE;

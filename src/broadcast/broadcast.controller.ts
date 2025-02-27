@@ -29,6 +29,18 @@ export class BroadcastController {
     return this.broadcastService.sendTestMessage(sendChatDto,req)
   }
 
+  @Post('/retry')
+
+  retrybroadcast(@Body() body:any, @Req() req: Request){
+    return this.broadcastService.retrybroadcast(body,req)
+  } 
+
+  @Get('/retry/:id')
+  getBroadcastRetry(@Param('id') id: string,@Req() req: Request){
+    return this.broadcastService.getBroadcastRetry(id,req)
+  }
+  
+
 
 // }
 }

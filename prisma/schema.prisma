@@ -5,7 +5,7 @@ generator client {
 datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
-  directUrl = env("DATABASE_URL_UNPOOLED")
+
 }
 
 model User {
@@ -224,6 +224,7 @@ model Broadcast {
   type     BroadCastType
   status   broadcastStatus @default(pending)
   template_language  String
+  description   String
   createdBy     String?
   creator       User?     @relation("CreatedBroadcasts", fields: [createdBy], references: [id])
   createdForId  String?
