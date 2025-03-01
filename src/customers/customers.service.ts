@@ -9,7 +9,7 @@ import { UpdateCustomerDto } from './dto/update-customer.dto';
 import { ShopifyService } from 'src/shopify/shopify.service';
 import { DatabaseService } from 'src/database/database.service';
 import { getShopifyConfig } from 'utils/usefulfunction';
-import { console } from 'inspector';
+
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import Redis from 'ioredis';
 @Injectable()
@@ -25,103 +25,134 @@ export class CustomersService {
   }
 
   async getAllCustomers(req: any) {
-    const buisness = req.user.business;
-    const config = getShopifyConfig(buisness);
+    console.log('getAllCustomers called');
+    // Log the start of the function execution
+    console.log('getAllCustomers called with request:', req);
+
+    const business = req?.user?.business;
+    console.log('Business from request:', business);
+
+    const config = {
+      store: 'roi-magnet-fashion.myshopify.com',
+      accessToken: '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',
+    };
+    // const config = getShopifyConfig(business);
+    console.log('Shopify config:', config);
+
     const query = `
-    query ($cursor: String) {
-      customers(first: 50, after: $cursor) {
-        edges {
-          cursor
-          node {
-            id
-            addresses {
-              address1
-              address2
-              city
-              country
-              countryCode
-              zip
-            }
-            amountSpent {
-              amount
-              currencyCode
-            }
-            email
-            firstName
-            lastName
-            phone
-            image {
-              url
-              src
-            }
-            orders(first: 5) {
-              nodes {
-                closed
-                closedAt
-                id
-                totalPriceSet {
-                  shopMoney {
-                    amount
-                    currencyCode
-                  }
-                }
-              }
-            }
+  query {
+    customers(first: 20) {
+      edges {
+        cursor
+        node {
+          id
+          firstName
+          lastName
+          email
+          phone
+          amountSpent {
+            amount
+            currencyCode
           }
         }
-        pageInfo {
-          hasNextPage
-        }
+      }
+      pageInfo {
+        hasNextPage
       }
     }
-  `;
+  }
+`;
+    console.log('GraphQL query:', query);
+
     try {
-      const variable = {};
+      const variables = {};
+      console.log('GraphQL variables:', variables);
+
       const response = await this.shopifyService.executeGraphQL(
         query,
-        variable,
+        variables,
         config,
       );
+      console.log('Raw Shopify response:', response);
 
-      // Validate response structure
+      // Validate response
       if (!response || !response.data || !response.data.customers) {
-        throw new NotFoundException('no customers found');
+        console.error('Invalid Shopify response structure:', response);
+        throw new NotFoundException('No customers found');
       }
-      const existingCustomers = await this.databaseService.prospect.findMany({
-        select: {
-          shopify_id: true,
-        },
-      });
 
-      const existingCustomerIds = new Set(
-        existingCustomers.map((customer) => customer.shopify_id),
-      );
-      const filteredData = response.data.customers.edges
-        .filter(
-          ({ node }) => !existingCustomerIds.has(node.id.match(/\d+$/)[0]),
-        ) // Exclude matching IDs
-        .map(({ node }) => ({
-          id: node.id,
+      // Extract customer data from Shopify response
+      const shopifyCustomers = response.data.customers.edges.map(({ node }) => {
+        const numericIdMatch = node.id.match(/\d+$/);
+        const shopify_id = numericIdMatch ? numericIdMatch[0] : null;
+        console.log('Extracted customer node:', {
+          shopify_id,
+          name: `${node.firstName || ''} ${node.lastName || ''}`.trim(),
+        });
+        return {
+          shopify_id,
           name: `${node.firstName || ''} ${node.lastName || ''}`.trim(),
           email: node.email || '',
           phone: node.phone || '',
-          address: node.addresses.map((address) => ({
-            address1: address.address1 || '',
-            address2: address.address2 || '',
-            city: address.city || '',
-            country: address.country || '',
-            zip: address.zip || '',
-          })),
           amountSpent: node.amountSpent,
-          orders: node.orders.nodes,
-          image: node.image?.url || '', // Handle cases where image might be null
-        }));
+        };
+      });
+      console.log(`Extracted ${shopifyCustomers.length} Shopify customers`);
 
-      return filteredData;
-    } catch (error) {
-      throw new InternalServerErrorException(
-        'An error occurred while fetching products',
+      // Get matching prospects from the database
+      const shopifyIds = shopifyCustomers
+        .map((c) => c.shopify_id)
+        .filter(Boolean);
+      console.log('Shopify IDs to search in DB:', shopifyIds);
+
+      const existingProspects = await this.databaseService.prospect.findMany({
+        where: {
+          shopify_id: { in: shopifyIds },
+        },
+        select: {
+          id: true,
+          shopify_id: true,
+          name: true,
+          email: true,
+          phoneNo: true,
+          image: true,
+          last_Online: true,
+          is_blocked: true,
+          created_at: true,
+          updated_at: true,
+        },
+      });
+      console.log(
+        `Found ${existingProspects.length} matching prospects in the database`,
+        existingProspects,
       );
+
+      // Create a mapping of shopify_id -> prospect data
+      const prospectMap = new Map(
+        existingProspects.map((p) => [p.shopify_id, p]),
+      );
+      console.log('Prospect map:', prospectMap);
+
+      // Merge Shopify customer data with corresponding Prospect data
+      const result = shopifyCustomers.map((customer) => {
+        const prospectData = prospectMap.get(customer.shopify_id) || null;
+        console.log(
+          'Merging data for customer:',
+          customer.shopify_id,
+          'Prospect:',
+          prospectData,
+        );
+        return {
+          shopifyCustomer: customer,
+          prospectData,
+        };
+      });
+
+      console.log('Final merged result:', result);
+      return result;
+    } catch (error) {
+      console.error('Error fetching customers:', error);
+      throw new InternalServerErrorException(error);
     }
   }
 
@@ -187,8 +218,8 @@ export class CustomersService {
   ): Promise<
     { id: string; name: string; query: string; totalContacts: number }[]
   > {
-    console.log(req.user)
-        const business = req.user.business;
+    console.log(req.user);
+    const business = req.user.business;
     const config = getShopifyConfig(business);
     const query = `
       query GetAllSegments($first: Int!) {
@@ -224,18 +255,18 @@ export class CustomersService {
   ): Promise<
     { id: string; name: string; query: string; totalCount: number }[]
   > {
-    const business =await  req.user.business;
+    const business = await req.user.business;
 
     const config = getShopifyConfig(business);
 
     // Retrieve all segments first
     const segments = await this.getAllSegments(req);
-    const cacheKey = `shopify:segments:${config.store}`;
-    const cachedData = await this.redis.get(cacheKey);
-    if (cachedData) {
-      console.log('Returning cached data');
-      return JSON.parse(cachedData);
-    }
+    // const cacheKey = `shopify:segments:${config.store}`;
+    // const cachedData = await this.redis.get(cacheKey);
+    // if (cachedData) {
+    //   console.log('Returning cached data');
+    //   return JSON.parse(cachedData);
+    // }
 
     // For each segment, run a query to get its customer count
     const segmentsWithCounts = await Promise.all(
@@ -263,7 +294,7 @@ export class CustomersService {
         };
       }),
     );
-    await this.redis.set(cacheKey, JSON.stringify(segmentsWithCounts));
+    // await this.redis.set(cacheKey, JSON.stringify(segmentsWithCounts));
 
     return segmentsWithCounts;
   }
@@ -273,11 +304,10 @@ export class CustomersService {
     let hasNextPage = true;
     let after: string = null;
     const first = 250;
-  
-  
+
     // Retrieve the business configuration
     const config = getShopifyConfig(req?.user?.business ?? req?.business ?? {});
-  
+
     // Define the GraphQL query
     const query = `
       query GetSegmentMembers($segmentId: ID!, $first: Int!, $after: String) {
@@ -304,32 +334,49 @@ export class CustomersService {
         }
       }
     `;
-  
+
     try {
       // Loop to fetch all pages
       while (hasNextPage) {
-        const variables = { segmentId: `gid://shopify/Segment/${segmentId}`, first, after };
-        const result = await this.shopifyService.executeGraphQL(query, variables, config);
-  
-        // Log variables for debugging
+        const variables = {
+          segmentId: `gid://shopify/Segment/${segmentId}`,
+          first,
+          after,
+        };
+        const result = await this.shopifyService.executeGraphQL(
+          query,
+          variables,
+          config,
+        );
+
+        // Log variables for logging
         console.log('Variables:', variables);
-  
+
         // Check for GraphQL errors
         if (result.errors && result.errors.length) {
           console.error('GraphQL errors:', result.errors);
-          throw new InternalServerErrorException(result.errors[0].message || 'Failed to get data');
+          throw new InternalServerErrorException(
+            result.errors[0].message || 'Failed to get data',
+          );
         }
-  
+
         // Extract members connection
         const membersConnection = result.data?.customerSegmentMembers;
         if (!membersConnection) {
           break;
         }
-  
+
         // Extract edges and append nodes to contacts
         const edges = membersConnection.edges || [];
-        const nodes = edges.map(edge => {
-          const { displayName, firstName, id, lastName, defaultEmailAddress, defaultPhoneNumber } = edge.node;
+        const nodes = edges.map((edge) => {
+          const {
+            displayName,
+            firstName,
+            id,
+            lastName,
+            defaultEmailAddress,
+            defaultPhoneNumber,
+          } = edge.node;
           return {
             displayName,
             firstName,
@@ -340,26 +387,49 @@ export class CustomersService {
           };
         });
         contacts = contacts.concat(nodes);
-  
+
         // Update pagination info
         hasNextPage = membersConnection.pageInfo.hasNextPage;
         after = membersConnection.pageInfo.endCursor;
       }
-  
+
       return contacts;
-  
     } catch (error) {
       console.error('Error in getAllContactsForSegment:', error);
       throw new InternalServerErrorException({ message: error.message });
     }
   }
-  
-  
-  update(id: number, updateCustomerDto: UpdateCustomerDto) {
-    return `This action updates a #${id} customer`;
-  }
 
-  remove(id: number) {
-    return `This action removes a #${id} customer`;
+  async getCustomerByPhone(phone: string, req: any): Promise<any> {
+    try {
+      const query = `
+        query GetCustomerByPhone($phoneNumber: String!) {
+          customerByIdentifier(identifier: { phoneNumber: $phoneNumber }) {
+            id
+            firstName
+            lastName
+            displayName
+            phone
+            email
+          }
+        }
+      `;
+
+      const variables = { phoneNumber: phone };
+      const config = getShopifyConfig(
+        req?.user?.business ?? req?.business ?? {},
+      );
+
+      const customer = await this.shopifyService.executeGraphQL(
+        query,
+        variables,
+        config,
+      );
+
+      return customer.data.customerByIdentifier;
+    } catch (error) {
+      console.error('Error fetching customer:', error);
+      throw new InternalServerErrorException(error);
+    }
   }
 }

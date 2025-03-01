@@ -135,18 +135,18 @@ mutation OrderCreate($order: OrderCreateOrderInput!, $options: OrderCreateOption
         return gid.split('/').pop() || '';
       }
       console.log(JSON.stringify(response))
-      const ordercreate = await this.databaseService.order.create({
-        data:{
-          shopify_id:getId(response?.data?.orderCreate?.order?.id??""),
-          amount:response?.data?.orderCreate?.order?.currentTotalPriceSet?.shopMoney?.amount??"",
+      // const ordercreate = await this.databaseService.order.create({
+      //   data:{
+      //     shopify_id:getId(response?.data?.orderCreate?.order?.id??""),
+      //     amount:response?.data?.orderCreate?.order?.currentTotalPriceSet?.shopMoney?.amount??"",
           
           
         
 
 
-        }
-      })
-      console.log(ordercreate); 
+      //   }
+      // })
+      // console.log(ordercreate); 
 
       return { response, variables };
     } catch (error) {

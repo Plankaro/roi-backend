@@ -39,6 +39,7 @@ export class BroadcastService {
       onlimitexced,
       schedule,
       template,
+     
     } = createBroadcastDto;
     const user = req.user;
     const broadcastData: any = {
@@ -68,6 +69,8 @@ export class BroadcastService {
       price: `5000`,
       createdBy: user.id,
       createdForId: user.business.id,
+      total_contact:contact.total_count
+      ,
     };
 
     if (contact.type === 'shopify') {
@@ -303,7 +306,11 @@ export class BroadcastService {
         },
         include: {
           Order: true,
-         
+          creator: {
+            select: {
+              name: true,
+            },
+          },
         },
       });
 
@@ -320,6 +327,7 @@ export class BroadcastService {
         failedCount,
         skippedReasonGroups,
         failedReasonGroups,
+        sentCount,
       ] = await Promise.all([
         this.databaseService.chat.count({
           where: { broadcastId: broadcast.id },
@@ -366,6 +374,12 @@ export class BroadcastService {
           },
           _count: { _all: true },
         }),
+        this.databaseService.chat.count({
+          where: {
+            broadcastId: broadcast.id,
+            Status: 'sent',
+          },
+        }),
       ]);
 
       // Transform the groupBy results to have a 'count' property
@@ -390,6 +404,7 @@ export class BroadcastService {
         readCount,
         skippedCount,
         failedCount,
+        sentCount,
         skippedReasonGroups: transformedSkippedReasonGroups,
         failedReasonGroups: transformedFailedReasonGroups,
       };
@@ -416,8 +431,8 @@ export class BroadcastService {
           retry: { orderBy: { created_at: 'desc' } },
         },
       });
-      if(broadcast.retry.length >=3){
-        throw new BadRequestException("limit reached for retries")
+      if (broadcast.retry.length >= 3) {
+        throw new BadRequestException('limit reached for retries');
       }
 
       if (!broadcast) {
@@ -443,11 +458,9 @@ export class BroadcastService {
         });
       }
       console.log('Failed Chats:', failedChats);
-      if(failedChats.length === 0){
-        throw new BadRequestException('no failed messages found')
+      if (failedChats.length === 0) {
+        throw new BadRequestException('no failed messages found');
       }
-
-      
 
       const createretry = await this.databaseService.retry.create({
         data: {
@@ -463,27 +476,27 @@ export class BroadcastService {
       throw new InternalServerErrorException(error);
     }
   }
-  async getBroadcastRetry(id:string,req: any): Promise<any> {
+  async getBroadcastRetry(id: string, req: any): Promise<any> {
     try {
       const business = req.user.business;
       const retries = await this.databaseService.retry.findMany({
-        where: { broadcastId: id,Broadcast:{createdForId:business.id}},
+        where: { broadcastId: id, Broadcast: { createdForId: business.id } },
         include: { Chat: true },
       });
 
- 
-      
       const countsPerRetry = retries.map((retry) => {
-        const failedCount = retry.Chat.filter(chat => chat.Status === 'failed').length;
-        const deliveredCount = retry.Chat.filter(chat => chat.Status !== 'failed' || 'skipped').length;
+        const failedCount = retry.Chat.filter(
+          (chat) => chat.Status === 'failed',
+        ).length;
+        const deliveredCount = retry.Chat.filter(
+          (chat) => chat.Status !== 'failed' || 'skipped',
+        ).length;
         return {
           retryId: retry.id,
           failedCount,
           deliveredCount,
-          status:retry.status,
+          status: retry.status,
           createdAt: retry.created_at,
-         
-          
         };
       });
 

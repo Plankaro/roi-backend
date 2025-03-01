@@ -113,8 +113,9 @@ CREATE TABLE "Prospect" (
 CREATE TABLE "Order" (
     "id" TEXT NOT NULL,
     "shopify_id" TEXT NOT NULL,
-    "prospect_shopify_id" TEXT,
-    "status" "Status" NOT NULL DEFAULT 'PENDING',
+    "customer_phoneno" TEXT NOT NULL,
+    "propspect_id" TEXT NOT NULL,
+    "status" TEXT NOT NULL,
     "amount" TEXT NOT NULL,
     "Date" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "fromBroadcast" BOOLEAN NOT NULL DEFAULT false,
@@ -174,6 +175,7 @@ CREATE TABLE "Broadcast" (
     "template_language" TEXT NOT NULL,
     "description" TEXT NOT NULL,
     "createdBy" TEXT,
+    "total_contact" INTEGER NOT NULL,
     "createdForId" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
@@ -181,7 +183,7 @@ CREATE TABLE "Broadcast" (
     "scheduledDate" TIMESTAMP(3),
     "price" TEXT NOT NULL,
     "links_visit" INTEGER NOT NULL DEFAULT 0,
-    "order_created" INTEGER NOT NULL DEFAULT 0,
+    "unique_order_created" INTEGER NOT NULL DEFAULT 0,
     "onlimit_exced" "Limitexced" NOT NULL,
     "retry_limit" INTEGER NOT NULL DEFAULT 0,
     "contacts_type" "ContactType" NOT NULL,
@@ -199,6 +201,8 @@ CREATE TABLE "Broadcast" (
     "limit_marketing_message_duration" TEXT,
     "skip_inactive_contacts_enabled" BOOLEAN NOT NULL DEFAULT true,
     "skip_inactive_contacts_days" INTEGER,
+    "reply_count" INTEGER NOT NULL DEFAULT 0,
+    "unique_interactions" INTEGER NOT NULL DEFAULT 0,
 
     CONSTRAINT "Broadcast_pkey" PRIMARY KEY ("id")
 );
@@ -322,7 +326,7 @@ ALTER TABLE "Prospect" ADD CONSTRAINT "Prospect_assignedToId_fkey" FOREIGN KEY (
 ALTER TABLE "Prospect" ADD CONSTRAINT "Prospect_buisnessNo_fkey" FOREIGN KEY ("buisnessNo") REFERENCES "Business"("whatsapp_mobile") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Order" ADD CONSTRAINT "Order_prospect_shopify_id_fkey" FOREIGN KEY ("prospect_shopify_id") REFERENCES "Prospect"("shopify_id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "Order" ADD CONSTRAINT "Order_propspect_id_fkey" FOREIGN KEY ("propspect_id") REFERENCES "Prospect"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Order" ADD CONSTRAINT "Order_BroadCastId_fkey" FOREIGN KEY ("BroadCastId") REFERENCES "Broadcast"("id") ON DELETE SET NULL ON UPDATE CASCADE;

@@ -25,10 +25,10 @@ export class EventsController {
     @Body() orderData: any,
     @Headers() headers: Record<string, string>,
   ) {
-    console.log("Received Order Payload:", orderData);
-    console.log("Order Headers:", headers);
+
+    console.log("Order Headers:",);
     // Pass the order data to your service for further processing
-    // this.eventsService.manipulateOrder(orderData);
+    this.eventsService.manipulateOrder(orderData, headers["x-shopify-shop-domain"]);
     return { success: true };
   }
 

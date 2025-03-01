@@ -41,19 +41,19 @@ import { AgentsModule } from './agents/agents.module';
       connection: {
         url: process.env.REDIS_URL,
         // Depending on your Aiven configuration, you may or may not need to specify these.
-        username: process.env.REDIS_USER,
-        password: process.env.REDIS_PASSWORD,
-        // If your connection uses TLS (rediss://) you can also add TLS options:
-        tls: { rejectUnauthorized: false },
+        // username: process.env.REDIS_USER,
+        // password: process.env.REDIS_PASSWORD,
+        // // If your connection uses TLS (rediss://) you can also add TLS options:
+        // tls: { rejectUnauthorized: false },
       },
     }),
     RedisModule.forRoot({
       type: 'single',
       url: process.env.REDIS_URL,
-      options:{
-        password: process.env.REDIS_PASSWORD,
-        username: process.env.REDIS_USER
-      }
+      // options:{
+      //   password: process.env.REDIS_PASSWORD,
+      //   username: process.env.REDIS_USER
+      // }
     }),
     DatabaseModule,
     ShopifyModule,

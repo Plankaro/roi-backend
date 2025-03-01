@@ -5,7 +5,11 @@ import { ChatsGateway } from './chats.gateway';
 import { DatabaseService } from 'src/database/database.service';
 import { MediaDto } from './dto/media-chat-dto';
 import { Business, HeaderType } from '@prisma/client';
-import { getFirstAndLastName, getWhatsappConfig, sanitizePhoneNumber } from 'utils/usefulfunction';
+import {
+  getFirstAndLastName,
+  getWhatsappConfig,
+  sanitizePhoneNumber,
+} from 'utils/usefulfunction';
 import { ShopifyService } from 'src/shopify/shopify.service';
 import { Public } from 'src/auth/decorator/public.decorator';
 import { Buisness } from 'src/buisness/entities/buisness.entity';
@@ -15,9 +19,9 @@ export class ChatsService {
     private readonly whatsappService: WhatsappService,
     private readonly chatsGateway: ChatsGateway,
     private readonly databaseService: DatabaseService,
-    private readonly ShopifyService: ShopifyService
+    private readonly ShopifyService: ShopifyService,
   ) {}
-  async sendTemplatemessage(sendTemplateMessageDto: any,req:any) {
+  async sendTemplatemessage(sendTemplateMessageDto: any, req: any) {
     const {
       body, // Array of body objects
       buttons, // Array of buttons
@@ -32,11 +36,10 @@ export class ChatsService {
       // Template name
     } = sendTemplateMessageDto;
 
-
-    console.log(JSON.stringify(sendTemplateMessageDto,null, 2));
+    console.log(JSON.stringify(sendTemplateMessageDto, null, 2));
 
     const components = [];
-    const buisness = req.user.business
+    const buisness = req.user.business;
 
     if (header && header.isEditable) {
       if (header.type === 'TEXT') {
@@ -100,23 +103,22 @@ export class ChatsService {
       parameters: bodyParameters,
     });
 
-    console.log(buttons)
+    console.log(buttons);
 
-    buttons.map((button,index) => {
-      if(button.type === 'URL' && button.isEditable==true) {
+    buttons.map((button, index) => {
+      if (button.type === 'URL' && button.isEditable == true) {
         components.push({
           type: 'button',
           sub_type: 'url',
-          index: "0",
+          index: '0',
           parameters: [
             {
               type: 'text',
               text: button.value,
             },
           ],
-        })
-      }
-      else if(button.type === 'COPY_CODE' ) {
+        });
+      } else if (button.type === 'COPY_CODE') {
         components.push({
           type: 'button',
           sub_type: 'copy_code',
@@ -127,21 +129,22 @@ export class ChatsService {
               text: button.value,
             },
           ],
-        })
+        });
       }
-    })
+    });
 
-    console.log(JSON.stringify(components,null, 2))
- 
-//  const buisnessNo = 
+    console.log(JSON.stringify(components, null, 2));
+
+    //  const buisnessNo =
 
     try {
       const prospect = await this.databaseService.prospect.upsert({
         where: {
-          buisnessNo_phoneNo: { // Correct format for compound unique constraint
+          buisnessNo_phoneNo: {
+            // Correct format for compound unique constraint
             phoneNo: recipientNo as string,
-            buisnessNo: buisness.whatsapp_mobile
-          }
+            buisnessNo: buisness.whatsapp_mobile,
+          },
         },
         update: {
           // Add the fields you want to update when the record exists
@@ -149,135 +152,146 @@ export class ChatsService {
         create: {
           phoneNo: recipientNo as string,
           buisnessNo: buisness.whatsapp_mobile,
-          lead :"LEAD"
+          lead: 'LEAD',
           // Add other required fields for new record creation
-        }
+        },
       });
-      
-      const message: any = await this.whatsappService.sendTemplateMessage({
-        recipientNo: recipientNo,
-        templateName: template_name,
-        languageCode: language,
-        components: components,
-      },{
-        whatsappMobileId: buisness.whatsapp_mobile_id,
-        whatsappApiToken: buisness.whatsapp_token,
-      });
-      console.log(message)
+
+      const message: any = await this.whatsappService.sendTemplateMessage(
+        {
+          recipientNo: recipientNo,
+          templateName: template_name,
+          languageCode: language,
+          components: components,
+        },
+        {
+          whatsappMobileId: buisness.whatsapp_mobile_id,
+          whatsappApiToken: buisness.whatsapp_token,
+        },
+      );
+      console.log(message);
 
       const addTodb = await this.databaseService.chat.create({
         data: {
-          prospectId:prospect.id,
+          prospectId: prospect.id,
           chatId: message?.messages[0]?.id ?? '',
           template_used: true,
-          template_name:template_name,
+          template_name: template_name,
           senderPhoneNo: '15551365364',
           receiverPhoneNo: message?.contacts[0].input.replace(/^\+/, ''),
           sendDate: new Date(),
           header_type: previewSection.header.type,
           header_value: previewSection.header.value,
           body_text: previewSection.bodyText,
-          footer_included:previewSection.footer.length > 0,
-          footer_text:previewSection.footer,
-          Buttons:buttons,
-          type:template_type||"text",
-          template_components:components,
-
-
+          footer_included: previewSection.footer.length > 0,
+          footer_text: previewSection.footer,
+          Buttons: buttons,
+          type: template_type || 'text',
+          template_components: components,
         },
-
       });
-      return  addTodb;
+      return addTodb;
     } catch (error) {
       console.log(error);
       throw new InternalServerErrorException(error);
     }
   }
- 
+
   async receiveMessage(receiveMessageDto: any) {
     try {
-      
+      console.log(
+        'Received payload:',
+        JSON.stringify(receiveMessageDto, null, 2),
+      );
+
       const { entry } = receiveMessageDto;
       const processedResults = [];
-  
-      for (const individualEntry of entry) {
-        for (const change of individualEntry.changes) {
-          const { value } = change;
-          const businessPhoneNumber = sanitizePhoneNumber(value.metadata.display_phone_number);
 
-          
-      const buisness = await this.databaseService.business.findUnique({
-        where: {
-          whatsapp_mobile: businessPhoneNumber,
-        },
-      });
-      
-      if(!buisness){
-        return
-      }
-  
+      for (const individualEntry of entry) {
+        console.log(`Processing entry: ${JSON.stringify(individualEntry)}`);
+
+        for (const change of individualEntry.changes) {
+          console.log(`Processing change: ${JSON.stringify(change)}`);
+          const { value } = change;
+
+          const businessPhoneNumber = sanitizePhoneNumber(
+            value.metadata.display_phone_number,
+          );
+          console.log(
+            `Sanitized Business Phone Number: ${businessPhoneNumber}`,
+          );
+
+          const business = await this.databaseService.business.findUnique({
+            where: { whatsapp_mobile: businessPhoneNumber },
+          });
+
+          if (!business) {
+            console.warn(
+              `Business not found for phone number: ${businessPhoneNumber}`,
+            );
+            return;
+          }
+
           if (value.messages) {
+            console.log('Processing messages...');
 
             const messagePromises = value.messages.map(async (message) => {
               try {
                 const rawPhoneNumber = `+${sanitizePhoneNumber(message.from)}`;
-  
-              // let shopifyCustomer
-              // shopifyCustomer = await this.getShopifyProspectUsingPhoneNumber(rawPhoneNumber)
-              // if(!shopifyCustomer) {
-              //   const name = getFirstAndLastName(value.contacts?.[0]?.profile?.name);
-              //   shopifyCustomer = await this.createShopifyusingPhoneNumber({
-              //    firstName: name.firstName,
-              //    lastName: name.lastName,
-              //    phone: rawPhoneNumber,
-              //  });
-              // }
+                console.log(`Processing message from: ${rawPhoneNumber}`);
+                console.log(`Message content: ${JSON.stringify(message)}`);
                 
-                 console.log(businessPhoneNumber)
-  
-                  const prospect = await this.databaseService.prospect.upsert({
-                    where: {
-                      buisnessNo_phoneNo: {
-                        phoneNo: sanitizePhoneNumber(message.from),
-                        buisnessNo: businessPhoneNumber,
 
-                      },
-                    },
-                    update: {
-                     
-                      // phoneNo: sanitizePhoneNumber(message.from),
-                      // buisnessNo: businessPhoneNumber,
-                      // image: shopifyCustomer?.image?.url ?? null,
-                      last_Online:new Date(),
-                    
-                      // name: shopifyCustomer
-                      //   ? `${shopifyCustomer.firstName} ${shopifyCustomer.lastName}`
-                      //   : value.contacts?.[0]?.profile?.name,
-                      // email: shopifyCustomer?.email ?? null,
-                    },
-                    create: {
-                      // shopify_id: shopifyCustomer?.id?.match(/\d+$/)?.[0] ?? null,
+                const prospect = await this.databaseService.prospect.upsert({
+                  where: {
+                    buisnessNo_phoneNo: {
                       phoneNo: sanitizePhoneNumber(message.from),
                       buisnessNo: businessPhoneNumber,
-                      // image: shopifyCustomer?.image?.url ?? null,
-                      lead: "LEAD",
-                      last_Online:new Date(),
-                      // name: shopifyCustomer
-                      //   ? `${shopifyCustomer.firstName} ${shopifyCustomer.lastName}`
-                      //   : value.contacts?.[0]?.profile?.name,
-                      // email: shopifyCustomer?.email ?? null,
                     },
-                  });
-                   // Send prospect update to clients subscribed to the business phone
+                  },
+                  update: { last_Online: new Date() },
+                  create: {
+                    phoneNo: sanitizePhoneNumber(message.from),
+                    buisnessNo: businessPhoneNumber,
+                    lead: 'LEAD',
+                    last_Online: new Date(),
+                  },
+                  include: {
+                    chats: {
+                      orderBy: { createdAt: 'desc' },
+                      take: 1,
+                    },
+                  },
+                });
+
+                console.log(`Prospect details: ${JSON.stringify(prospect)}`);
+
                 this.chatsGateway.sendMessageToSubscribedClients(
                   businessPhoneNumber,
-                  "prospect",
-                  prospect
+                  'prospect',
+                  prospect,
                 );
-           
-  
-               
-  
+
+                // Check if last chat was a broadcast
+                if (prospect.chats.length > 0) {
+                  const lastChat = prospect.chats[0];
+                  console.log(`Last chat details: ${JSON.stringify(lastChat)}`);
+
+                  if (
+                    lastChat.isForBroadcast === true &&
+                    lastChat.broadcastId
+                  ) {
+                    console.log(
+                      `Incrementing reply count for broadcast: ${lastChat.broadcastId}`,
+                    );
+
+                    await this.databaseService.broadcast.update({
+                      where: { id: lastChat.broadcastId },
+                      data: { reply_count: { increment: 1 } },
+                    });
+                  }
+                }
+
                 const chatMessage = await this.databaseService.chat.create({
                   data: {
                     prospectId: prospect.id,
@@ -286,72 +300,94 @@ export class ChatsService {
                     receiverPhoneNo: businessPhoneNumber,
                     sendDate: new Date(),
                     body_text: message.text?.body,
-                    Status: "delivered",
-                    type: "personal",
+                    Status: 'delivered',
+                    type: 'personal',
                   },
                 });
+
+                console.log(`Chat saved to DB: ${JSON.stringify(chatMessage)}`);
                 processedResults.push(chatMessage);
-  
-       
+
                 this.chatsGateway.sendMessageToSubscribedClients(
                   businessPhoneNumber,
-                  "messages",
-                  chatMessage
+                  'messages',
+                  chatMessage,
                 );
               } catch (error) {
-                console.error("Error processing message:", error);
+                console.error('Error processing message:', error);
               }
             });
-  
+
             await Promise.allSettled(messagePromises);
           }
-  
+
           if (value.statuses) {
+            console.log('Processing message statuses...');
+
             const statusPromises = value.statuses.map(async (status) => {
               try {
+                console.log(
+                  `Processing status update: ${JSON.stringify(status)}`,
+                );
+
+              
+
                 const updatedChat = await this.databaseService.chat.update({
                   where: { chatId: status.id },
                   data: {
                     Status: status.status,
                     failedReason: status.errors?.[0]?.message ?? null,
                   },
+                
                 });
+                if(updatedChat.isForBroadcast===true && updatedChat.broadcastId){
+                  await this.databaseService.broadcast.update({
+                    where: { id: updatedChat.broadcastId },
+                    data: { unique_interactions : { increment: 1 } },
+                  });
+                }
+
+                console.log(
+                  `Updated chat status in DB: ${JSON.stringify(updatedChat)}`,
+                );
                 processedResults.push(updatedChat);
-  
+
                 this.chatsGateway.sendMessageToSubscribedClients(
                   businessPhoneNumber,
-                  "messages",
-                  updatedChat
+                  'messages',
+                  updatedChat,
                 );
               } catch (error) {
-                console.error("Error updating status:", error);
+                console.error('Error updating status:', error);
               }
             });
+
             await Promise.allSettled(statusPromises);
           }
         }
       }
-  
+
+      console.log(
+        `Processing completed. Total processed items: ${processedResults.length}`,
+      );
       return { success: true, processed: processedResults.length };
     } catch (error) {
-      console.error("Error in receiveMessage:", error);
+      console.error('Error in receiveMessage:', error);
       throw new InternalServerErrorException(
-        error || "Failed to process messages from Shopify"
+        error || 'Failed to process messages from Shopify',
       );
     }
   }
-  
-  
-  async sendMessage(sendChatDto: any,req:any) {
-    console.log(sendChatDto);
-    const { recipientNo, message,prospect_id } = sendChatDto;
-    try {
 
- const buisness = req.user.business
+  async sendMessage(sendChatDto: any, req: any) {
+    console.log(sendChatDto);
+    const { recipientNo, message, prospect_id } = sendChatDto;
+    try {
+      const buisness = req.user.business;
       const config = {
         whatsappMobileId: buisness.whatsapp_mobile_id,
         whatsappApiToken: buisness.whatsapp_token,
-      }
+      };
       // const prospect = await this.databaseService.prospect.upsert({
       //   where: {
       //     buisnessNo_phoneNo: { // Correct format for compound unique constraint
@@ -373,22 +409,22 @@ export class ChatsService {
       const sendMessage = await this.whatsappService.sendMessage(
         recipientNo,
         message,
-        config
+        config,
       );
       const result = await this.databaseService.chat.create({
         data: {
-          prospectId:prospect_id,
+          prospectId: prospect_id,
           chatId: sendMessage?.messages[0]?.id ?? '',
           senderPhoneNo: '15551365364',
           receiverPhoneNo: sendMessage?.contacts[0].input,
           sendDate: new Date(),
           // body_type: 'text',
           body_text: message,
-          type:"personal"
+          type: 'personal',
           // Handle non-text messages
         },
       });
- 
+
       return result;
     } catch (error) {
       console.log(error);
@@ -398,34 +434,30 @@ export class ChatsService {
     }
   }
 
-  async findAllChats(prospect_id:string,req:any) {
+  async findAllChats(prospect_id: string, req: any) {
     try {
-      const buisness = req.user.business
+      const buisness = req.user.business;
 
       const chats = await this.databaseService.chat.findMany({
         where: {
           // ✅ `where` clause is required
-        prospectId:prospect_id,
-        deleted:false,
-        
-
+          prospectId: prospect_id,
+          deleted: false,
         },
       });
 
-  
       return chats;
     } catch (e) {
       throw new InternalServerErrorException('Failed to fetch messages');
     }
   }
 
-  async findAllTemplate(req:any) {
-
-    const buisness = req.user.business
+  async findAllTemplate(req: any) {
+    const buisness = req.user.business;
     const config = {
       whatsappBusinessId: buisness.whatsapp_buisness_id,
       whatsappApiToken: buisness.whatsapp_token,
-    }
+    };
 
     try {
       console.log('fetching templates');
@@ -437,12 +469,12 @@ export class ChatsService {
       throw new InternalServerErrorException('Failed to fetch templates');
     }
   }
-  async sendMedia(MediaDto:MediaDto,req:any) {
-    const buisness:Business = req.user.business
-    const config={
+  async sendMedia(MediaDto: MediaDto, req: any) {
+    const buisness: Business = req.user.business;
+    const config = {
       whatsappMobileId: buisness.whatsapp_mobile_id,
       whatsappApiToken: buisness.whatsapp_token,
-    }
+    };
 
     try {
       function mapMediaTypeToHeaderType(mediaType: string): HeaderType {
@@ -459,7 +491,7 @@ export class ChatsService {
             throw new Error(`Unsupported media type: ${mediaType}`);
         }
       }
-      
+
       const sendMessage = await this.whatsappService.sendMedia(
         MediaDto.recipientNo,
         MediaDto.mediaUrl,
@@ -469,26 +501,26 @@ export class ChatsService {
       );
       const result = await this.databaseService.chat.create({
         data: {
-          prospectId:MediaDto.prospectId,
+          prospectId: MediaDto.prospectId,
           chatId: sendMessage?.messages[0]?.id ?? '',
           senderPhoneNo: buisness.whatsapp_mobile,
           receiverPhoneNo: sendMessage?.contacts[0].input,
           sendDate: new Date(),
-          header_type:mapMediaTypeToHeaderType(MediaDto.type),
+          header_type: mapMediaTypeToHeaderType(MediaDto.type),
           header_value: MediaDto.mediaUrl,
           body_text: MediaDto.caption,
-          type:"personal"
+          type: 'personal',
           // Handle non-text messages
         },
       });
-  
-      return result
+
+      return result;
     } catch (error) {
       console.log(error);
       throw new InternalServerErrorException(error.message);
     }
   }
-  
+
   // async getShopifyProspectUsingPhoneNumber(phoneNumber: string) {
   //   const query = `
   //     query getCustomerByPhone($query: String!) {
@@ -557,25 +589,25 @@ export class ChatsService {
   //   }
   // }
 
-  async deleteMessage(prospectorId: string){
+  async deleteMessage(prospectorId: string) {
     try {
       const result = await this.databaseService.chat.updateMany({
         where: {
-          prospectId:prospectorId
+          prospectId: prospectorId,
         },
-        data:{
-          deleted:true
-        }
-      })
-      return result
+        data: {
+          deleted: true,
+        },
+      });
+      return result;
     } catch (error) {
-      throw new InternalServerErrorException(error)
+      throw new InternalServerErrorException(error);
     }
   }
 
-  async markMessageAsRead(prospectorId: string,req,ids:string[]){
+  async markMessageAsRead(prospectorId: string, req, ids: string[]) {
     try {
-      const buisness:Business = req.user.business
+      const buisness: Business = req.user.business;
 
       // const findprospect = await this.databaseService.prospect.findUnique({
       //   where: {
@@ -589,16 +621,18 @@ export class ChatsService {
       //     receiverPhoneNo:findprospect.phoneNo
       //   }
       // })
-      const config = getWhatsappConfig(buisness)
+      const config = getWhatsappConfig(buisness);
       ids.forEach(async (chat) => {
-        const updatechat = await this.whatsappService.markstatusasread(chat,config)
-        console.log(updatechat)
+        const updatechat = await this.whatsappService.markstatusasread(
+          chat,
+          config,
+        );
+        console.log(updatechat);
+      });
 
-      })
-
-      return "success"
+      return 'success';
     } catch (error) {
-      console.error(error)
+      console.error(error);
     }
   }
 }

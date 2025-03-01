@@ -28,9 +28,12 @@ export class CustomersController {
     return this.customersService.getAllContactsForSegment(id,req);
   }
 
+  @Public()
   @Get()
   getAllCustomers(@Req() req:Request) {
-    return this.customersService. getAllCustomers(req);
+    console.log("this route is hit")
+    return this.customersService.getAllCustomers(req);
+    
   }
 
   @Get(':id')

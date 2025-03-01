@@ -37,8 +37,9 @@ export class ShopifyService {
       console.log(response.data);
       return response.data;
     } catch (error: any) {
+      console.log(error.message);
       console.error('GraphQL query failed:', error?.response?.data || error.message);
-      throw new InternalServerErrorException(`GraphQL query failed: ${error.message}`);
+      // throw new InternalServerErrorException(`GraphQL query failed: ${error.message}`);
     }
   }
 

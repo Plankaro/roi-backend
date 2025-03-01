@@ -71,7 +71,7 @@ export class BroadcastProcessor extends WorkerHost {
       // Process each contact
       for (const broadcastData of data) {
         console.log('===================================');
-        const contact = sanitizePhoneNumber(`${broadcastData.phone}`);
+        const contact = sanitizePhoneNumber(broadcastData.phone);
         console.log('Processing contact:', contact);
 
         // Build components for the template message
@@ -172,14 +172,24 @@ export class BroadcastProcessor extends WorkerHost {
         let prospect = await this.databaseService.prospect.findUnique({
           where: { phoneNo: contact },
         });
+     
+
         console.log('Prospect:', prospect ? prospect.id : 'Not found');
         let uniqueContact = false;
         if (!prospect) {
+          const iflinkedToShopify = await this.customersService.getCustomerByPhone(
+            `+${contact}`,
+            broadcast.creator,
+          )
           uniqueContact = true;
+    
           prospect = await this.databaseService.prospect.create({
             data: {
               phoneNo: contact,
               buisnessNo: broadcast.creator.business.whatsapp_mobile,
+              shopify_id:iflinkedToShopify?.id.match(/\d+$/),
+              name:iflinkedToShopify?.displayName,
+              email:iflinkedToShopify?.email
             },
           });
           console.log('New prospect created:', prospect.id);
