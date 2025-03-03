@@ -3,10 +3,12 @@ import { IsString, IsOptional, IsNotEmpty } from 'class-validator';
 export class CreateProspectDto {
   @IsString()
   @IsNotEmpty()
+
   shopify_id: string; // Maps to `id`
 
   @IsString()
   @IsNotEmpty()
+  @IsOptional()
   name: string; // Maps to `name`
 
   @IsString()

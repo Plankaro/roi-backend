@@ -19,9 +19,10 @@ export class OrdersController {
     return this.ordersService.findAll(req);
   }
 
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.ordersService.findOne(+id);
+  @Get('/customer/:id')
+  findOne(@Param('id') id: string,req: any) {
+    console.log(req)
+    return this.ordersService.findOrderforCustomer(id,req);
   }
 
   @Patch(':id')

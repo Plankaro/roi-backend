@@ -31,6 +31,16 @@ model User {
   broadcasts     Broadcast[]     @relation("CreatedBroadcasts")
   templates      Template[]      @relation("CreatedTemplates")
   flashResponses FlashResponse[] @relation("CreatedFlashResponses")
+  TeamManagement  Acess
+  BroadcastManageMent Acess
+  
+  
+}
+
+enum Acess {
+  READ
+  WRITE
+ 
 }
 
 enum Role {
@@ -183,6 +193,16 @@ model Chat {
   type String
 
   Contacts Contacts[]
+}
+
+
+model StarredCustomers {
+  id          String    @id @default(cuid())
+  shopify_id  String
+
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 }
 
 enum MessageStatus {

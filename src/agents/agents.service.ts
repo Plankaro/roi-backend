@@ -2,8 +2,7 @@ import { Injectable, InternalServerErrorException, UnauthorizedException } from 
 import { CreateAgentDto } from './dto/create-agent.dto';
 import { UpdateAgentDto } from './dto/update-agent.dto';
 import { DatabaseService } from 'src/database/database.service';
-import { tryCatch } from 'bullmq';
-
+import { hash, compare } from 'bcrypt';
 @Injectable()
 export class AgentsService {
   constructor(private readonly databaseService:DatabaseService) { }
@@ -11,7 +10,7 @@ export class AgentsService {
     try {
       const user = req.user
 
-      if(!user.role){
+      if(user.role === 'ADMIN'){
         throw new UnauthorizedException("Admin can only create agents")
       }
       const agent = this.databaseService.user.create({
@@ -20,6 +19,7 @@ export class AgentsService {
           email: createAgentDto.email,
           role: "AGENT",
           isEmailVerified: true,
+          
           // Business: {
           //   connect: {
               

@@ -26,56 +26,56 @@ export class CustomersService {
 
   async getAllCustomers(req: any) {
     console.log('getAllCustomers called');
-    // Log the start of the function execution
     console.log('getAllCustomers called with request:', req);
 
-    const business = req?.user?.business;
-    console.log('Business from request:', business);
+    const buisness = req?.user?.business;
+    console.log(buisness)
 
-    const config = {
-      store: 'roi-magnet-fashion.myshopify.com',
-      accessToken: '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',
-    };
-    // const config = getShopifyConfig(business);
+
+    // const config = {
+    //   store: 'roi-magnet-fashion.myshopify.com',
+    //   accessToken: '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',
+    // };
+    const config = getShopifyConfig(buisness);
     console.log('Shopify config:', config);
 
     const query = `
-  query {
-    customers(first: 20) {
-      edges {
-        cursor
-        node {
-          id
-          firstName
-          lastName
-          email
-          phone
-          amountSpent {
-            amount
-            currencyCode
+      query {
+        customers(first: 250) {
+          edges {
+            cursor
+            node {
+              id
+              firstName
+              lastName
+              email
+              displayName
+              phone
+              amountSpent {
+                amount
+                currencyCode
+              }
+            }
+          }
+          pageInfo {
+            hasNextPage
           }
         }
+          customersCount {
+            count
+              
+            }
       }
-      pageInfo {
-        hasNextPage
-      }
-    }
-  }
-`;
+    `;
     console.log('GraphQL query:', query);
 
     try {
       const variables = {};
       console.log('GraphQL variables:', variables);
 
-      const response = await this.shopifyService.executeGraphQL(
-        query,
-        variables,
-        config,
-      );
+      const response = await this.shopifyService.executeGraphQL(query, variables, config);
       console.log('Raw Shopify response:', response);
 
-      // Validate response
       if (!response || !response.data || !response.data.customers) {
         console.error('Invalid Shopify response structure:', response);
         throw new NotFoundException('No customers found');
@@ -91,7 +91,7 @@ export class CustomersService {
         });
         return {
           shopify_id,
-          name: `${node.firstName || ''} ${node.lastName || ''}`.trim(),
+          name: node.displayName || '',
           email: node.email || '',
           phone: node.phone || '',
           amountSpent: node.amountSpent,
@@ -100,9 +100,7 @@ export class CustomersService {
       console.log(`Extracted ${shopifyCustomers.length} Shopify customers`);
 
       // Get matching prospects from the database
-      const shopifyIds = shopifyCustomers
-        .map((c) => c.shopify_id)
-        .filter(Boolean);
+      const shopifyIds = shopifyCustomers.map((c) => c.shopify_id).filter(Boolean);
       console.log('Shopify IDs to search in DB:', shopifyIds);
 
       const existingProspects = await this.databaseService.prospect.findMany({
@@ -120,41 +118,51 @@ export class CustomersService {
           is_blocked: true,
           created_at: true,
           updated_at: true,
+          lead: true,
         },
       });
-      console.log(
-        `Found ${existingProspects.length} matching prospects in the database`,
-        existingProspects,
-      );
+      console.log(`Found ${existingProspects.length} matching prospects in the database`, existingProspects);
+
+      // Get starred customers
+      const starredCustomers = await this.databaseService.starredCustomers.findMany({
+        where: {
+          shopify_id: { in: shopifyIds },
+        },
+        select: {
+          shopify_id: true,
+        },
+      });
+
+
+      console.log('Starred customers:', starredCustomers);
 
       // Create a mapping of shopify_id -> prospect data
-      const prospectMap = new Map(
-        existingProspects.map((p) => [p.shopify_id, p]),
-      );
-      console.log('Prospect map:', prospectMap);
+      const prospectMap = new Map(existingProspects.map((p) => [p.shopify_id, p]));
+
+      // Create a Set of starred shopify_ids for quick lookup
+      const starredSet = new Set(starredCustomers.map((s) => s.shopify_id));
 
       // Merge Shopify customer data with corresponding Prospect data
       const result = shopifyCustomers.map((customer) => {
         const prospectData = prospectMap.get(customer.shopify_id) || null;
-        console.log(
-          'Merging data for customer:',
-          customer.shopify_id,
-          'Prospect:',
-          prospectData,
-        );
+        const starredContact = starredSet.has(customer.shopify_id);
+        console.log('Merging data for customer:', customer.shopify_id, 'Prospect:', prospectData, 'Starred:', starredContact);
+
         return {
           shopifyCustomer: customer,
           prospectData,
+          starredContact,
         };
       });
 
       console.log('Final merged result:', result);
-      return result;
+      return {customers:result,CustomerContact:response?.data?.customersCount?.count};
     } catch (error) {
       console.error('Error fetching customers:', error);
       throw new InternalServerErrorException(error);
     }
   }
+
 
   async getCustomerById(customerId: string, req: any) {
     const buisness = req.user.business;
@@ -165,31 +173,15 @@ export class CustomersService {
       id
       firstName
       lastName
+      displayName
       email
-      image {
-        url
-        src
-      }
+      numberOfOrders
       phone
       amountSpent {
         amount
         currencyCode
       }
-      orders(first: 5) {
-        nodes {
-          id
-          name
-          totalPriceSet {
-            shopMoney {
-              amount
-              currencyCode
-            }
-          }
-          createdAt
-          
-        
-        }
-      }
+     
       addresses {
         address1
         address2
@@ -203,15 +195,51 @@ export class CustomersService {
 
     const variables = { id: `gid://shopify/Customer/${customerId}` };
 
-    const response = await this.shopifyService.executeGraphQL(
-      query,
-      variables,
-      config,
-    );
+    const getProspect = await this.databaseService.prospect.findUnique({
+      where: { shopify_id: customerId },
+    });
+    
+    const response = await this.shopifyService.executeGraphQL(query, variables, config);
+    
+    let totalMessages = 0, sentMessages = 0, receivedMessages = 0, readMessages = 0;
+    
+    if (getProspect) {
+        [totalMessages, sentMessages, receivedMessages, readMessages] = await Promise.all([
+            this.databaseService.chat.count({
+                where: { prospectId: getProspect.id },
+            }),
+            this.databaseService.chat.count({
+                where: {
+                    senderPhoneNo: getProspect.phoneNo,
+                    receiverPhoneNo: buisness.whatsapp_mobile,
+                },
+            }),
+            this.databaseService.chat.count({
+                where: {
+                    receiverPhoneNo: getProspect.phoneNo,
+                    senderPhoneNo: buisness.whatsapp_mobile,
+                },
+            }),
+            this.databaseService.chat.count({
+                where: {
+                    receiverPhoneNo: getProspect.phoneNo,
+                    Status: 'read',
+                },
+            }),
+        ]);
+    }
+    
+    console.log(JSON.stringify(response.data, null, 2)); // Log the response
+    return {
+        shopifyData: response.data.customer,
+        DbData: getProspect || null,
+        totalMessages,
+        sentMessages,
+        receivedMessages,
+        readMessages
+    };
+}
 
-    console.log(JSON.stringify(response.data, null, 2)); // Log the response)
-    return response.data.customer;
-  }
 
   async getAllSegments(
     req: any,

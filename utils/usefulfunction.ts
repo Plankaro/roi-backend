@@ -16,8 +16,8 @@ export function getFirstAndLastName(fullName: string) {
 
 export function getShopifyConfig(buisness:Business){
   return {
-    store: buisness.shopify_domain ,
-    accessToken: buisness.shopify_Token
+    store: buisness?.shopify_domain || process.env.SHOPIFY_STORE,
+    accessToken: buisness?.shopify_Token || process.env.SHOPIFY_ACCESS_TOKEN
   }
 }
 
