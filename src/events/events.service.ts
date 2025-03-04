@@ -19,7 +19,7 @@ export class EventsService {
 
       const threeDaysAgo = new Date();
       threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
-      console.log('Checking broadcasts from:', threeDaysAgo);
+      console.log('Checking broadcasts from:', threeDaysAgo,sanitizedContact,domain);
 
       const latestBroadcast = await this.databaseService.broadcast.findFirst({
         where: {
@@ -29,7 +29,7 @@ export class EventsService {
           Chat: {
             some: {
               receiverPhoneNo: sanitizedContact,
-              Status: 'read',
+              
             },
           },
           createdFor: {

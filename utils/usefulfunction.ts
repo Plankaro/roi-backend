@@ -1,7 +1,9 @@
 import { Business } from "@prisma/client";
 import { differenceInMilliseconds, format } from 'date-fns';
-export const sanitizePhoneNumber = (phone: string) =>
-    phone.startsWith('+') ? phone.slice(1) : phone;
+export const sanitizePhoneNumber = (phone: any) => {
+  const phoneStr = String(phone); // Convert to string if not already
+  return phoneStr.startsWith('+') ? phoneStr.slice(1) : phoneStr;
+};
 
 
 

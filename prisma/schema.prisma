@@ -26,21 +26,18 @@ model User {
   business   Business? @relation("BusinessEmployees", fields: [businessId], references: [id])
   businessId String? // foreign key; optional if user is not linked to any business
 
-  accounts       Account[]
-  prospects      Prospect[]      @relation("AssignedProspects")
-  broadcasts     Broadcast[]     @relation("CreatedBroadcasts")
-  templates      Template[]      @relation("CreatedTemplates")
-  flashResponses FlashResponse[] @relation("CreatedFlashResponses")
-  TeamManagement  Acess
-  BroadcastManageMent Acess
-  
-  
+  accounts            Account[]
+  prospects           Prospect[]      @relation("AssignedProspects")
+  broadcasts          Broadcast[]     @relation("CreatedBroadcasts")
+  templates           Template[]      @relation("CreatedTemplates")
+  flashResponses      FlashResponse[] @relation("CreatedFlashResponses")
+  TeamManagement      Acess?
+  BroadcastManageMent Acess?
 }
 
 enum Acess {
   READ
   WRITE
- 
 }
 
 enum Role {
@@ -91,6 +88,8 @@ model Business {
   Template      Template[]
   FlashResponse FlashResponse[]
   Payment       Payment[]
+
+  StarredCustomers StarredCustomers[]
 }
 
 model Prospect {
@@ -195,14 +194,13 @@ model Chat {
   Contacts Contacts[]
 }
 
-
 model StarredCustomers {
   id          String    @id @default(cuid())
   shopify_id  String
-
-
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  forBuisness Business @relation(fields: [BuisnessId], references: [id])
+  BuisnessId  String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 }
 
 enum MessageStatus {
@@ -255,7 +253,7 @@ model Broadcast {
   Chat                                  Chat[]
   links_visit                           Int             @default(0)
   BroadCast_Contacts                    Contacts[]
-  unique_order_created                         Int             @default(0)
+  unique_order_created                  Int             @default(0)
   onlimit_exced                         Limitexced
   Order                                 Order[]
   retry_limit                           Int             @default(0)
@@ -275,8 +273,10 @@ model Broadcast {
   limit_marketing_message_duration      String?
   skip_inactive_contacts_enabled        Boolean         @default(true)
   skip_inactive_contacts_days           Int?
-  reply_count                                 Int @default(0)
-  unique_interactions                         Int @default(0)
+  reply_count                           Int             @default(0)
+  unique_interactions                   Int             @default(0)
+
+
 }
 
 enum broadcastStatus {

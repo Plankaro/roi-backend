@@ -1,4 +1,4 @@
-import { Injectable, InternalServerErrorException } from '@nestjs/common';
+import { Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import axios, { AxiosInstance } from 'axios';
 
 interface WhatsappConfig {
@@ -81,6 +81,40 @@ export class WhatsappService {
       );
     }
   }
+
+  async findSpecificTemplate(config: WhatsappConfig, templateName: string): Promise<any> {
+   
+   console.log(templateName);
+  
+    try {
+      const client = this.createClient(config.whatsappApiToken);
+      // Query the API for a specific template by name
+      const response = await client.get(`${config.whatsappBusinessId}/message_templates?name=${templateName}`, {
+       
+      });
+   
+  
+      // Validate that the response contains a template
+      const data = response.data;
+      if (!data || (Array.isArray(data) && data.length === 0)) {
+        throw new NotFoundException(`Template "${templateName}" not found.`);
+      }
+  
+      // If the API returns an array, assume the first element is the desired template
+      const specificTemplate = Array.isArray(data) ? data[0] : data;
+      return specificTemplate;
+    } catch (error: any) {
+      console.error(
+        `Error fetching WhatsApp template "${templateName}":`,
+        error?.response?.data || error.message
+      );
+      throw new InternalServerErrorException(
+        `Failed to fetch WhatsApp template "${templateName}".`
+      );
+    }
+  }
+  
+  
 
   async sendMessage(
     recipientNo: string,

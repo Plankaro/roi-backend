@@ -8,10 +8,11 @@ import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
 import { ShopifyService } from 'src/shopify/shopify.service';
 import { DatabaseService } from 'src/database/database.service';
-import { getShopifyConfig } from 'utils/usefulfunction';
+import { getShopifyConfig, getWhatsappConfig } from 'utils/usefulfunction';
 
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import Redis from 'ioredis';
+import { tryCatch } from 'bullmq';
 @Injectable()
 export class CustomersService {
   constructor(
@@ -25,19 +26,13 @@ export class CustomersService {
   }
 
   async getAllCustomers(req: any) {
-    console.log('getAllCustomers called');
-    console.log('getAllCustomers called with request:', req);
-
     const buisness = req?.user?.business;
-    console.log(buisness)
-
 
     // const config = {
     //   store: 'roi-magnet-fashion.myshopify.com',
     //   accessToken: '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',
     // };
     const config = getShopifyConfig(buisness);
-    console.log('Shopify config:', config);
 
     const query = `
       query {
@@ -67,14 +62,15 @@ export class CustomersService {
             }
       }
     `;
-    console.log('GraphQL query:', query);
 
     try {
       const variables = {};
-      console.log('GraphQL variables:', variables);
 
-      const response = await this.shopifyService.executeGraphQL(query, variables, config);
-      console.log('Raw Shopify response:', response);
+      const response = await this.shopifyService.executeGraphQL(
+        query,
+        variables,
+        config,
+      );
 
       if (!response || !response.data || !response.data.customers) {
         console.error('Invalid Shopify response structure:', response);
@@ -85,10 +81,7 @@ export class CustomersService {
       const shopifyCustomers = response.data.customers.edges.map(({ node }) => {
         const numericIdMatch = node.id.match(/\d+$/);
         const shopify_id = numericIdMatch ? numericIdMatch[0] : null;
-        console.log('Extracted customer node:', {
-          shopify_id,
-          name: `${node.firstName || ''} ${node.lastName || ''}`.trim(),
-        });
+
         return {
           shopify_id,
           name: node.displayName || '',
@@ -97,11 +90,11 @@ export class CustomersService {
           amountSpent: node.amountSpent,
         };
       });
-      console.log(`Extracted ${shopifyCustomers.length} Shopify customers`);
 
       // Get matching prospects from the database
-      const shopifyIds = shopifyCustomers.map((c) => c.shopify_id).filter(Boolean);
-      console.log('Shopify IDs to search in DB:', shopifyIds);
+      const shopifyIds = shopifyCustomers
+        .map((c) => c.shopify_id)
+        .filter(Boolean);
 
       const existingProspects = await this.databaseService.prospect.findMany({
         where: {
@@ -121,23 +114,23 @@ export class CustomersService {
           lead: true,
         },
       });
-      console.log(`Found ${existingProspects.length} matching prospects in the database`, existingProspects);
 
       // Get starred customers
-      const starredCustomers = await this.databaseService.starredCustomers.findMany({
-        where: {
-          shopify_id: { in: shopifyIds },
-        },
-        select: {
-          shopify_id: true,
-        },
-      });
-
-
-      console.log('Starred customers:', starredCustomers);
+      const starredCustomers =
+        await this.databaseService.starredCustomers.findMany({
+          where: {
+            shopify_id: { in: shopifyIds },
+            BuisnessId: buisness.id,
+          },
+          select: {
+            shopify_id: true,
+          },
+        });
 
       // Create a mapping of shopify_id -> prospect data
-      const prospectMap = new Map(existingProspects.map((p) => [p.shopify_id, p]));
+      const prospectMap = new Map(
+        existingProspects.map((p) => [p.shopify_id, p]),
+      );
 
       // Create a Set of starred shopify_ids for quick lookup
       const starredSet = new Set(starredCustomers.map((s) => s.shopify_id));
@@ -146,7 +139,6 @@ export class CustomersService {
       const result = shopifyCustomers.map((customer) => {
         const prospectData = prospectMap.get(customer.shopify_id) || null;
         const starredContact = starredSet.has(customer.shopify_id);
-        console.log('Merging data for customer:', customer.shopify_id, 'Prospect:', prospectData, 'Starred:', starredContact);
 
         return {
           shopifyCustomer: customer,
@@ -155,14 +147,15 @@ export class CustomersService {
         };
       });
 
-      console.log('Final merged result:', result);
-      return {customers:result,CustomerContact:response?.data?.customersCount?.count};
+      return {
+        customers: result,
+        CustomerContact: response?.data?.customersCount?.count,
+      };
     } catch (error) {
       console.error('Error fetching customers:', error);
       throw new InternalServerErrorException(error);
     }
   }
-
 
   async getCustomerById(customerId: string, req: any) {
     const buisness = req.user.business;
@@ -198,48 +191,55 @@ export class CustomersService {
     const getProspect = await this.databaseService.prospect.findUnique({
       where: { shopify_id: customerId },
     });
-    
-    const response = await this.shopifyService.executeGraphQL(query, variables, config);
-    
-    let totalMessages = 0, sentMessages = 0, receivedMessages = 0, readMessages = 0;
-    
+
+    const response = await this.shopifyService.executeGraphQL(
+      query,
+      variables,
+      config,
+    );
+
+    let totalMessages = 0,
+      sentMessages = 0,
+      receivedMessages = 0,
+      readMessages = 0;
+
     if (getProspect) {
-        [totalMessages, sentMessages, receivedMessages, readMessages] = await Promise.all([
-            this.databaseService.chat.count({
-                where: { prospectId: getProspect.id },
-            }),
-            this.databaseService.chat.count({
-                where: {
-                    senderPhoneNo: getProspect.phoneNo,
-                    receiverPhoneNo: buisness.whatsapp_mobile,
-                },
-            }),
-            this.databaseService.chat.count({
-                where: {
-                    receiverPhoneNo: getProspect.phoneNo,
-                    senderPhoneNo: buisness.whatsapp_mobile,
-                },
-            }),
-            this.databaseService.chat.count({
-                where: {
-                    receiverPhoneNo: getProspect.phoneNo,
-                    Status: 'read',
-                },
-            }),
+      [totalMessages, sentMessages, receivedMessages, readMessages] =
+        await Promise.all([
+          this.databaseService.chat.count({
+            where: { prospectId: getProspect.id },
+          }),
+          this.databaseService.chat.count({
+            where: {
+              senderPhoneNo: getProspect.phoneNo,
+              receiverPhoneNo: buisness.whatsapp_mobile,
+            },
+          }),
+          this.databaseService.chat.count({
+            where: {
+              receiverPhoneNo: getProspect.phoneNo,
+              senderPhoneNo: buisness.whatsapp_mobile,
+            },
+          }),
+          this.databaseService.chat.count({
+            where: {
+              receiverPhoneNo: getProspect.phoneNo,
+              Status: 'read',
+            },
+          }),
         ]);
     }
-    
+
     console.log(JSON.stringify(response.data, null, 2)); // Log the response
     return {
-        shopifyData: response.data.customer,
-        DbData: getProspect || null,
-        totalMessages,
-        sentMessages,
-        receivedMessages,
-        readMessages
+      shopifyData: response.data.customer,
+      DbData: getProspect || null,
+      totalMessages,
+      sentMessages,
+      receivedMessages,
+      readMessages,
     };
-}
-
+  }
 
   async getAllSegments(
     req: any,
@@ -460,4 +460,140 @@ export class CustomersService {
       throw new InternalServerErrorException(error);
     }
   }
+
+  async createStarCustomer(body: any, req: any): Promise<any> {
+    try {
+      const { customerId } = body;
+      const buisness = req.user.business;
+      console.log(buisness);
+
+      const doesStarredCustomerExist =
+        await this.databaseService.starredCustomers.findFirst({
+          where: {
+            shopify_id: customerId,
+            BuisnessId: buisness.id,
+          },
+        });
+      if (doesStarredCustomerExist) {
+        const deleteStarredCustomer =
+          await this.databaseService.starredCustomers.delete({
+            where: {
+              id: doesStarredCustomerExist.id,
+            },
+          });
+        console.log(
+          `Deleted starred customer with ID ${doesStarredCustomerExist.id}`,
+        );
+        return deleteStarredCustomer;
+      }
+
+      const createStaredCustomer =
+        await this.databaseService.starredCustomers.create({
+          data: {
+            shopify_id: customerId,
+            BuisnessId: buisness.id,
+          },
+        });
+      return createStaredCustomer;
+    } catch (error) {
+      console.error('Error creating starred customer:', error);
+      throw new InternalServerErrorException(error);
+    }
+  }
+  async getStarCustomers(req: any): Promise<any[]> {
+    try {
+      console.log('getStarCustomers called.');
+      console.log('Request user data:', JSON.stringify(req.user, null, 2));
+  
+      const business = req.user.business;
+      if (!business.id) {
+        console.error('No business ID found in request.');
+        throw new BadRequestException('Business ID is missing.');
+      }
+      const config = getShopifyConfig(business);
+      console.log('Business ID:', business.id);
+  
+      // Fetch starred customers from the database for the given business.
+      const starredCustomers = await this.databaseService.starredCustomers.findMany({
+        where: {
+          BuisnessId: business.id,
+        },
+      });
+      console.log('Fetched starred customers from DB:', starredCustomers);
+  
+      if (!starredCustomers || starredCustomers.length === 0) {
+        console.log('No starred customers found for Business ID:', business.id);
+        return [];
+      }
+  
+      // Process all starred customers concurrently.
+      const starredData = await Promise.all(
+        starredCustomers.map(async (starredCustomer) => {
+          const query = `
+            query ($id: ID!) {
+              customer(id: $id) {
+                id
+                firstName
+                lastName
+                displayName
+                email
+                numberOfOrders
+                phone
+                amountSpent {
+                  amount
+                  currencyCode
+                }
+                addresses {
+                  address1
+                  address2
+                  city
+                  country
+                  zip
+                }
+              }
+            }
+          `;
+  
+          const variables = {
+            id: `gid://shopify/Customer/${starredCustomer.shopify_id}`,
+          };
+          const result = await this.shopifyService.executeGraphQL(query, variables, config);
+  
+          const customer = result.data.customer;
+          const numericIdMatch = customer.id.match(/\d+$/);
+          const shopify_id = numericIdMatch ? numericIdMatch[0] : null;
+  
+          const shopifyCustomer = {
+            name: customer.displayName,
+            email: customer.email,
+            phone: customer.phone,
+            amountSpent: customer.amountSpent,
+            shopify_id,
+          };
+  
+          const prospectData = await this.databaseService.prospect.findUnique({
+            where: { shopify_id: starredCustomer.shopify_id },
+          });
+  
+          // Return an object with the merged data.
+          return {
+            shopifyCustomer,
+            prospectData,
+            starredContact:true
+
+          };
+        })
+      );
+
+     
+  
+      // Optionally log final merged data.
+      console.log('Final merged starred customer data:', starredData);
+      return starredData;
+    } catch (error) {
+      console.error('Error in getStarCustomers:', error);
+      throw new InternalServerErrorException(error);
+    }
+  }
+  
 }

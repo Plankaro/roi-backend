@@ -240,7 +240,6 @@ export class ChatsService {
                 const rawPhoneNumber = `+${sanitizePhoneNumber(message.from)}`;
                 console.log(`Processing message from: ${rawPhoneNumber}`);
                 console.log(`Message content: ${JSON.stringify(message)}`);
-                
 
                 const prospect = await this.databaseService.prospect.upsert({
                   where: {
@@ -330,20 +329,21 @@ export class ChatsService {
                   `Processing status update: ${JSON.stringify(status)}`,
                 );
 
-              
-
                 const updatedChat = await this.databaseService.chat.update({
                   where: { chatId: status.id },
                   data: {
                     Status: status.status,
                     failedReason: status.errors?.[0]?.message ?? null,
                   },
-                
                 });
-                if(updatedChat.isForBroadcast===true && updatedChat.broadcastId){
+                if (
+                  updatedChat.isForBroadcast === true &&
+                  updatedChat.broadcastId &&
+                  updatedChat.Status === 'read'
+                ) {
                   await this.databaseService.broadcast.update({
                     where: { id: updatedChat.broadcastId },
-                    data: { unique_interactions : { increment: 1 } },
+                    data: { unique_interactions: { increment: 1 } },
                   });
                 }
 
@@ -443,6 +443,7 @@ export class ChatsService {
           // ✅ `where` clause is required
           prospectId: prospect_id,
           deleted: false,
+          Status: { not: 'skipped' },
         },
       });
 
@@ -454,16 +455,34 @@ export class ChatsService {
 
   async findAllTemplate(req: any) {
     const buisness = req.user.business;
-    const config = {
-      whatsappBusinessId: buisness.whatsapp_buisness_id,
-      whatsappApiToken: buisness.whatsapp_token,
-    };
+    const config = getWhatsappConfig(buisness);
 
     try {
       console.log('fetching templates');
-      const Chats = await this.whatsappService.getTemplates(config);
+      const Templates = await this.whatsappService.getTemplates(config);
+      console.log(Templates.data);
+      console.log(typeof Templates.data);
+      const approvedTemplates = Templates?.data?.filter(
+        (templates) => templates.status === 'APPROVED',
+      );
 
-      return Chats.data;
+      return approvedTemplates;
+    } catch (error) {
+      console.log(error);
+      throw new InternalServerErrorException('Failed to fetch templates');
+    }
+  }
+
+  async getSpecificTemplates(name: string, req: any) {
+    console.log(name);
+    try {
+      const config = getWhatsappConfig(req.user.business);
+      const Templates = await this.whatsappService.findSpecificTemplate(
+        config,
+        name,
+      );
+      console.log(Templates);
+      return Templates;
     } catch (error) {
       console.log(error);
       throw new InternalServerErrorException('Failed to fetch templates');
@@ -635,4 +654,5 @@ export class ChatsService {
       console.error(error);
     }
   }
+  
 }

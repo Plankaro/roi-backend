@@ -67,10 +67,12 @@ export class BroadcastProcessor extends WorkerHost {
         throw new Error('Invalid contacts type');
       }
       console.log('Total contacts:', data.length);
+      console.log()
 
       // Process each contact
       for (const broadcastData of data) {
         console.log('===================================');
+        console.log(broadcastData.phone)
         const contact = sanitizePhoneNumber(broadcastData.phone);
         console.log('Processing contact:', contact);
 
@@ -78,6 +80,7 @@ export class BroadcastProcessor extends WorkerHost {
         const components = [];
         const { header, buttons, body } = broadcast.componentData as any;
         console.log('Component Data:', { header, buttons, body });
+        
 
         // Process header component
         if (header && header.isEditable) {
@@ -140,13 +143,14 @@ export class BroadcastProcessor extends WorkerHost {
           return template.parameter_format === 'NAMED'
             ? {
                 type: 'text',
-                parameter_name: param.parameter_name,
+                parameter_name: param.parameter_name.replace(/{{|}}/g, '') ,
                 text: value,
               }
             : { type: 'text', text: value };
         });
         components.push({ type: 'body', parameters: bodyParameters });
         console.log('Body parameters processed:', bodyParameters);
+    
 
         // Process buttons
         buttons.forEach((button, index) => {
@@ -174,6 +178,7 @@ export class BroadcastProcessor extends WorkerHost {
         });
      
 
+
         console.log('Prospect:', prospect ? prospect.id : 'Not found');
         let uniqueContact = false;
         if (!prospect) {
@@ -182,12 +187,13 @@ export class BroadcastProcessor extends WorkerHost {
             broadcast.creator,
           )
           uniqueContact = true;
+          console.log('Unique contact:', iflinkedToShopify)
     
           prospect = await this.databaseService.prospect.create({
             data: {
               phoneNo: contact,
               buisnessNo: broadcast.creator.business.whatsapp_mobile,
-              shopify_id:iflinkedToShopify?.id.match(/\d+$/),
+              shopify_id:iflinkedToShopify?.id.replace(/^\D+/g, ''),
               name:iflinkedToShopify?.displayName,
               email:iflinkedToShopify?.email
             },
@@ -346,6 +352,7 @@ export class BroadcastProcessor extends WorkerHost {
               config,
             );
 
+          console.log('Message sent successfully:', messageResponse);
           if (messageResponse?.messages?.[0]?.id) {
             await this.databaseService.chat.update({
               where: { id: addTodb.id },

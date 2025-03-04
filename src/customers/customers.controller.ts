@@ -15,6 +15,12 @@ export class CustomersController {
     return this.customersService.create(createCustomerDto, req);
   }
 
+  
+  @Get('/starred')
+  getStarCustomers(@Req() req: any) {
+    console.log("this route is hit EREEE")
+    return this.customersService.getStarCustomers(req);
+  }
 
   @Get('/segments')
   GetAllSegments(@Req() req:any) {
@@ -31,7 +37,7 @@ export class CustomersController {
  
   @Get()
   getAllCustomers(@Req() req:Request) {
-    console.log("this route is hit")
+  
     return this.customersService.getAllCustomers(req);
     
   }
@@ -39,6 +45,11 @@ export class CustomersController {
   @Get(':id')
   findOne(@Param('id') id: string,@Req() req:Request) {
     return this.customersService.getCustomerById(id,req);
+  }
+
+  @Post('/starred')
+  createStarCustomer(@Body() body: any,@Req() req: any) {
+    return this.customersService.createStarCustomer(body,req);
   }
 
 

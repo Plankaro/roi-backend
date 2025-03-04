@@ -68,6 +68,11 @@ export class ChatsController {
     return this.chatsService.findAllTemplate(req);
   }
 
+  @Get('/specific-template')
+  getSpecificTemplates(@Query('name') name: string, @Req() req: any) {
+    console.log('Template name:', name);
+    return this.chatsService.getSpecificTemplates(name, req);
+  }
  
   @Post('/media')
   sendMedia(@Body() mediaDto: MediaDto,@Req() req: Request ){

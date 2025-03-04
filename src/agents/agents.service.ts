@@ -19,6 +19,8 @@ export class AgentsService {
           email: createAgentDto.email,
           role: "AGENT",
           isEmailVerified: true,
+          TeamManagement:"WRITE",
+          BroadcastManageMent:"WRITE",
           
           // Business: {
           //   connect: {

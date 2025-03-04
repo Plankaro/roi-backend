@@ -187,7 +187,7 @@ export class BroadcastService {
       return template.parameter_format === 'NAMED'
         ? {
             type: 'text',
-            parameter_name: param.parameter_name,
+            parameter_name: param.parameter_name.replace(/{{|}}/g, '') ,
             text: value,
           }
         : { type: 'text', text: value };
@@ -211,6 +211,7 @@ export class BroadcastService {
         });
       }
     });
+
 
     const message: any = await this.whatsappService.sendTemplateMessage(
       {
@@ -276,6 +277,8 @@ export class BroadcastService {
               },
             }),
           ]);
+
+          
 
           return {
             ...broadcast,
@@ -381,6 +384,14 @@ export class BroadcastService {
           },
         }),
       ]);
+      const config = getWhatsappConfig(business);
+
+      const Templates = await this.whatsappService.findSpecificTemplate(
+        config,
+        broadcast.template_name
+      );
+      console.log(Templates);
+ 
 
       // Transform the groupBy results to have a 'count' property
       const transformedSkippedReasonGroups = skippedReasonGroups.map(
@@ -407,6 +418,7 @@ export class BroadcastService {
         sentCount,
         skippedReasonGroups: transformedSkippedReasonGroups,
         failedReasonGroups: transformedFailedReasonGroups,
+        template: Templates.data[0],
       };
     } catch (error) {
       console.log(error);
