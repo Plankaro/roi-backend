@@ -7,28 +7,64 @@ import { Prisma } from '@prisma/client';
 @Injectable()
 export class FlashresponseService {
   constructor(private readonly databaseService: DatabaseService) {}
-  async create(createFlashresponseDto: CreateFlashresponseDto) {
+  async create(createFlashresponseDto: CreateFlashresponseDto,req:any) {
     try {
+      const user = req?.user
+      console.log(user)
       const createFlashresponse = await this.databaseService.flashResponse.create({
         data: {
-          short: createFlashresponseDto.short,
+          heading:createFlashresponseDto.heading,
           message: createFlashresponseDto.message,
-          createdBy: createFlashresponseDto.createdBy,
-          createdForId: createFlashresponseDto.createdForId,
-          isPrivate: createFlashresponseDto.isPrivate,
+          category: createFlashresponseDto.category,
+          shareWithOthers: createFlashresponseDto.shareWithOthers,
+          createdBy: user?.id,
+          createdForId: user?.business?.id,
+
         },
       })
       return createFlashresponse;
     } catch (error) {
+      console.log(error);
     throw new InternalServerErrorException(`Failed to create flashresponse: ${error.message}`);
     }
   }
 
-  async findAll() {
+  async findAll(req:any) {
+    const user = req?.user
 
     try {
-      const response = await this.databaseService.flashResponse.findMany();
-      return response;
+      const responses = await this.databaseService.flashResponse.findMany({
+        where: {
+       
+          OR: [
+            {
+
+              createdBy:user?.id,
+              shareWithOthers: true,
+              createdForId: user.business.id,
+            },
+            {
+              shareWithOthers: false,
+              createdBy: user.id,
+              createdForId: user.business.id,
+            },
+          ],
+        },
+        include: {
+          creator: {
+            select: {
+              name: true,
+            },
+          },
+          createdFor: {
+            select: {
+              businessName: true,
+            },
+          },
+        },
+      });
+      
+      return responses;
     } catch (error) {
       console.log(error);
       throw new InternalServerErrorException(error);
@@ -50,21 +86,25 @@ export class FlashresponseService {
     }
   }
 
-  async update(id: string, updateFlashresponseDto: UpdateFlashresponseDto) {
+  async update(id: string, updateFlashresponseDto: UpdateFlashresponseDto,req) {
+    console.log(updateFlashresponseDto)
     try {
     const updatedData = await this.databaseService.flashResponse.update({
       where: {
         id: id,
+        createdBy: req.user.id,
+        createdForId: req.user.business.id,
       },
       data: {
-        short: updateFlashresponseDto.short,
+        heading:updateFlashresponseDto.heading,
         message: updateFlashresponseDto.message,
-       
-        isPrivate: updateFlashresponseDto.isPrivate,
+        category: updateFlashresponseDto.category,
+        shareWithOthers: updateFlashresponseDto.shareWithOthers,
       },
     })
     return updatedData;
     } catch (error) {
+      console.log(error);
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2025'

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Req } from '@nestjs/common';
 import { FlashresponseService } from './flashresponse.service';
 import { CreateFlashresponseDto } from './dto/create-flashresponse.dto';
 import { UpdateFlashresponseDto } from './dto/update-flashresponse.dto';
@@ -8,13 +8,13 @@ export class FlashresponseController {
   constructor(private readonly flashresponseService: FlashresponseService) {}
 
   @Post()
-  create(@Body() createFlashresponseDto: CreateFlashresponseDto) {
-    return this.flashresponseService.create(createFlashresponseDto);
+  create(@Body() createFlashresponseDto: CreateFlashresponseDto, @Req() req:any) {
+    return this.flashresponseService.create(createFlashresponseDto,req);
   }
 
   @Get()
-  findAll() {
-    return this.flashresponseService.findAll();
+  findAll(@Req() req:any) {
+    return this.flashresponseService.findAll(req);
   }
 
   @Get(':id')
@@ -23,8 +23,8 @@ export class FlashresponseController {
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateFlashresponseDto: UpdateFlashresponseDto) {
-    return this.flashresponseService.update(id, updateFlashresponseDto);
+  update(@Param('id') id: string, @Body() updateFlashresponseDto: UpdateFlashresponseDto, @Req() req:any) {
+    return this.flashresponseService.update(id, updateFlashresponseDto,req);
   }
 
   @Delete(':id')

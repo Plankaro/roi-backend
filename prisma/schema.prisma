@@ -339,7 +339,8 @@ model Template {
 
 model FlashResponse {
   id           String    @id @default(cuid())
-  short        String
+  heading        String
+  category      String
   message      String
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
@@ -347,7 +348,7 @@ model FlashResponse {
   creator      User?     @relation("CreatedFlashResponses", fields: [createdBy], references: [id])
   createdForId String?
   createdFor   Business? @relation(fields: [createdForId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  isPrivate    Boolean   @default(false)
+  shareWithOthers   Boolean   @default(true)
 }
 
 model Payment {
