@@ -32,6 +32,21 @@ export class EventsController {
     return { success: true };
   }
 
+  
+  @Public()
+  @Post('/cart')
+  Cart(
+    @Body() orderData: any,
+    @Headers() headers: Record<string, string>,
+  ) {
+
+    console.log(orderData);
+    // Pass the order data to your service for further processing
+
+    return { success: true };
+  }
+
+  
 
   @Get()
   findAll() {
@@ -52,4 +67,6 @@ export class EventsController {
   remove(@Param('id') id: string) {
     return this.eventsService.remove(+id);
   }
+
+
 }

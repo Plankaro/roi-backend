@@ -18,13 +18,13 @@ export class AgentsController {
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.agentsService.findOne(id);
+  findOne(@Param('id') id: string,@Req() req: Request) {
+    return this.agentsService.findOne(id, req);
   }
 
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() updateAgentDto: UpdateAgentDto) {
-    return this.agentsService.update(id, updateAgentDto);
+  @Patch(':id',)
+  update(@Param('id') id: string, @Body() updateAgentDto: UpdateAgentDto,@Req() req: Request) {
+    return this.agentsService.update(id, updateAgentDto,req);
   }
 
   @Delete(':id',)

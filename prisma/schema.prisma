@@ -26,13 +26,17 @@ model User {
   business   Business? @relation("BusinessEmployees", fields: [businessId], references: [id])
   businessId String? // foreign key; optional if user is not linked to any business
 
-  accounts            Account[]
-  prospects           Prospect[]      @relation("AssignedProspects")
-  broadcasts          Broadcast[]     @relation("CreatedBroadcasts")
-  templates           Template[]      @relation("CreatedTemplates")
-  flashResponses      FlashResponse[] @relation("CreatedFlashResponses")
-  TeamManagement      Acess?
-  BroadcastManageMent Acess?
+  accounts        Account[]
+  prospects       Prospect[]      @relation("AssignedProspects")
+  broadcasts      Broadcast[]     @relation("CreatedBroadcasts")
+  templates       Template[]      @relation("CreatedTemplates")
+  flashResponses  FlashResponse[] @relation("CreatedFlashResponses")
+  ManageBroadcast Boolean         @default(true)
+  manageTeam Boolean         @default(true)
+  manageCampaign  Boolean         @default(true)
+  assignChat      Boolean         @default(true)
+
+  Campaign Campaign[]
 }
 
 enum Acess {
@@ -90,6 +94,8 @@ model Business {
   Payment       Payment[]
 
   StarredCustomers StarredCustomers[]
+
+  Campaign Campaign[]
 }
 
 model Prospect {
@@ -186,6 +192,9 @@ model Chat {
   isForRetry     Boolean    @default(false)
   retryId        String?
   retry          Retry?     @relation(fields: [retryId], references: [id])
+  isForCampaign  Boolean    @default(false)
+  campaign       Campaign?  @relation(fields: [campaignId], references: [id])
+  campaignId     String?
 
   ContactId String?
 
@@ -195,12 +204,12 @@ model Chat {
 }
 
 model StarredCustomers {
-  id          String    @id @default(cuid())
+  id          String   @id @default(cuid())
   shopify_id  String
   forBuisness Business @relation(fields: [BuisnessId], references: [id])
   BuisnessId  String
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 enum MessageStatus {
@@ -275,8 +284,6 @@ model Broadcast {
   skip_inactive_contacts_days           Int?
   reply_count                           Int             @default(0)
   unique_interactions                   Int             @default(0)
-
-
 }
 
 enum broadcastStatus {
@@ -338,17 +345,17 @@ model Template {
 }
 
 model FlashResponse {
-  id           String    @id @default(cuid())
-  heading        String
-  category      String
-  message      String
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  createdBy    String?
-  creator      User?     @relation("CreatedFlashResponses", fields: [createdBy], references: [id])
-  createdForId String?
-  createdFor   Business? @relation(fields: [createdForId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  shareWithOthers   Boolean   @default(true)
+  id              String    @id @default(cuid())
+  heading         String
+  category        String
+  message         String
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  createdBy       String?
+  creator         User?     @relation("CreatedFlashResponses", fields: [createdBy], references: [id])
+  createdForId    String?
+  createdFor      Business? @relation(fields: [createdForId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  shareWithOthers Boolean   @default(true)
 }
 
 model Payment {
@@ -371,4 +378,35 @@ enum PaymentStatus {
   SUCCESS
   FAILED
   REFUNDED
+}
+
+model Campaign {
+  id            String         @id @default(cuid())
+  name          String
+  description   String
+  status        CampaignStatus @default(ACTIVE)
+  type          CampaignType
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  createdBy     String?
+  creator       User?          @relation(fields: [createdBy], references: [id])
+  createdForId  String?
+  createdFor    Business?      @relation(fields: [createdForId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  templateName  String
+  ComponentData Json
+  Chats         Chat[]
+  Sucess        Int            @default(0)
+}
+
+enum CampaignType {
+  abondoned_checkout //webhook gener
+
+  cod_to_prepaid
+  after_order_delivery
+}
+
+enum CampaignStatus {
+  ACTIVE
+  INACTIVE
+  ARCHIVED
 }

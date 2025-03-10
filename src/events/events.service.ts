@@ -116,6 +116,7 @@ export class EventsService {
     }
   }
 
+  
   findAll() {
     return `This action returns all events`;
   }
