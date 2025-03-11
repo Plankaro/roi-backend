@@ -32,7 +32,7 @@ model User {
   templates       Template[]      @relation("CreatedTemplates")
   flashResponses  FlashResponse[] @relation("CreatedFlashResponses")
   ManageBroadcast Boolean         @default(true)
-  manageTeam Boolean         @default(true)
+  manageTeam      Boolean         @default(true)
   manageCampaign  Boolean         @default(true)
   assignChat      Boolean         @default(true)
 
@@ -128,14 +128,17 @@ model Order {
   id               String     @id @default(cuid())
   shopify_id       String     @unique
   customer_phoneno String
-  propspect_id     String
-  propsect         Prospect   @relation(fields: [propspect_id], references: [id])
+  propspect_id     String?
+  propsect         Prospect?   @relation(fields: [propspect_id], references: [id])
   status           String
   amount           String
   Date             DateTime   @default(now())
   fromBroadcast    Boolean    @default(false)
   BroadCastId      String?
   BroadCast        Broadcast? @relation(fields: [BroadCastId], references: [id])
+  shopify_store    String?
+  order_status_url String?
+  processed_at     DateTime?
 }
 
 enum Status {
@@ -193,8 +196,8 @@ model Chat {
   retryId        String?
   retry          Retry?     @relation(fields: [retryId], references: [id])
   isForCampaign  Boolean    @default(false)
-  campaign       Campaign?  @relation(fields: [campaignId], references: [id])
-  campaignId     String?
+
+  campaignId String?
 
   ContactId String?
 
@@ -381,28 +384,88 @@ enum PaymentStatus {
 }
 
 model Campaign {
-  id            String         @id @default(cuid())
-  name          String
-  description   String
-  status        CampaignStatus @default(ACTIVE)
-  type          CampaignType
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  createdBy     String?
-  creator       User?          @relation(fields: [createdBy], references: [id])
-  createdForId  String?
-  createdFor    Business?      @relation(fields: [createdForId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  templateName  String
-  ComponentData Json
-  Chats         Chat[]
-  Sucess        Int            @default(0)
+  id                   String                @id @default(cuid())
+  name                 String
+ 
+  status               CampaignStatus        @default(ACTIVE)
+  type                 CampaignType
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  createdBy            String?
+  creator              User?                 @relation(fields: [createdBy], references: [id])
+  createdForId         String?
+  createdFor           Business?             @relation(fields: [createdForId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  CheckoutCreatedCampaign CheckoutCreatedCampaign?
+  OrderCreatedCampaign orderCreatedCampaign?
+}
+
+model CheckoutCreatedCampaign {
+  id                                          String       @id @default(cuid())
+  campaign                                    Campaign     @relation(fields: [campaignId], references: [id])
+  campaignId                                  String       @unique
+  
+  template_name                               String
+  template_type                               String
+  template_lang                               String
+  components                                  Json
+  discount                                    Int
+  Condition_filter_match                      Boolean
+  new_checkout_abondnment                     Boolean
+  new_checkout_abondnment_type                trigger_type
+  new_checkout_abondnment_trigger_time        Int
+  new_checkout_abondnment_trigger_time_unit time_unit
+  new_order_abondnment                        Boolean
+  new_order_abondnment_type                   trigger_type
+  new_order_abondnment_trigger_time           Int
+  new_order_abondnment_trigger_time_unit    time_unit
+  ordered_created                             Boolean
+  order_cancelled                             Boolean
+}
+
+model orderCreatedCampaign{
+  id                                         String       @id @default(cuid())
+  campaign                                    Campaign     @relation(fields: [campaignId], references: [id])
+  campaignId                                  String       @unique
+  template_name                               String
+  template_type                               String
+  template_lang                               String
+  components                                  Json
+  trigger_time                                Int
+  trigger_time_unit                        time_unit
+  Condition_filter_match                      Boolean
+  new_checkout_abondnment                     Boolean
+
+
+
+ 
+}
+
+
+
+enum OrderTrigger_Type {
+  IMMEDIATE
+  CUSTOM
+}
+
+enum trigger_type {
+  AFTER_CAMPAIGN_CREATED
+  CUSTOM
+}
+
+enum time_unit {
+  DAY
+  HOUR
+  MINUTE
 }
 
 enum CampaignType {
-  abondoned_checkout //webhook gener
-
-  cod_to_prepaid
-  after_order_delivery
+  ORDER_CREATED
+  ORDER_UPDATED
+  ORDER_CANCELLED
+  CHECKOUT_CREATED
+  FULFILLMENT_CREATED
+  FULFILLMENT_EVENT_CREATED
+  ORDER_TAG_ADDED
 }
 
 enum CampaignStatus {

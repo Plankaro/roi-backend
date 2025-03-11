@@ -39,34 +39,41 @@ export class EventsController {
     @Body() orderData: any,
     @Headers() headers: Record<string, string>,
   ) {
+console.log("cart",headers)
+    console.log("cart",orderData);
+    // Pass the order" data to your service for further processing
 
-    console.log(orderData);
+    return { success: true };
+  }
+
+  @Public()
+  @Post('/updatefullfillment')
+  updatefullfillment(
+    @Body() orderData: any,
+    @Headers() headers: Record<string, string>,
+  ) {
+    console.log("updatefullfillment",headers)
+    console.log("updatefullfillment",orderData);
     // Pass the order data to your service for further processing
 
     return { success: true };
   }
 
   
+  @Public()
+  @Post('/createFullfillment')
+fullfillment(
+    @Body() orderData: any,
+    @Headers() headers: Record<string, string>,
+  ) {
+    console.log("fullfillment",headers)
+    console.log("fullfillment",orderData);
+    // Pass the order data to your service for further processing
 
-  @Get()
-  findAll() {
-    return this.eventsService.findAll();
+    return { success: true };
   }
 
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.eventsService.findOne(+id);
-  }
 
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() updateEventDto: UpdateEventDto) {
-    return this.eventsService.update(+id, updateEventDto);
-  }
-
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.eventsService.remove(+id);
-  }
 
 
 }
