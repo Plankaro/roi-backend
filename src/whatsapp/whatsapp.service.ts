@@ -1,9 +1,13 @@
-import { Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
 import axios, { AxiosInstance } from 'axios';
 
 interface WhatsappConfig {
-  whatsappMobileId?: string;    // required for sending messages (template/text/media)
-  whatsappBusinessId?: string;  // required for template management (get/create/delete)
+  whatsappMobileId?: string; // required for sending messages (template/text/media)
+  whatsappBusinessId?: string; // required for template management (get/create/delete)
   whatsappApiToken: string;
 }
 
@@ -27,10 +31,12 @@ export class WhatsappService {
       languageCode: string;
       components: any;
     },
-    config: WhatsappConfig
+    config: WhatsappConfig,
   ): Promise<any> {
     if (!config.whatsappMobileId) {
-      throw new InternalServerErrorException('Missing whatsappMobileId in config');
+      throw new InternalServerErrorException(
+        'Missing whatsappMobileId in config',
+      );
     }
     try {
       const client = this.createClient(config.whatsappApiToken);
@@ -45,30 +51,33 @@ export class WhatsappService {
           components: params.components,
         },
       };
-      const result = await client.post(`/${config.whatsappMobileId}/messages`, payload);
-    
+      const result = await client.post(
+        `/${config.whatsappMobileId}/messages`,
+        payload,
+      );
+
       return result.data;
     } catch (error: any) {
-      const errorMessage = error.response?.data.error.error_data.details
-      console.error(
-        errorMessage || "gjgyjf"
-      )
+      const errorMessage = error.response?.data.error.error_data.details;
+      console.error(errorMessage || 'gjgyjf');
       throw new InternalServerErrorException(
-       
-        errorMessage || 'Failed to send WhatsApp template message due to unknown reasons.',
+        errorMessage ||
+          'Failed to send WhatsApp template message due to unknown reasons.',
       );
     }
   }
 
-  
-
   async getTemplates(config: WhatsappConfig): Promise<any> {
     if (!config.whatsappBusinessId) {
-      throw new InternalServerErrorException('Missing whatsappBusinessId in config');
+      throw new InternalServerErrorException(
+        'Missing whatsappBusinessId in config',
+      );
     }
     try {
       const client = this.createClient(config.whatsappApiToken);
-      const response = await client.get(`${config.whatsappBusinessId}/message_templates`);
+      const response = await client.get(
+        `${config.whatsappBusinessId}/message_templates`,
+      );
       return response.data;
     } catch (error: any) {
       console.error(
@@ -82,47 +91,113 @@ export class WhatsappService {
     }
   }
 
-  async findSpecificTemplate(config: WhatsappConfig, templateName: string): Promise<any> {
-   
-   console.log(templateName);
-  
+  async findSpecificTemplate(
+    config: WhatsappConfig,
+    templateName: string,
+  ): Promise<any> {
+    console.log(templateName);
+
     try {
       const client = this.createClient(config.whatsappApiToken);
       // Query the API for a specific template by name
-      const response = await client.get(`${config.whatsappBusinessId}/message_templates?name=${templateName}`, {
-       
-      });
-   
-  
+      const response = await client.get(
+        `${config.whatsappBusinessId}/message_templates?name=${templateName}`,
+        {},
+      );
+
       // Validate that the response contains a template
       const data = response.data;
       if (!data || (Array.isArray(data) && data.length === 0)) {
         throw new NotFoundException(`Template "${templateName}" not found.`);
       }
-  
+
       // If the API returns an array, assume the first element is the desired template
       const specificTemplate = Array.isArray(data) ? data[0] : data;
       return specificTemplate;
     } catch (error: any) {
       console.error(
         `Error fetching WhatsApp template "${templateName}":`,
-        error?.response?.data || error.message
+        error?.response?.data || error.message,
       );
       throw new InternalServerErrorException(
-        `Failed to fetch WhatsApp template "${templateName}".`
+        `Failed to fetch WhatsApp template "${templateName}".`,
       );
     }
   }
+
+
+  // for future refernce
+  // {
+  //   "name": "order_test_tem",
+  //   "language": "en_US",
+  //   "category": "UTILITY",
+  //   "status": "PENDING",
+  //   "components": [
+  //     {
+  //       "type": "BODY",
+  //       "text": "Thank you for your order, {{1}}! Your confirmation number is {{2}}. If you have any questions, please use the buttons below to contact support.",
+  //       "example": {
+  //         "body_text": [
+  //           ["Pablo", "860198-230332"]
+  //         ]
+  //       }
+  //     },
+  //     {
+  //       "type": "BUTTONS",
+  //       "buttons": [
+  //         {
+  //           "type": "PHONE_NUMBER",
+  //           "text": "Call",
+  //           "phone_number": "917086441614"
+  //         },
+  //         {
+  //           "type": "URL",
+  //           "text": "Contact Support",
+  //           "url": "https://www.luckyshrub.com/support"
+  //         }
+  //       ]
+  //     }
+  //   ],
+  //   "createdBy": "user123",
+  //   "createdForId": "business456"
+  // }
   
-  
+  async sendTemplateToMeta(templateData: any, config: any) {
+    const payload = {
+      name: templateData.name,
+      language: templateData.language,
+      category: templateData.category,
+      components: templateData.components,
+    };
+    console.log(payload);
+    try {
+      const client = this.createClient(
+        config?.whatsappApiToken
+      );
+      const response = await client.post(
+        `/${config?.whatsappBusinessId}/message_templates`,
+        payload,
+      );
+      console.log('Template successfully sent to Meta:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error(
+        'Error sending template to Meta:',
+        error.response ? error.response.data : error.message,
+      );
+      throw error;
+    }
+  }
 
   async sendMessage(
     recipientNo: string,
     message: string,
-    config: WhatsappConfig
+    config: WhatsappConfig,
   ): Promise<any> {
     if (!config.whatsappMobileId) {
-      throw new InternalServerErrorException('Missing whatsappMobileId in config');
+      throw new InternalServerErrorException(
+        'Missing whatsappMobileId in config',
+      );
     }
     try {
       const client = this.createClient(config.whatsappApiToken);
@@ -133,7 +208,10 @@ export class WhatsappService {
         to: recipientNo,
         text: { body: message },
       };
-      const response = await client.post(`/${config.whatsappMobileId}/messages`, payload);
+      const response = await client.post(
+        `/${config.whatsappMobileId}/messages`,
+        payload,
+      );
       console.log(response.data);
       return response.data;
     } catch (error: any) {
@@ -156,7 +234,9 @@ export class WhatsappService {
     caption?: string,
   ): Promise<any> {
     if (!config.whatsappMobileId) {
-      throw new InternalServerErrorException('Missing whatsappMobileId in config');
+      throw new InternalServerErrorException(
+        'Missing whatsappMobileId in config',
+      );
     }
     try {
       const client = this.createClient(config.whatsappApiToken);
@@ -175,7 +255,10 @@ export class WhatsappService {
         to: recipientNo,
         ...mediaPayload,
       };
-      const response = await client.post(`/${config.whatsappMobileId}/messages`, payload);
+      const response = await client.post(
+        `/${config.whatsappMobileId}/messages`,
+        payload,
+      );
       console.log(response.data);
       return response.data;
     } catch (error: any) {
@@ -189,16 +272,22 @@ export class WhatsappService {
 
   async deleteTemplate(
     templateName: string,
-    config: WhatsappConfig
+    config: any,
   ): Promise<any> {
-    if (!config.whatsappBusinessId) {
-      throw new InternalServerErrorException('Missing whatsappBusinessId in config');
-    }
+    // if (!config.whatsappBusinessId ) {
+    //   throw new InternalServerErrorException(
+    //     'Missing whatsappBusinessId in config',
+    //   );
+    // }
     try {
-      const client = this.createClient(config.whatsappApiToken);
-      const response = await client.delete(`${config.whatsappBusinessId}/message_templates`, {
-        params: { name: templateName },
-      });
+      const client = this.createClient(config?.whatsappApiToken);
+      const response = await client.delete(
+        `${config.whatsappBusinessId}/message_templates`,
+        {
+          params: { name: templateName},
+        },
+      );
+      
       return response.data;
     } catch (error: any) {
       console.error(
@@ -212,49 +301,29 @@ export class WhatsappService {
     }
   }
 
-  async createTemplate(
-    template: any,
-    config: WhatsappConfig
-  ): Promise<any> {
-    if (!config.whatsappBusinessId) {
-      throw new InternalServerErrorException('Missing whatsappBusinessId in config');
-    }
-    try {
-      const client = this.createClient(config.whatsappApiToken);
-      const response = await client.post(`${config.whatsappBusinessId}/message_templates`, template);
-      return response.data;
-    } catch (error: any) {
-      console.error(
-        'Error creating WhatsApp template:',
-        error?.response?.data || error.message,
-      );
-      throw new InternalServerErrorException(
-        'Failed to create WhatsApp template.',
-        error,
-      );
-    }
-  }
 
-  async blockNumber(
-    phoneNumber: string,
-    config: WhatsappConfig
-  ): Promise<any> {
+  async blockNumber(phoneNumber: string, config: WhatsappConfig): Promise<any> {
     if (!config.whatsappMobileId) {
-      throw new InternalServerErrorException('Missing whatsappMobileId in config');
+      throw new InternalServerErrorException(
+        'Missing whatsappMobileId in config',
+      );
     }
     try {
       const client = this.createClient(config.whatsappApiToken);
-      const payload:any = {
+      const payload: any = {
         messaging_product: 'whatsapp',
         // phoneNumber should be in E.164 format, e.g., "+14155552671"
         block_users: [
           {
-          user: phoneNumber,
-          }
+            user: phoneNumber,
+          },
         ],
       };
       console.log(JSON.stringify(payload, null, 2));
-      const response = await client.post(`/${config.whatsappMobileId}/block_users`, payload);
+      const response = await client.post(
+        `/${config.whatsappMobileId}/block_users`,
+        payload,
+      );
       console.log(JSON.stringify(response.data, null, 2));
       return response.data;
     } catch (error: any) {
@@ -262,15 +331,20 @@ export class WhatsappService {
         'Error blocking number:',
         error?.response?.data || error.message,
       );
-      throw new InternalServerErrorException('Failed to block the number.', error);
+      throw new InternalServerErrorException(
+        'Failed to block the number.',
+        error,
+      );
     }
   }
   async unblockNumber(
     phoneNumber: string,
-    config: WhatsappConfig
+    config: WhatsappConfig,
   ): Promise<any> {
     if (!config.whatsappMobileId) {
-      throw new InternalServerErrorException('Missing whatsappMobileId in config');
+      throw new InternalServerErrorException(
+        'Missing whatsappMobileId in config',
+      );
     }
     try {
       const client = this.createClient(config.whatsappApiToken);
@@ -278,7 +352,7 @@ export class WhatsappService {
         block_users: [
           {
             user: phoneNumber, // must be in E.164 format (e.g., "+14155552671")
-          }
+          },
         ],
       };
       const response = await client.request({
@@ -293,20 +367,25 @@ export class WhatsappService {
         'Error unblocking number:',
         error?.response?.data || error.message,
       );
-      throw new InternalServerErrorException('Failed to unblock the number.', error);
+      throw new InternalServerErrorException(
+        'Failed to unblock the number.',
+        error,
+      );
     }
   }
 
   async markstatusasread(id: string, config: WhatsappConfig): Promise<any> {
     if (!config.whatsappApiToken || !config.whatsappMobileId) {
-      throw new InternalServerErrorException('Missing required configuration (whatsappApiToken or whatsappMobileId)');
+      throw new InternalServerErrorException(
+        'Missing required configuration (whatsappApiToken or whatsappMobileId)',
+      );
     }
     try {
       const client = this.createClient(config.whatsappApiToken);
       const response = await client.put(
         `/${config.whatsappMobileId}/messages/${id}`,
         null,
-        { params: { status: 'read' } }
+        { params: { status: 'read' } },
       );
       return response.data;
     } catch (error: any) {
@@ -314,9 +393,10 @@ export class WhatsappService {
         'Error marking status as read:',
         error?.response?.data || error.message,
       );
-      throw new InternalServerErrorException('Failed to mark status as read.', error);
+      throw new InternalServerErrorException(
+        'Failed to mark status as read.',
+        error,
+      );
     }
   }
-
-  
 }

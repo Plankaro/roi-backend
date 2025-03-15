@@ -3,6 +3,7 @@ import { EventsService } from './events.service';
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
 import { Public } from 'src/auth/decorator/public.decorator';
+
 @Controller('events')
 export class EventsController {
   constructor(private readonly eventsService: EventsService) {}
@@ -13,10 +14,21 @@ export class EventsController {
     @Body() checkoutData: any,
     @Headers() headers: Record<string, string>,
   ) {
-    console.log("Received Checkout Payload:", checkoutData);
-    console.log("Checkout Headers:", headers);
+    
+    this.eventsService.manipulateCheckout(checkoutData, headers["x-shopify-shop-domain"]);
     // You can access, for example, headers['x-shopify-shop-domain']
-    return checkoutData;
+    return { success: true };
+  }
+
+  @Public()
+  @Post('/updateCheckout')
+  updateCheckout(
+    @Body() checkoutData: any,
+    @Headers() headers: Record<string, string>,
+  ) {
+    this.eventsService.updateCheckout(checkoutData, headers["x-shopify-shop-domain"]);
+    // You can access, for example, headers['x-shopify-shop-domain']
+    return { success: true };
   }
 
   @Public()

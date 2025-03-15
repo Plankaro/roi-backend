@@ -125,11 +125,12 @@ model Prospect {
 }
 
 model Order {
-  id               String     @id @default(cuid())
-  shopify_id       String     @unique
+  id               String @id @default(cuid())
+  shopify_id       String @unique
   customer_phoneno String
+
   propspect_id     String?
-  propsect         Prospect?   @relation(fields: [propspect_id], references: [id])
+  propsect         Prospect?  @relation(fields: [propspect_id], references: [id])
   status           String
   amount           String
   Date             DateTime   @default(now())
@@ -139,6 +140,39 @@ model Order {
   shopify_store    String?
   order_status_url String?
   processed_at     DateTime?
+  cancel_reason    String?
+  cancelled_at     DateTime?
+  cart_token       String?    @unique
+  checkout_id      String?    @unique
+  // checkout         Checkout?  @relation(fields: [checkout_id], references: [shopify_id])
+  checkout_token   String?    @unique
+
+  closed_at                         DateTime?
+  confirmation_number               String?
+  confirmed                         Boolean?
+  contact_email                     String?
+  created_at                        DateTime?
+  currency                          String?
+ shipping_address                  Json?
+
+  discount_codes Json? // Array of discount codes
+
+// e.g., "paid"
+  fulfillment_status String?
+  landing_site       String?
+  fulfillments      Json? // Array of fullfillments
+
+  merchant_business_entity_id String?
+
+  name String? // Order name or identifier (e.g., "#1165")
+
+  order_number Int?
+
+ 
+  shipping_lines                             Json?
+
+  total_weight Int?
+  updated_at   DateTime?
 }
 
 enum Status {
@@ -334,17 +368,30 @@ model Contacts {
 }
 
 model Template {
-  id           String    @id @default(cuid())
-  message      String
-  name         String
-  status       String
-  type         String
-  createdBy    String?
+  id            String           @id @default(cuid())
+  name          String
+  languageCode  String
+  category      TemplateCategory
+  status        TemplateStatus
+  component     Json?           // any additional data you want to store
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+   createdBy    String?
   creator      User?     @relation("CreatedTemplates", fields: [createdBy], references: [id])
   createdForId String?
   createdFor   Business? @relation(fields: [createdForId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+}
+
+enum TemplateCategory {
+  AUTHENTICATION
+  MARKETING
+  UTILITY
+}
+
+enum TemplateStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 model FlashResponse {
@@ -384,63 +431,124 @@ enum PaymentStatus {
 }
 
 model Campaign {
-  id                   String                @id @default(cuid())
-  name                 String
- 
-  status               CampaignStatus        @default(ACTIVE)
-  type                 CampaignType
-  createdAt            DateTime              @default(now())
-  updatedAt            DateTime              @updatedAt
-  createdBy            String?
-  creator              User?                 @relation(fields: [createdBy], references: [id])
-  createdForId         String?
-  createdFor           Business?             @relation(fields: [createdForId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  id   String @id @default(cuid())
+  name String
+
+  status                  CampaignStatus           @default(ACTIVE)
+  type                    CampaignType
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
+  createdBy               String?
+  creator                 User?                    @relation(fields: [createdBy], references: [id])
+  createdForId            String?
+  createdFor              Business?                @relation(fields: [createdForId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   CheckoutCreatedCampaign CheckoutCreatedCampaign?
-  OrderCreatedCampaign orderCreatedCampaign?
+  OrderCreatedCampaign    orderCreatedCampaign?
 }
 
 model CheckoutCreatedCampaign {
-  id                                          String       @id @default(cuid())
-  campaign                                    Campaign     @relation(fields: [campaignId], references: [id])
-  campaignId                                  String       @unique
+  id                            String               @id @default(cuid())
+  campaign                      Campaign             @relation(fields: [campaignId], references: [id])
+  campaignId                    String               @unique
+  trigger_time                  Int
+  trigger_time_unit             time_unit
+  template_name                 String
+  template_type                 String
+  template_lang                 String
+  components                    Json
+  isdiscountgiven               Boolean @default(true)
+  discount                      Int
+  discount_type                 discount_type
+  Condition_filter_match        Boolean
+  new_checkout_abandonment      Boolean
+  new_checkout_abandonment_type trigger_type
+  new_checkout_abandonment_time Int
+  new_checkout_abandonment_unit time_unit
+  new_order_creation            Boolean
+  new_order_creation_type       trigger_type
+  new_order_creation_time       Int
+  new_order_creation_unit       time_unit
+  order_created                 Boolean
+  order_cancelled               Boolean
+  checkouts                     CheckoutOnCampaign[] // Relation to the join table
+}
+
+model Checkout {
+  id          String   @id @default(cuid())
+  shopify_id  String   @unique
+  token       String
+  cartToken   String
+  email       String?
+  gateway     String?
+  createdAt   DateTime
+  updatedAt   DateTime
+  landingSite String
+  // note                    String?
+  // noteAttributes          Json?
+  domain      String
+
+  shippingLines        Json?
+  shippingAddress      Json?
+  taxesIncluded        Boolean
+  totalWeight          Int
+  currency             String
+  completedAt          DateTime?
+  phone                String?
+  customerLocale       String
+  lineItems            Json?
+  name                 String
+  abandonedCheckoutUrl String
+  discountCodes        Json?
+  taxLines             Json?
+  presentmentCurrency  String
+  sourceName           String?
+  totalLineItemsPrice  String
+  totalTax             String
+  totalDiscounts       String
+  subtotalPrice        String
+  totalPrice           String
+  totalDuties          String
+  userId               String?
+  customer             Json?
+  sourceUrl            String?
+  source               String?
+  closedAt             DateTime?
+  for_campaign         Boolean              @default(false)
+  campaigns            CheckoutOnCampaign[] // Relation to the join table
+  // order                Order?
   
-  template_name                               String
-  template_type                               String
-  template_lang                               String
-  components                                  Json
-  discount                                    Int
-  Condition_filter_match                      Boolean
-  new_checkout_abondnment                     Boolean
-  new_checkout_abondnment_type                trigger_type
-  new_checkout_abondnment_trigger_time        Int
-  new_checkout_abondnment_trigger_time_unit time_unit
-  new_order_abondnment                        Boolean
-  new_order_abondnment_type                   trigger_type
-  new_order_abondnment_trigger_time           Int
-  new_order_abondnment_trigger_time_unit    time_unit
-  ordered_created                             Boolean
-  order_cancelled                             Boolean
 }
 
-model orderCreatedCampaign{
-  id                                         String       @id @default(cuid())
-  campaign                                    Campaign     @relation(fields: [campaignId], references: [id])
-  campaignId                                  String       @unique
-  template_name                               String
-  template_type                               String
-  template_lang                               String
-  components                                  Json
-  trigger_time                                Int
-  trigger_time_unit                        time_unit
-  Condition_filter_match                      Boolean
-  new_checkout_abondnment                     Boolean
+// Join table to establish the many-to-many relationship
+model CheckoutOnCampaign {
+  checkoutId String
+  campaignId String
+  assignedAt DateTime @default(now())
 
+  checkout Checkout                @relation(fields: [checkoutId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  campaign CheckoutCreatedCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 
-
- 
+  @@id([checkoutId, campaignId]) // Composite primary key
 }
 
+enum discount_type {
+  PERCENTAGE
+  AMOUNT
+}
 
+model orderCreatedCampaign {
+  id                      String    @id @default(cuid())
+  campaign                Campaign  @relation(fields: [campaignId], references: [id])
+  campaignId              String    @unique
+  template_name           String
+  template_type           String
+  template_lang           String
+  components              Json
+  trigger_time            Int
+  trigger_time_unit       time_unit
+  Condition_filter_match  Boolean
+  new_checkout_abondnment Boolean
+}
 
 enum OrderTrigger_Type {
   IMMEDIATE
@@ -473,3 +581,5 @@ enum CampaignStatus {
   INACTIVE
   ARCHIVED
 }
+
+

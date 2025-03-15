@@ -22,8 +22,7 @@ import { WhatsappService } from 'src/whatsapp/whatsapp.service';
 export class BroadcastService {
   constructor(
     @InjectQueue('broadcastQueue') private readonly broadcastQueue: Queue,
-    @InjectQueue('broadcastRetryQueue')
-    private readonly broadcastRetryQueue: Queue,
+    @InjectQueue('broadcastRetryQueue') private readonly broadcastRetryQueue: Queue,
     private readonly databaseService: DatabaseService,
     private readonly whatsappService: WhatsappService,
   ) {}

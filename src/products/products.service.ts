@@ -42,7 +42,7 @@ export class ProductsService {
               }
             }
 
-            variants(first: 5) {
+            variants(first: 250) {
               edges {
                 node {
                 availableForSale
@@ -162,3 +162,5 @@ const variables = {}
     }
   }
 }
+
+

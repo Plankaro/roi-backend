@@ -47,22 +47,30 @@ export class CampaignService {
     
         CheckoutCreatedCampaign: {
           create: {
+            trigger_time:createCampaignDto.trigger_time,
+            trigger_time_unit:createCampaignDto.trigger_time_unit,
             template_name: createCampaignDto.template_name,
             components: createCampaignDto.components,
             template_lang:createCampaignDto.template_lang,
             template_type:createCampaignDto.template_type,
+            isdiscountgiven:createCampaignDto.isdiscountgiven,
             discount: createCampaignDto.discount,
+            discount_type:createCampaignDto.discount_type,
             Condition_filter_match: createCampaignDto.Condition_filter_match,
-            new_checkout_abondnment: createCampaignDto.new_checkout_abondnment,
-            new_checkout_abondnment_trigger_time: createCampaignDto.new_checkout_abondnment_trigger_time,
-            new_checkout_abondnment_trigger_time_unit: createCampaignDto.new_checkout_abondnment_trigger_time_unit,
-            new_checkout_abondnment_type: createCampaignDto.new_checkout_abondnment_type,
-            new_order_abondnment: createCampaignDto.new_order_abondnment,
-            new_order_abondnment_trigger_time: createCampaignDto.new_order_abondnment_trigger_time,
-            new_order_abondnment_trigger_time_unit: createCampaignDto.new_order_abondnment_trigger_time_unit,
+            new_checkout_abandonment: createCampaignDto.new_checkout_abandonment,
+            new_checkout_abandonment_time: createCampaignDto.new_checkout_abandonmentt_trigger_time,
+            new_checkout_abandonment_unit: createCampaignDto.new_checkout_abondnment_trigger_time_unit,
+            new_checkout_abandonment_type: createCampaignDto.new_checkout_abondnment_type,
+            new_order_creation: createCampaignDto.new_order_creation,
+            new_order_creation_type: createCampaignDto.new_order_creation_type,
+            new_order_creation_time: createCampaignDto.new_order_creation_trigger_time,
+            new_order_creation_unit: createCampaignDto.new_order_creation_trigger_time_unit,
             order_cancelled: createCampaignDto.order_cancelled,
-            ordered_created: createCampaignDto.ordered_created,
-            new_order_abondnment_type: createCampaignDto.new_order_abondnment_type
+            order_created: createCampaignDto.ordered_created,
+            
+            
+            
+
             
            
             
