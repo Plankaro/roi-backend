@@ -370,10 +370,10 @@ model Contacts {
 model Template {
   id            String           @id @default(cuid())
   name          String
+  whatsapp_id   String @unique
   languageCode  String
   category      TemplateCategory
   status        TemplateStatus
-  component     Json?           // any additional data you want to store
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
    createdBy    String?
