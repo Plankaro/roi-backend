@@ -87,6 +87,7 @@ model Business {
   whatsapp_mobile      String? @unique
   whatsapp_token       String?
   whatsapp_buisness_id String?
+  whatsapp_app_id      String? 
 
   Broadcast     Broadcast[]
   Template      Template[]

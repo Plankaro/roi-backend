@@ -4,6 +4,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import axios, { AxiosInstance } from 'axios';
+import * as FormData from 'form-data';
+import * as fs from 'fs';
 
 interface WhatsappConfig {
   whatsappMobileId?: string; // required for sending messages (template/text/media)
@@ -169,7 +171,7 @@ export class WhatsappService {
       category: templateData.category,
       components: templateData.components,
     };
-    console.log(payload);
+    console.log(JSON.stringify(payload,null,2));
     try {
       const client = this.createClient(
         config?.whatsappApiToken
@@ -398,5 +400,86 @@ export class WhatsappService {
         error,
       );
     }
+  }
+
+  async uploadMedia(
+    filePath: string,
+    type: 'image' | 'video' | 'document',
+    config: WhatsappConfig,
+    caption?: string,
+    mimeTypeOverride?: string,
+  ): Promise<any> {
+    if (!config.whatsappMobileId) {
+      throw new InternalServerErrorException('Missing whatsappMobileId in config');
+    }
+
+    try {
+      const form = new FormData();
+      form.append('file', fs.createReadStream(filePath));
+      form.append('messaging_product', 'whatsapp');
+
+      let mimeType: string;
+      if (type === 'image') {
+        // Use the provided MIME type (allows any image type) or fallback
+        mimeType = mimeTypeOverride || 'image/jpeg';
+      } else if (type === 'video') {
+        mimeType = mimeTypeOverride || 'video/mp4';
+      } else if (type === 'document') {
+        mimeType = mimeTypeOverride || 'application/pdf';
+      } else {
+        throw new InternalServerErrorException('Unsupported media type');
+      }
+      form.append('type', mimeType);
+
+      if (caption && (type === 'image' || type === 'video')) {
+        form.append('caption', caption);
+      }
+
+      const client = axios.create({
+        baseURL: 'https://graph.facebook.com/v21.0/',
+        headers: {
+          ...form.getHeaders(),
+          Authorization: `Bearer ${config.whatsappApiToken}`,
+        },
+      });
+
+      const response = await client.post(
+        `/${config.whatsappMobileId}/media`,
+        form,
+      );
+      console.log('Media uploaded successfully:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error(
+        'Error uploading media:',
+        error.response?.data || error.message,
+      );
+      throw new InternalServerErrorException(
+        error.response?.data?.error?.message || 'Failed to upload media to WhatsApp.',
+        error,
+      );
+    }
+  }
+  async getMedia(mediaId: string, config: WhatsappConfig): Promise<any> {
+    if (!mediaId) {
+      throw new Error('Media ID is required.');
+    }
+    try {
+      const client = this.createClient(config.whatsappApiToken);
+      // Request media fields such as id, mime_type, sha256, and url.
+      const response = await client.get(`/${mediaId}`, {
+        params: { fields: 'id,mime_type,sha256,url' },
+      });
+      return response.data;
+    } catch (error: any) {
+      console.error('Error fetching media:', error.response?.data || error.message);
+      throw new InternalServerErrorException(
+        'Failed to fetch media from WhatsApp.',
+        error,
+      );
+    }
+  }
+  async uploadMediaUsingResumabelApi(filePath:string,config:WhatsappConfig){
+    
   }
 }

@@ -41,13 +41,14 @@ export class AuthService {
       });
       console.log(user);
 
-      if (!user) throw new UnauthorizedException('Invalid email or password');
+      if (!user) throw new UnauthorizedException('no user  found');
       if (!user.password)
         throw new BadRequestException('User is registered with auth provider');
       const isUserVErified = user.isEmailVerified;
       if (!isUserVErified) throw new ForbiddenException('User is not verified');
       const isMatch = await compare(LoginDto.password, user.password);
 
+      console.log(isMatch);
       if (!isMatch)
         throw new UnauthorizedException('Invalid email or password');
       const userTokens = await this.getTokens(user.id, user.email);
@@ -131,12 +132,14 @@ export class AuthService {
 
   async getTokenLink(email: string) {
     try {
+      console.log(email)
       const user = await this.databaseService.user.findUnique({
         where: {
           email: email,
         },
       });
 
+      console.log(user);
       if (!user) {
         throw new BadRequestException('Email not registered');
       }
@@ -176,6 +179,7 @@ export class AuthService {
       return { message: 'Email sent successfully' };
     } catch (error) {
       throw new InternalServerErrorException(error);
+      console.log(error);
     }
   }
 
