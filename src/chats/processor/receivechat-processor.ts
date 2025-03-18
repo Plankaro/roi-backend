@@ -4,14 +4,16 @@ import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { DatabaseService } from 'src/database/database.service';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
-import { sanitizePhoneNumber } from 'utils/usefulfunction';
+import { getShopifyConfig, sanitizePhoneNumber } from 'utils/usefulfunction';
 import { ChatsGateway } from '../chats.gateway';
+import { ShopifyService } from 'src/shopify/shopify.service';
 
 @Processor('receiveChatsQueue')
 @Injectable()
 export class ReceiveChatsQueue extends WorkerHost {
   constructor(
     private readonly databaseService: DatabaseService,
+    private readonly shopifyService: ShopifyService,
     private readonly chatsGateway: ChatsGateway,
   ) {
     super();
@@ -59,13 +61,24 @@ export class ReceiveChatsQueue extends WorkerHost {
               try {
                 const rawPhoneNumber = `+${sanitizePhoneNumber(message.from)}`;
                 console.log(`Processing message from: ${rawPhoneNumber}`);
-                console.log(`Message content: ${JSON.stringify(message)}`);
-
+               
+                const findBuisness = await this.databaseService.business.findUnique({
+                  where: {
+                    whatsapp_mobile: businessPhoneNumber,
+                  },
+                })
+                const config = getShopifyConfig(findBuisness);
+                const customer = await this.getCustomerByIdentifier(
+                  rawPhoneNumber,
+                  config,
+                )
+                console.log(`Customer details: ${JSON.stringify(customer,null,2)}`);
                 const prospect = await this.databaseService.prospect.upsert({
                   where: {
                     buisnessNo_phoneNo: {
                       phoneNo: sanitizePhoneNumber(message.from),
                       buisnessNo: businessPhoneNumber,
+                      
                     },
                   },
                   update: { last_Online: new Date() },
@@ -74,6 +87,9 @@ export class ReceiveChatsQueue extends WorkerHost {
                     buisnessNo: businessPhoneNumber,
                     lead: 'LEAD',
                     last_Online: new Date(),
+                    name:customer.displayName,
+                  
+                    email: customer.email,
                   },
                   include: {
                     chats: {
@@ -83,7 +99,7 @@ export class ReceiveChatsQueue extends WorkerHost {
                   },
                 });
 
-                console.log(`Prospect details: ${JSON.stringify(prospect)}`);
+               
 
                 this.chatsGateway.sendMessageToSubscribedClients(
                   businessPhoneNumber,
@@ -197,5 +213,23 @@ export class ReceiveChatsQueue extends WorkerHost {
         error || 'Failed to process messages from Shopify',
       );
     }
+  }
+  async  getCustomerByIdentifier(phoneNumber,config) {
+    // GraphQL query with a variable for the phone number.
+    const query = `
+      query CustomerByIdentifier($phoneNumber: String!) {
+        customerByIdentifier(identifier: {phoneNumber: $phoneNumber}) {
+          displayName
+          email
+          id
+        }
+      }
+    `;
+    
+    // Define the variables to be used in the query.
+    const variables = { phoneNumber };
+
+    const result = await this.shopifyService.executeGraphQL(query, variables,config)
+    return result.data?.customerByIdentifier;
   }
 }

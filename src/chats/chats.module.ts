@@ -9,10 +9,10 @@ import { ShopifyModule } from 'src/shopify/shopify.module';
 import { BullModule } from '@nestjs/bullmq';
 import { ReceiveChatsQueue } from './processor/receivechat-processor';
 
-
+import { CustomersModule } from 'src/customers/customers.module';
 
 @Module({
-  imports: [WhatsappModule,DatabaseModule,ShopifyModule,BullModule.registerQueue({ name: 'receiveChatsQueue' })],
+  imports: [WhatsappModule,DatabaseModule,CustomersModule,ShopifyModule,BullModule.registerQueue({ name: 'receiveChatsQueue' })],
   controllers: [ChatsController],
   providers: [ChatsService, ChatsGateway,ReceiveChatsQueue],
 })

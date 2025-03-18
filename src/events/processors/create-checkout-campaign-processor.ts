@@ -63,44 +63,44 @@ export class CreateCheckoutCampaign extends WorkerHost {
       const discountedUrl = `${abandoned_checkout_url}${separator}discount=${discount}`;
       console.log(discountedUrl);
 
-      if (campaign.CheckoutCreatedCampaign.new_checkout_abandonment) {
-        const new_checkout_abandonment =
-          await this.databaseService.checkout.findFirst({
-            where: {
-              phone: checkout.phone,
-              id: { not: checkout.id },
-              createdAt: new Date(
-                campaign.CheckoutCreatedCampaign.new_checkout_abandonment_time,
-              ), //for reference edit later
-            },
-          });
-          if (new_checkout_abandonment) return
-      }
+      // if (campaign.CheckoutCreatedCampaign.new_checkout_abandonment) {
+      //   const new_checkout_abandonment =
+      //     await this.databaseService.checkout.findFirst({
+      //       where: {
+      //         phone: checkout.phone,
+      //         id: { not: checkout.id },
+      //         createdAt: new Date(
+      //           campaign.CheckoutCreatedCampaign.new_checkout_abandonment_time,
+      //         ), //for reference edit later
+      //       },
+      //     });
+      //     if (new_checkout_abandonment) return
+      // }
 
-      if(campaign.CheckoutCreatedCampaign.new_order_creation){
-        const order = this.databaseService.order.findFirst({
-          where:{
-            created_at: new Date(campaign.CheckoutCreatedCampaign.new_order_creation_time)
-          }
-        })
-        if(order){
-          console.log('Order done');
-          return;
-        }
-      } 
-      const findOrder = await this.databaseService.order.findUnique({
-        where:{
-          checkout_id:checkout.shopify_id
-        }
-      })
+      // if(campaign.CheckoutCreatedCampaign.new_order_creation){
+      //   const order = this.databaseService.order.findFirst({
+      //     where:{
+      //       created_at: new Date(campaign.CheckoutCreatedCampaign.new_order_creation_time)
+      //     }
+      //   })
+      //   if(order){
+      //     console.log('Order done');
+      //     return;
+      //   }
+      // } 
+      // const findOrder = await this.databaseService.order.findUnique({
+      //   where:{
+      //     checkout_id:checkout.shopify_id
+      //   }
+      // })
 
-      if(campaign.CheckoutCreatedCampaign.order_created && findOrder){
-        return
-      }
+      // if(campaign.CheckoutCreatedCampaign.order_created && findOrder){
+      //   return
+      // }
 
-      if(campaign.CheckoutCreatedCampaign.order_cancelled && findOrder.status==="cancelled"){
-        return
-      }
+      // if(campaign.CheckoutCreatedCampaign.order_cancelled && findOrder.status==="cancelled"){
+      //   return
+      // }
 
 
       //message will trigger here
