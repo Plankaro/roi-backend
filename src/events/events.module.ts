@@ -8,7 +8,8 @@ import { CreateCheckoutQueue } from './processors/checkout-create-processor';
 import { ShopifyModule } from 'src/shopify/shopify.module';
 import { WhatsappModule } from 'src/whatsapp/whatsapp.module';
 import { CreateCheckoutCampaign } from './processors/create-checkout-campaign-processor';
-import { UpdatedCheckoutQueue} from './processors/updated-checkout-processor';
+import { UpdatedCheckoutQueue } from './processors/updated-checkout-processor';
+import { CreateOrderCampaign } from './processors/order-create-campaign';
 
 @Module({
   imports: [
@@ -17,10 +18,18 @@ import { UpdatedCheckoutQueue} from './processors/updated-checkout-processor';
     WhatsappModule,
     BullModule.registerQueue(
       { name: 'createOrderQueue' },
+      { name: 'createOrderCampaign' },
+      { name: 'updateOrderQueue' },
+      { name: 'updateOrderCampaign' },
+      { name: 'cancelOrderQueue' },
+      { name: 'cancelOrderCampaign' },
       { name: 'createCheckoutQueue' },
       { name: 'createCheckoutCampaign' },
-      { name:'updatedCheckoutQueue'}
-
+      { name: 'updatedCheckoutQueue' },
+      { name: 'createFullfillmentQueue' },
+      { name: 'createFulfillmentCampaign' },
+      { name: 'createFullfillmentEventQueue' },
+      { name: 'createFulfillmentEventCampaign' },
     ),
   ],
   controllers: [EventsController],
@@ -29,7 +38,9 @@ import { UpdatedCheckoutQueue} from './processors/updated-checkout-processor';
     CreateOrderQueue,
     CreateCheckoutQueue,
     CreateCheckoutCampaign,
-    UpdatedCheckoutQueue
+    UpdatedCheckoutQueue,
+    CreateOrderCampaign
+    
   ],
 })
 export class EventsModule {}

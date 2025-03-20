@@ -3,6 +3,10 @@ import { Job } from 'bullmq';
 import { Injectable } from '@nestjs/common';
 import { DatabaseService } from 'src/database/database.service';
 import { sanitizePhoneNumber } from 'utils/usefulfunction';
+import { Queue } from 'bullmq';
+import { Order } from 'src/orders/entities/order.entity';
+import { getFutureTimestamp } from 'utils/usefulfunction';
+import { InjectQueue } from '@nestjs/bullmq';
 
 export interface ShopifyOrderWebhook {
   id: number;
@@ -223,7 +227,9 @@ export interface JobData {
 @Processor('createOrderQueue')
 @Injectable()
 export class CreateOrderQueue extends WorkerHost {
-  constructor(private readonly databaseService: DatabaseService) {
+  constructor(private readonly databaseService: DatabaseService,
+    @InjectQueue('createOrderCampaign') private readonly createOrderCampaign: Queue
+  ) {
     super();
   }
   async process(job: Job<any>): Promise<void> {
@@ -273,6 +279,41 @@ export class CreateOrderQueue extends WorkerHost {
           shipping_address: orderData.shipping_address,
         },
       });
+
+      const Campaigns = await this.databaseService.campaign.findMany({
+        where: { // ✅ Add 'where'
+          createdFor: {
+            shopify_domain: domain, // ✅ Correct nested filtering
+          },
+          status: 'ACTIVE',
+          type: 'ORDER_CREATED',
+        },
+        include:{
+          OrderCreatedCampaign: true,
+        }
+      });
+      
+      if (Campaigns.length > 0) {
+         Campaigns.forEach((campaign) => {
+               const time =campaign.OrderCreatedCampaign.trigger_type ==="AFTER_CAMPAIGN_CREATED"? 0: getFutureTimestamp(campaign.OrderCreatedCampaign.trigger_time)
+               this.createOrderCampaign
+                 .add(
+                   'createOrderCampaignQueue',
+                   { campaignId: campaign.id,orderId: order_created.id },
+                   
+                   {
+                     delay: time,
+                     removeOnComplete: true,
+                   },
+                 )
+                 .then((job) => {
+                   console.log('Job added to createCheckoutCampaignQueue:', job.id);
+                 })
+                 .catch((error) => {
+                   console.error('Error adding job:', error);
+                 });
+             });
+      }
 
       const threeDaysAgo = new Date();
       threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);

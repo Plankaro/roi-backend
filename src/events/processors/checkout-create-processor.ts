@@ -4,11 +4,12 @@ import { Injectable } from '@nestjs/common';
 import { DatabaseService } from 'src/database/database.service';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
-import { sanitizePhoneNumber } from 'utils/usefulfunction';
+import { getFutureTimestamp, sanitizePhoneNumber } from 'utils/usefulfunction';
 
 interface ShopifyCheckoutWebhookData {
   id: number;
   token: string;
+  billing_address:any;
   cart_token: string;
   email: string;
   gateway: string | null;
@@ -50,6 +51,8 @@ interface ShopifyCheckoutWebhookData {
   source: string | null;
   closed_at: string | null;
   customer: any;
+  payment_gateway_id: string | null;
+  processed_at: Date | null;
 }
 
 interface ShopifyLineItem {
@@ -166,9 +169,8 @@ export class CreateCheckoutQueue extends WorkerHost {
   async process(job: Job<any>): Promise<void> {
     try {
       const { checkOutData, domain }: JobData = job.data;
-   
 
-      if(!checkOutData.token) return
+      if (!checkOutData.token) return;
 
       const checkout = await this.databaseService.checkout.create({
         data: {
@@ -181,8 +183,10 @@ export class CreateCheckoutQueue extends WorkerHost {
           createdAt: checkOutData.created_at,
           updatedAt: checkOutData.updated_at,
           landingSite: checkOutData.landing_site,
-          shippingAddress: checkOutData.shipping_address,
-          shippingLines: checkOutData.shipping_lines,
+          note: checkOutData.note,
+          noteAttributes: checkOutData.note_attributes,
+          currency: checkOutData.currency,
+          completedAt: checkOutData.completed_at,
           phone: sanitizePhoneNumber(checkOutData?.customer?.phone),
           customerLocale: checkOutData.customer_locale,
           lineItems: checkOutData.line_items,
@@ -190,7 +194,6 @@ export class CreateCheckoutQueue extends WorkerHost {
           abandonedCheckoutUrl: checkOutData.abandoned_checkout_url,
           discountCodes: checkOutData.discount_codes,
           taxLines: checkOutData.tax_lines,
-          customer: checkOutData.customer,
           presentmentCurrency: checkOutData.presentment_currency,
           sourceName: checkOutData.source_name,
           totalLineItemsPrice: checkOutData.total_line_items_price,
@@ -199,47 +202,47 @@ export class CreateCheckoutQueue extends WorkerHost {
           subtotalPrice: checkOutData.subtotal_price,
           totalPrice: checkOutData.total_price,
           totalDuties: checkOutData.total_duties,
-          userId: checkOutData.user_id,
-          for_campaign: false,
-          sourceUrl: checkOutData.source_url,
+          
+          customer: checkOutData.customer,
+          
           source: checkOutData.source,
           closedAt: checkOutData.closed_at,
-          taxesIncluded: checkOutData.taxes_included,
-          totalWeight: checkOutData.total_weight,
-          currency: checkOutData.currency,
-          completedAt: checkOutData.completed_at
+          for_campaign: false,
+          shipping_address: checkOutData.shipping_address,
+          billingAddress: checkOutData.billing_address, // ensure this key exists on checkOutData
+          // or update as needed if different from shipping_address
+          
+          processedAt: checkOutData.processed_at,
+    
+       
+          // campaigns field is a relation; you can associate related campaigns here if necessary.
+          // For example, you might connect existing campaigns using:
+          // campaigns: { connect: [{ id: someCampaignId }] },
         },
       });
-
-
-
-     
+      
       const Campaigns = await this.databaseService.campaign.findMany({
         where: {
           createdFor: { shopify_domain: domain },
           status: 'ACTIVE',
           type: 'CHECKOUT_CREATED',
         },
-        include: {
-          createdFor: true,
-          CheckoutCreatedCampaign: true,
-          creator: true,
-        },
+        include:{
+          CheckoutCreatedCampaign:true
+        }
       });
-
-    
 
       if (Campaigns.length === 0) return;
 
       Campaigns.forEach((campaign) => {
-      
-
+        const time =campaign.CheckoutCreatedCampaign.trigger_type ==="AFTER_CAMPAIGN_CREATED"? 0: getFutureTimestamp(campaign.CheckoutCreatedCampaign.trigger_time)
         this.createCheckoutCampaignQueue
           .add(
             'createCheckoutCampaign',
-            { checkoutId:checkout.id, campaignId: campaign.id },
+            { campaignId: campaign.id,checkoutId: checkout.id },
+            
             {
-              delay: 0,
+              delay: time,
               removeOnComplete: true,
             },
           )

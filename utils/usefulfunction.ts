@@ -89,3 +89,74 @@ export function getFromDate(expression: string): Date {
 
   return new Date(Date.now() - msToSubtract);
 }
+
+
+export function getTagsArray(tagsInput) {
+  // If input is an array, flatten each string into individual tags.
+  if (Array.isArray(tagsInput) && tagsInput.length>0) {
+    
+    return tagsInput.flatMap(item =>
+      item.trim() ? item.split(',').map(tag => tag.trim()) : []
+    );
+  }
+  // Otherwise, if it's a string, process it directly.
+  if (typeof tagsInput === 'string') {
+    return tagsInput.trim() ? tagsInput.split(',').map(tag => tag.trim()) : [];
+  }
+  // If neither, return an empty array.
+  return [];
+}
+
+
+// Returns true if every tag in tagsFromDb is exactly present in the extracted tags array.
+export function allTagsPresent(tagsFromField, tagsFromDb) {
+  if(tagsFromDb.length === 0) return true
+  const fieldTags = getTagsArray(tagsFromField);
+  return tagsFromDb.every(tag => fieldTags.includes(tag));
+}
+
+// Returns true if at least one tag in tagsFromDb is exactly present in the extracted tags array.
+export function anyTagPresent(tagsFromField, tagsFromDb) {
+  if(tagsFromDb.length === 0) return true
+  const fieldTags = getTagsArray(tagsFromField);
+  return tagsFromDb.some(tag => fieldTags.includes(tag));
+}
+
+// Returns true if none of the tags in tagsFromDb is present in the extracted tags array.
+export function noneTagPresent(tagsFromField, tagsFromDb) {
+  if(tagsFromDb.length === 0) return true
+  const fieldTags = getTagsArray(tagsFromField);
+  return tagsFromDb.every(tag => !fieldTags.includes(tag));
+}
+
+
+export function getFutureTimestamp(expression: string): number {
+  // Example of valid expressions: "24 days", "3 hours", "30 minutes"
+  const [valueString, unit] = expression.trim().split(" ");
+  const value = parseInt(valueString, 10);
+
+  if (isNaN(value) || !unit) {
+    throw new Error(`Invalid time expression: "${expression}"`);
+  }
+
+  let msToAdd = 0;
+
+  switch (unit.toLowerCase()) {
+    case "day":
+    case "days":
+      msToAdd = value * 24 * 60 * 60 * 1000; // Convert days to milliseconds
+      break;
+    case "hour":
+    case "hours":
+      msToAdd = value * 60 * 60 * 1000; // Convert hours to milliseconds
+      break;
+    case "minute":
+    case "minutes":
+      msToAdd = value * 60 * 1000; // Convert minutes to milliseconds
+      break;
+    default:
+      throw new Error(`Invalid unit in time expression: "${unit}"`);
+  }
+
+  return Date.now() + msToAdd; // Return future timestamp in milliseconds
+}

@@ -4,68 +4,82 @@ import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
 import { Public } from 'src/auth/decorator/public.decorator';
 
+
 @Controller('events')
 export class EventsController {
   constructor(private readonly eventsService: EventsService) {}
 
   @Public()
   @Post('/checkout')
-  createCheckout(
+  async createCheckout(
     @Body() checkoutData: any,
     @Headers() headers: Record<string, string>,
   ) {
-    
-    this.eventsService.manipulateCheckout(checkoutData, headers["x-shopify-shop-domain"]);
-    // You can access, for example, headers['x-shopify-shop-domain']
+    console.log("Checkout data",JSON.stringify(checkoutData,null,2))
+    await this.eventsService.manipulateCheckout(checkoutData, headers["x-shopify-shop-domain"]);
+
     return { success: true };
   }
 
   @Public()
   @Post('/updateCheckout')
-  updateCheckout(
-    @Body() checkoutData: any,
+  async updateCheckout(
+    @Body() updateCheckout: any,
     @Headers() headers: Record<string, string>,
   ) {
-    this.eventsService.updateCheckout(checkoutData, headers["x-shopify-shop-domain"]);
-    // You can access, for example, headers['x-shopify-shop-domain']
+    console.log("updateCheckout", JSON.stringify(updateCheckout,null,2))
+   
+    await this.eventsService.manipulateUpdatedCheckout(updateCheckout, headers["x-shopify-shop-domain"]);
     return { success: true };
   }
 
+
   @Public()
-  @Post('/order')
-  createOrder(
+  @Post('/createorder')
+async createOrder(
     @Body() orderData: any,
     @Headers() headers: Record<string, string>,
   ) {
 
-    console.log("Order Headers:",);
+
+
     // Pass the order data to your service for further processing
-    this.eventsService.manipulateOrder(orderData, headers["x-shopify-shop-domain"]);
+    await this.eventsService.manipulateOrder(orderData, headers["x-shopify-shop-domain"]);
     return { success: true };
   }
 
   
   @Public()
-  @Post('/cart')
-  Cart(
+  @Post('/updateOrder')
+  async updateOrder(
     @Body() orderData: any,
     @Headers() headers: Record<string, string>,
   ) {
-console.log("cart",headers)
-    console.log("cart",orderData);
-    // Pass the order" data to your service for further processing
+
+    await this.eventsService.manipulateUpdateOrder(orderData, headers["x-shopify-shop-domain"]);
 
     return { success: true };
   }
 
   @Public()
-  @Post('/updatefullfillment')
-  updatefullfillment(
+  @Post('/cancelOrder')
+  async CancelOrder(
     @Body() orderData: any,
     @Headers() headers: Record<string, string>,
   ) {
-    console.log("updatefullfillment",headers)
-    console.log("updatefullfillment",orderData);
+// console.log("cart",headers)
+    await this.eventsService.manipulateCancelOrder(orderData, headers["x-shopify-shop-domain"]);
+
+    return { success: true };
+  }
+  @Public()
+  @Post('/updatefullfillment')
+ async  updatefullfillment(
+    @Body() orderData: any,
+    @Headers() headers: Record<string, string>,
+  ) {
+    // console.log("updatefullfillment",headers)
+   await this.eventsService.manipulateUpdatedFulfillment(orderData, headers["x-shopify-shop-domain"]);
     // Pass the order data to your service for further processing
 
     return { success: true };
@@ -76,12 +90,11 @@ console.log("cart",headers)
   
   @Public()
   @Post('/createFullfillment')
-fullfillment(
+async fullfillment(
     @Body() orderData: any,
     @Headers() headers: Record<string, string>,
   ) {
-    console.log("fullfillment",headers)
-    console.log("fullfillment",orderData);
+    await this.eventsService.manipulateCreateFullFillment(orderData, headers["x-shopify-shop-domain"]);
     // Pass the order data to your service for further processing
 
     return { success: true };

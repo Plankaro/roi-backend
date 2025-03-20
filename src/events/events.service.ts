@@ -8,21 +8,25 @@ import { delay, Queue, tryCatch } from 'bullmq';
 @Injectable()
 export class EventsService {
   constructor(
-     @InjectQueue('createOrderQueue') private readonly createOrderQueue: Queue,
-     @InjectQueue('createCheckoutQueue') private readonly createCheckoutQueue: Queue,
-     @InjectQueue('updatedCheckoutQueue') private readonly updatedCheckoutQueue: Queue
-
-  ) {
-    
-  }
+    @InjectQueue('createOrderQueue') private readonly createOrderQueue: Queue,
+    @InjectQueue('createCheckoutQueue')
+    private readonly createCheckoutQueue: Queue,
+    @InjectQueue('updatedCheckoutQueue')
+    private readonly updatedCheckoutQueue: Queue,
+  ) {}
   async manipulateOrder(orderData: any, domain: string) {
+    console.log(JSON.stringify(orderData, null, 2));
 
-    await this.createOrderQueue.add('createOrder', { orderData, domain }, {
-      delay: 0,
-      removeOnComplete: true,
-    });
+    await this.createOrderQueue.add(
+      'createOrder',
+      { orderData, domain },
+      {
+        delay: 0,
+        removeOnComplete: true,
+      },
+    );
     return { success: true };
-    
+
     // try {
     //   console.log('Received order data:', orderData);
 
@@ -45,7 +49,7 @@ export class EventsService {
     //       Chat: {
     //         some: {
     //           receiverPhoneNo: sanitizedContact,
-              
+
     //         },
     //       },
     //       createdFor: {
@@ -120,7 +124,7 @@ export class EventsService {
     //         Date: new Date(orderData.created_at),
     //         fromBroadcast: true,
     //         BroadCastId: latestBroadcast.id,
-            
+
     //       },
     //     });
 
@@ -133,30 +137,67 @@ export class EventsService {
     // }
   }
 
-  
-  async manipulateCheckout(checkOutData:any,domain:string) {
-console.log("createdCheck",checkOutData)
-    await this.createCheckoutQueue.add('createCheckoutQueue', { checkOutData, domain }, {
-      delay: 0,
-      removeOnComplete: true,
-    });
-    return { success: true };
+  async manipulateUpdateOrder(updateOrder: any,domain: string){
+    // console.log("updateUpdateOrder:",JSON.stringify(updateOrder, null, 2));
     
+  }
+
+  async manipulateCancelOrder(cancelOrder: any, domain: string) {
+    // console.log("cancelOrder",JSON.stringify(cancelOrder, null, 2));
+  }
+
+  async manipulateCreateFullFillment(createFullFillment: any, domain: string) {
+    console.log("createFullFillment",JSON.stringify(createFullFillment, null, 2));
+  }
+  async manipulateUpdatedFulfillment(updatedFulfillment: any, domain: string) {
+    console.log("updatedFulfillment",JSON.stringify(updatedFulfillment, null, 2));
+  }
+
+  async manipulateUpdatedCheckout(updateCheckout: any, domain: string) {
+    await this.updatedCheckoutQueue.add(
+      'updatedCheckoutQueue',
+      { checkOutData: updateCheckout, domain },
+      {
+        delay: 0,
+        removeOnComplete: true,
+      },
+    );
+    return { success: true };
+
+    // try {
+    //   console.log('Received updated checkout data:', updatedCheckOutData);
+  }
+
+  async manipulateCheckout(checkOutData: any, domain: string) {
+    console.log('createdCheck', checkOutData);
+    await this.createCheckoutQueue.add(
+      'createCheckoutQueue',
+      { checkOutData, domain },
+      {
+        delay: 0,
+        removeOnComplete: true,
+      },
+    );
+    return { success: true };
+
     // try {
     //   console.log('Received checkout data:', checkOutData);
   }
-
 
   findOne(id: number) {
     return `This action returns a #${id} event`;
   }
 
   async updateCheckout(checkoutData: any, domain: string) {
-    await this.updatedCheckoutQueue.add('updatedCheckout', { checkoutData, domain }, {
-      delay: 0,
-      removeOnComplete: true,
-    });
-    
+    await this.updatedCheckoutQueue.add(
+      'updatedCheckout',
+      { checkoutData, domain },
+      {
+        delay: 0,
+        removeOnComplete: true,
+      },
+    );
+
     return { success: true };
   }
 

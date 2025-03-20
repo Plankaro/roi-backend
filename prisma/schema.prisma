@@ -125,6 +125,7 @@ model Prospect {
   @@unique([buisnessNo, phoneNo])
 }
 
+
 model Order {
   id               String @id @default(cuid())
   shopify_id       String @unique
@@ -145,7 +146,7 @@ model Order {
   cancelled_at     DateTime?
   cart_token       String?    @unique
   checkout_id      String?    @unique
-  // checkout         Checkout?  @relation(fields: [checkout_id], references: [shopify_id])
+
   checkout_token   String?    @unique
 
   closed_at           DateTime?
@@ -155,7 +156,7 @@ model Order {
   created_at          DateTime?
   currency            String?
   shipping_address    Json?
-
+  tags                String?
   discount_codes Json? // Array of discount codes
 
   // e.g., "paid"
@@ -481,7 +482,8 @@ model Filter {
   payment_gateway_filter_none String[]
   is_payment_option_filter_enabled  Boolean @default(false)
   payment_options_type   PaymentOptionType?
-  send_to_unsub_customer  Boolean @default(false)
+  is_send_to_unsub_customer_filter_enabled Boolean @default(false)
+  send_to_unsub_customer  Boolean?
   is_order_amount_filter_enabled Boolean @default(false)
   order_amount_filter_greater_or_equal     Int?
   order_amount_filter_less_or_equal     Int?
@@ -493,6 +495,11 @@ model Filter {
   discount_amount_min       Int?
   discount_amount_max       Int?
   is_order_delivery_filter_enabled Boolean @default(false)
+  is_order_count_filter_enabled Boolean @default(false)
+  order_count_greater_or_equal     Int?
+  order_count_less_or_equal     Int?
+  order_count_min               Int?
+  order_count_max               Int?
  order_method         OrderMethod?
 
 }
@@ -558,39 +565,43 @@ model Checkout {
   createdAt   DateTime
   updatedAt   DateTime
   landingSite String
-  // note                    String?
-  // noteAttributes          Json?
+  note                    String?
+  noteAttributes          Json?
   domain      String
 
-  shippingLines        Json?
-  shippingAddress      Json?
-  taxesIncluded        Boolean
-  totalWeight          Int
   currency             String
   completedAt          DateTime?
   phone                String?
-  customerLocale       String
+  customerLocale       String?
   lineItems            Json?
-  name                 String
-  abandonedCheckoutUrl String
+  name                 String?
+  abandonedCheckoutUrl String?
   discountCodes        Json?
   taxLines             Json?
-  presentmentCurrency  String
+  presentmentCurrency  String?
   sourceName           String?
-  totalLineItemsPrice  String
-  totalTax             String
+  totalLineItemsPrice  String?
+  totalTax             String?
   totalDiscounts       String
   subtotalPrice        String
   totalPrice           String
   totalDuties          String
-  userId               String?
+
   customer             Json?
-  sourceUrl            String?
+  
   source               String?
   closedAt             DateTime?
   for_campaign         Boolean              @default(false)
+  shipping_address      Json?
+  billingAddress       Json?
+ 
+
+  processedAt          DateTime?
+
   campaigns            CheckoutOnCampaign[] // Relation to the join table
-  // order                Order?
+ 
+
+  
 }
 
 // Join table to establish the many-to-many relationship
@@ -775,3 +786,16 @@ enum CampaignStatus {
   INACTIVE
   ARCHIVED
 }
+
+model Fulfillment {
+  id              String   @id @default(cuid()) // Local DB ID
+  shopifyId       String   @unique             // Shopify Fulfillment ID
+  orderId         String   // Shopify Order ID
+  trackingNumber  String?  // Tracking number
+  trackingCompany String?  // e.g., "Bluedart"
+  trackingUrl     String?  // Link to track shipment
+  status          String   // "pending", "success", etc.
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
