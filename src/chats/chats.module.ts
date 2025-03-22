@@ -10,10 +10,21 @@ import { BullModule } from '@nestjs/bullmq';
 import { ReceiveChatsQueue } from './processor/receivechat-processor';
 
 import { CustomersModule } from 'src/customers/customers.module';
+import { GemniModule } from 'src/gemni/gemni.module';
+import { BottransferQueue } from './processor/bot-transfer-processor';
 
 @Module({
-  imports: [WhatsappModule,DatabaseModule,CustomersModule,ShopifyModule,BullModule.registerQueue({ name: 'receiveChatsQueue' })],
+  imports: [
+    WhatsappModule,
+    DatabaseModule,
+    CustomersModule,
+    ShopifyModule,
+    BullModule.registerQueue({ name: 'receiveChatsQueue' },
+      { name: 'bottransferQueue'}
+    ),
+    GemniModule,
+  ],
   controllers: [ChatsController],
-  providers: [ChatsService, ChatsGateway,ReceiveChatsQueue],
+  providers: [ChatsService, ChatsGateway, ReceiveChatsQueue,BottransferQueue],
 })
 export class ChatsModule {}

@@ -13,10 +13,15 @@ export class EventsService {
     private readonly createCheckoutQueue: Queue,
     @InjectQueue('updatedCheckoutQueue')
     private readonly updatedCheckoutQueue: Queue,
+    @InjectQueue('updateOrderQueue') private readonly updateOrderQueue:Queue,
+    @InjectQueue('cancelOrderQueue') private readonly cancelOrderQueue:Queue
+
+    
   ) {}
   async manipulateOrder(orderData: any, domain: string) {
     console.log(JSON.stringify(orderData, null, 2));
 
+  
     await this.createOrderQueue.add(
       'createOrder',
       { orderData, domain },
@@ -138,16 +143,34 @@ export class EventsService {
   }
 
   async manipulateUpdateOrder(updateOrder: any,domain: string){
-    // console.log("updateUpdateOrder:",JSON.stringify(updateOrder, null, 2));
+    console.log("updateOrder",JSON.stringify(updateOrder, null, 2));
+    await this.updateOrderQueue.add(
+      'createOrder',
+      { orderData: updateOrder, domain },
+      {
+        delay: 0,
+        removeOnComplete: true,
+      },
+    );
+    return { success: true };
     
   }
 
   async manipulateCancelOrder(cancelOrder: any, domain: string) {
-    // console.log("cancelOrder",JSON.stringify(cancelOrder, null, 2));
+    console.log("cancelOrder",JSON.stringify(cancelOrder, null, 2));
+    await this.cancelOrderQueue.add(
+      'cancelOrderQueue',
+      { cancelOrderData: cancelOrder, domain },
+      {
+        delay: 0,
+        removeOnComplete: true,
+      },
+    );
+    return { success: true };
   }
 
   async manipulateCreateFullFillment(createFullFillment: any, domain: string) {
-    console.log("createFullFillment",JSON.stringify(createFullFillment, null, 2));
+    
   }
   async manipulateUpdatedFulfillment(updatedFulfillment: any, domain: string) {
     console.log("updatedFulfillment",JSON.stringify(updatedFulfillment, null, 2));
@@ -184,24 +207,4 @@ export class EventsService {
     //   console.log('Received checkout data:', checkOutData);
   }
 
-  findOne(id: number) {
-    return `This action returns a #${id} event`;
-  }
-
-  async updateCheckout(checkoutData: any, domain: string) {
-    await this.updatedCheckoutQueue.add(
-      'updatedCheckout',
-      { checkoutData, domain },
-      {
-        delay: 0,
-        removeOnComplete: true,
-      },
-    );
-
-    return { success: true };
-  }
-
-  remove(id: number) {
-    return `This action removes a #${id} event`;
-  }
 }

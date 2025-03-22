@@ -7,6 +7,7 @@ import { Queue } from 'bullmq';
 import { getShopifyConfig, sanitizePhoneNumber } from 'utils/usefulfunction';
 import { ChatsGateway } from '../chats.gateway';
 import { ShopifyService } from 'src/shopify/shopify.service';
+import { GemniService } from 'src/gemni/gemni.service';
 
 @Processor('receiveChatsQueue')
 @Injectable()
@@ -15,33 +16,30 @@ export class ReceiveChatsQueue extends WorkerHost {
     private readonly databaseService: DatabaseService,
     private readonly shopifyService: ShopifyService,
     private readonly chatsGateway: ChatsGateway,
+    private readonly gemniService: GemniService,
+    @InjectQueue('bottransferQueue') private readonly bottransferQueue: Queue,
   ) {
     super();
   }
   async process(job: Job) {
     const { receiveMessageDto } = job.data;
     try {
-      console.log(
-        'Received payload:',
-        JSON.stringify(receiveMessageDto, null, 2),
-      );
+  
 
       const { entry } = receiveMessageDto;
       const processedResults = [];
 
       for (const individualEntry of entry) {
-        console.log(`Processing entry: ${JSON.stringify(individualEntry)}`);
+    
 
         for (const change of individualEntry.changes) {
-          console.log(`Processing change: ${JSON.stringify(change)}`);
+        
           const { value } = change;
 
           const businessPhoneNumber = sanitizePhoneNumber(
             value.metadata.display_phone_number,
           );
-          console.log(
-            `Sanitized Business Phone Number: ${businessPhoneNumber}`,
-          );
+          
 
           const business = await this.databaseService.business.findUnique({
             where: { whatsapp_mobile: businessPhoneNumber },
@@ -55,30 +53,31 @@ export class ReceiveChatsQueue extends WorkerHost {
           }
 
           if (value.messages) {
-            console.log('Processing messages...');
+          
 
             const messagePromises = value.messages.map(async (message) => {
               try {
                 const rawPhoneNumber = `+${sanitizePhoneNumber(message.from)}`;
-                console.log(`Processing message from: ${rawPhoneNumber}`);
-               
-                const findBuisness = await this.databaseService.business.findUnique({
-                  where: {
-                    whatsapp_mobile: businessPhoneNumber,
-                  },
-                })
+              
+
+                const findBuisness =
+                  await this.databaseService.business.findUnique({
+                    where: {
+                      whatsapp_mobile: businessPhoneNumber,
+                    },
+                  });
                 const config = getShopifyConfig(findBuisness);
                 const customer = await this.getCustomerByIdentifier(
                   rawPhoneNumber,
                   config,
-                )
-                console.log(`Customer details: ${JSON.stringify(customer,null,2)}`);
+                );
+
+               
                 const prospect = await this.databaseService.prospect.upsert({
                   where: {
                     buisnessNo_phoneNo: {
                       phoneNo: sanitizePhoneNumber(message.from),
                       buisnessNo: businessPhoneNumber,
-                      
                     },
                   },
                   update: { last_Online: new Date() },
@@ -87,8 +86,8 @@ export class ReceiveChatsQueue extends WorkerHost {
                     buisnessNo: businessPhoneNumber,
                     lead: 'LEAD',
                     last_Online: new Date(),
-                    name:customer.displayName,
-                  
+                    name: customer.displayName,
+
                     email: customer.email,
                   },
                   include: {
@@ -99,8 +98,6 @@ export class ReceiveChatsQueue extends WorkerHost {
                   },
                 });
 
-               
-
                 this.chatsGateway.sendMessageToSubscribedClients(
                   businessPhoneNumber,
                   'prospect',
@@ -110,15 +107,12 @@ export class ReceiveChatsQueue extends WorkerHost {
                 // Check if last chat was a broadcast
                 if (prospect.chats.length > 0) {
                   const lastChat = prospect.chats[0];
-                  console.log(`Last chat details: ${JSON.stringify(lastChat)}`);
 
                   if (
                     lastChat.isForBroadcast === true &&
                     lastChat.broadcastId
                   ) {
-                    console.log(
-                      `Incrementing reply count for broadcast: ${lastChat.broadcastId}`,
-                    );
+                   
 
                     await this.databaseService.broadcast.update({
                       where: { id: lastChat.broadcastId },
@@ -140,6 +134,22 @@ export class ReceiveChatsQueue extends WorkerHost {
                   },
                 });
 
+                const gemniResponse =
+                  await this.gemniService.generateEnumValues(
+                    chatMessage.body_text,
+                  );
+                console.log(gemniResponse);
+
+                await this.bottransferQueue.add(
+                  'bottransfer',
+                  {
+                    chatMessageId:chatMessage.id,
+                    gemniResponse,
+                    isFirstMessage: prospect.chats.length === 0,
+                  },
+                  { delay: 0, removeOnComplete: true },
+                );
+
                 console.log(`Chat saved to DB: ${JSON.stringify(chatMessage)}`);
                 processedResults.push(chatMessage);
 
@@ -157,14 +167,18 @@ export class ReceiveChatsQueue extends WorkerHost {
           }
 
           if (value.statuses) {
-            console.log('Processing message statuses...');
+        
 
             const statusPromises = value.statuses.map(async (status) => {
               try {
-                console.log(
-                  `Processing status update: ${JSON.stringify(status)}`,
-                );
-
+              
+                const findChat = await this.databaseService.chat.findUnique({
+                  where: { chatId: status.id },
+                })
+                if (!findChat) {
+                  console.warn(`Chat not found for status: ${status.id}`);
+                  return;
+                }
                 const updatedChat = await this.databaseService.chat.update({
                   where: { chatId: status.id },
                   data: {
@@ -183,9 +197,6 @@ export class ReceiveChatsQueue extends WorkerHost {
                   });
                 }
 
-                console.log(
-                  `Updated chat status in DB: ${JSON.stringify(updatedChat)}`,
-                );
                 processedResults.push(updatedChat);
 
                 this.chatsGateway.sendMessageToSubscribedClients(
@@ -203,9 +214,7 @@ export class ReceiveChatsQueue extends WorkerHost {
         }
       }
 
-      console.log(
-        `Processing completed. Total processed items: ${processedResults.length}`,
-      );
+   
       return { success: true, processed: processedResults.length };
     } catch (error) {
       console.error('Error in receiveMessage:', error);
@@ -214,7 +223,7 @@ export class ReceiveChatsQueue extends WorkerHost {
       );
     }
   }
-  async  getCustomerByIdentifier(phoneNumber,config) {
+  async getCustomerByIdentifier(phoneNumber, config) {
     // GraphQL query with a variable for the phone number.
     const query = `
       query CustomerByIdentifier($phoneNumber: String!) {
@@ -225,11 +234,15 @@ export class ReceiveChatsQueue extends WorkerHost {
         }
       }
     `;
-    
+
     // Define the variables to be used in the query.
     const variables = { phoneNumber };
 
-    const result = await this.shopifyService.executeGraphQL(query, variables,config)
+    const result = await this.shopifyService.executeGraphQL(
+      query,
+      variables,
+      config,
+    );
     return result.data?.customerByIdentifier;
   }
 }

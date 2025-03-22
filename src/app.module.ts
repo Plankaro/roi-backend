@@ -30,6 +30,7 @@ import { EventsModule } from './events/events.module';
 import { GoModule } from './go/go.module';
 import { AgentsModule } from './agents/agents.module';
 import { CampaignModule } from './campaign/campaign.module';
+import { GemniModule } from './gemni/gemni.module';
 
 
 
@@ -76,6 +77,7 @@ import { CampaignModule } from './campaign/campaign.module';
     GoModule,
     AgentsModule,
     CampaignModule,
+    GemniModule,
   
    
   ],

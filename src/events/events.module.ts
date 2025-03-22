@@ -10,6 +10,10 @@ import { WhatsappModule } from 'src/whatsapp/whatsapp.module';
 import { CreateCheckoutCampaign } from './processors/create-checkout-campaign-processor';
 import { UpdatedCheckoutQueue } from './processors/updated-checkout-processor';
 import { CreateOrderCampaign } from './processors/order-create-campaign';
+import { updateOrderCampaign } from './processors/update-order-campaign';
+import { cancelOrderQueue } from './processors/cancel-order-processor';
+import { cancelOrderCampaign } from './processors/cancel-order-campaign';
+import { orderTagsAddedCampaign } from './processors/order-tag-added-campaign';
 
 @Module({
   imports: [
@@ -22,6 +26,7 @@ import { CreateOrderCampaign } from './processors/order-create-campaign';
       { name: 'updateOrderQueue' },
       { name: 'updateOrderCampaign' },
       { name: 'cancelOrderQueue' },
+      { name: 'orderTagsAddedCampaign'},
       { name: 'cancelOrderCampaign' },
       { name: 'createCheckoutQueue' },
       { name: 'createCheckoutCampaign' },
@@ -39,7 +44,14 @@ import { CreateOrderCampaign } from './processors/order-create-campaign';
     CreateCheckoutQueue,
     CreateCheckoutCampaign,
     UpdatedCheckoutQueue,
-    CreateOrderCampaign
+    CreateOrderCampaign,
+    updateOrderCampaign,
+    cancelOrderQueue,
+    cancelOrderCampaign,
+    orderTagsAddedCampaign
+    
+    
+    
     
   ],
 })

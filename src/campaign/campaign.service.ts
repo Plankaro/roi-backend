@@ -118,7 +118,7 @@ export class CampaignService {
         type: 'ORDER_CANCELLED',
         creator: { connect: { id: user.id } },
         createdFor: { connect: { id: user.business.id } },
-        OrderCancel: {
+        OrderCreatedCampaign: {
           create: {
             template_name: orderCancellationCampaignDto.template_name,
             template_lang: orderCancellationCampaignDto.template_lang,
