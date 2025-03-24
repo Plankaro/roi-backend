@@ -12,6 +12,7 @@ import { randomBytes } from 'crypto';
 import { GemniService } from 'src/gemni/gemni.service';
 import { ShopifyService } from 'src/shopify/shopify.service';
 import { Prospect } from 'src/prospects/entities/prospect.entity';
+import { create } from 'domain';
 
 @Injectable()
 @Processor('bottransferQueue')
@@ -310,99 +311,175 @@ Hurry, offer valid for a limited time!`;
           );
 
           const message =
-          order.orders.length === 0
-            ? `No orders placed yet. Visit our website to place an order:\nhttps://roi-magnet-fashion.myshopify.com/`
-            : `*Your Order Update:*\n\n` +
-              order.orders
-                .map((orderItem) => {
-                  const orderDate = new Date(orderItem.createdAt).toLocaleDateString();
-                  return (
-                    
-                    `*Order : ${orderItem.id.match(/\/Order\/(\d+)/)[1]}\n` +
-                    `Placed on: ${orderDate}\n` +
-                    `Total: ${orderItem.totalPrice}\n` +
-                    `Track here: ${orderItem.orderStatusUrl}\n` +
-                    `Products: ${orderItem.lineItems.map((item) => `*${item.title}*`).join(', ')}\n`
-                  );
-                })
-                .join('\n') +
-              `\nThank you for shopping with us!`;
-        
-        console.log(message);
-        
+            order.orders.length === 0
+              ? `No orders placed yet. Visit our website to place an order:\nhttps://roi-magnet-fashion.myshopify.com/`
+              : `*Your Order Update:*\n\n` +
+                order.orders
+                  .map((orderItem) => {
+                    const orderDate = new Date(
+                      orderItem.createdAt,
+                    ).toLocaleDateString();
+                    return (
+                      `*Order : ${orderItem.id.match(/\/Order\/(\d+)/)[1]}\n` +
+                      `Placed on: ${orderDate}\n` +
+                      `Total: ${orderItem.totalPrice}\n` +
+                      `Track here: ${orderItem.orderStatusUrl}\n` +
+                      `Products: ${orderItem.lineItems.map((item) => `*${item.title}*`).join(', ')}\n`
+                    );
+                  })
+                  .join('\n') +
+                `\nThank you for shopping with us!`;
 
-        const messageSendResponse = await this.whatsappService.sendMessage(
-          sanitizePhoneNumber(chatMessage.Prospect.phoneNo),
-          message,
-          whaatsappConfig,
-        );
-        await this.databaseService.chat.create({
-          data: {
-            prospectId: chatMessage.Prospect.id,
-            chatId: messageSendResponse?.messages?.[0]?.id ?? '',
-            senderPhoneNo: chatMessage.Prospect.business.whatsapp_mobile,
-            receiverPhoneNo: messageSendResponse?.contacts?.[0]?.input ?? '',
-            sendDate: new Date(),
-            body_text: message,
-            type: 'automated',
-            isAutomated: true,
-            botName: 'order_tracking_bot',
-          },
-        });
+          console.log(message);
 
+          const messageSendResponse = await this.whatsappService.sendMessage(
+            sanitizePhoneNumber(chatMessage.Prospect.phoneNo),
+            message,
+            whaatsappConfig,
+          );
+          await this.databaseService.chat.create({
+            data: {
+              prospectId: chatMessage.Prospect.id,
+              chatId: messageSendResponse?.messages?.[0]?.id ?? '',
+              senderPhoneNo: chatMessage.Prospect.business.whatsapp_mobile,
+              receiverPhoneNo: messageSendResponse?.contacts?.[0]?.input ?? '',
+              sendDate: new Date(),
+              body_text: message,
+              type: 'automated',
+              isAutomated: true,
+              botName: 'order_tracking_bot',
+            },
+          });
         } else {
           console.log('No order ID provided for tracking.');
         }
         break;
 
       case 'order_cancelling_bot':
-        console.log('Handling order cancellation request');
         // Add cancellation logic here
-        if(!gemniResponse.id){
-          console.log('No order ID provided for cancellation.');
+        if (!gemniResponse.orderId) {
+          const order = await this.getUnfulfilledOrdersByCustomer(
+            `+${sanitizePhoneNumber(chatMessage.senderPhoneNo)}`,
+            shopifyConfig,
+          );
 
+          const cancelmessage =
+            order.orders.length === 0
+              ? `No orders which can be cancelled are displayed`
+              : `*Your Order cancel list select the orderId which you want to cancel:*\n\n` +
+                order.orders
+                  .map((orderItem) => {
+                    const orderDate = new Date(
+                      orderItem.createdAt,
+                    ).toLocaleDateString();
+                    return (
+                      `*Order : ${orderItem.id.match(/\/Order\/(\d+)/)[1]}\n` +
+                      `Placed on: ${orderDate}\n` +
+                      `Total: ${orderItem.totalPrice}\n` +
+                      `Track here: ${orderItem.orderStatusUrl}\n` +
+                      `Fullfillment Status: ${orderItem.displayFulfillmentStatus}\n` +
+                      `Products: ${orderItem.lineItems.map((item) => `*${item.title}*`).join(', ')}\n`
+                    );
+                  })
+                  .join('\n') +
+                `\nThank you for shopping with us!`;
+
+          const cancelOrderMessage = await this.whatsappService.sendMessage(
+            sanitizePhoneNumber(chatMessage.Prospect.phoneNo),
+            cancelmessage,
+            whaatsappConfig,
+          );
+
+          await this.databaseService.chat.create({
+            data: {
+              prospectId: chatMessage.Prospect.id,
+              chatId: cancelOrderMessage?.messages?.[0]?.id ?? '',
+              senderPhoneNo: chatMessage.Prospect.business.whatsapp_mobile,
+              receiverPhoneNo: cancelOrderMessage?.contacts?.[0]?.input ?? '',
+              sendDate: new Date(),
+              body_text: cancelmessage,
+              type: 'automated',
+              isAutomated: true,
+              botName: 'order_cancelling_bot',
+            },
+          });
+          return
         }
+        // Add cancellation logic here
+        const cancel =  await this.cancelOrder(gemniResponse.orderId,`+${chatMessage.Prospect.phoneNo}`,shopifyConfig)
+        const cancelOrder = cancel?.message
+        // ? "Your order has been canceled."
+        // : "We couldn't cancel your order. Please contact support.";
+      
+        const cancelOrderMessage = await this.whatsappService.sendMessage(
+          sanitizePhoneNumber(chatMessage.Prospect.phoneNo),
+          cancelOrder,
+          whaatsappConfig,
+        )
+        
+        await this.databaseService.chat.create({
+          data: {
+            prospectId: chatMessage.Prospect.id,
+            chatId: cancelOrderMessage?.messages?.[0]?.id ?? '',
+            senderPhoneNo: chatMessage.Prospect.business.whatsapp_mobile,
+            receiverPhoneNo: cancelOrderMessage?.contacts?.[0]?.input ?? '',
+            sendDate: new Date(),
+            body_text: cancelOrder,
+            type: 'automated',
+            isAutomated: true,
+            botName: 'order_cancelling_bot',
+          },
+        })
+
+
         break;
 
       case 'shipping_charges_bot':
-       
-          const shippingmessage = 
-            `*Shipping Charges Information:*\n\n` +
-            `Hi there!\n` +
-            `We offer competitive shipping rates to get your order delivered quickly:\n` +
-            `• Standard Shipping: Rs. 399 (3-5 business days)\n` +
-            `• Express Shipping: Rs. 799 (1-2 business days)\n` +
-            `Plus, enjoy FREE shipping on orders over Rs. 2000!\n\n` +
-            `For more details, visit our website:\n` +
-            `https://roi-magnet-fashion.myshopify.com/\n\n` +
-            `Thank you for choosing us!`;
+        const shippingmessage =
+          `*Shipping Charges Information:*\n\n` +
+          `Hi there!\n` +
+          `We offer competitive shipping rates to get your order delivered quickly:\n` +
+          `• Standard Shipping: Rs. 399 (3-5 business days)\n` +
+          `• Express Shipping: Rs. 799 (1-2 business days)\n` +
+          `Plus, enjoy FREE shipping on orders over Rs. 2000!\n\n` +
+          `For more details, visit our website:\n` +
+          `https://roi-magnet-fashion.myshopify.com/\n\n` +
+          `Thank you for choosing us!`;
 
-          const shippingmessageSendResponse = await this.whatsappService.sendMessage(
+        const shippingmessageSendResponse =
+          await this.whatsappService.sendMessage(
             sanitizePhoneNumber(chatMessage.Prospect.phoneNo),
             shippingmessage,
             whaatsappConfig,
           );
-          await this.databaseService.chat.create({
-            data: {
-              prospectId: chatMessage.Prospect.id,
-              chatId: shippingmessageSendResponse?.messages?.[0]?.id ?? '',
-              senderPhoneNo: chatMessage.Prospect.business.whatsapp_mobile,
-              receiverPhoneNo: shippingmessageSendResponse?.contacts?.[0]?.input ?? '',
-              sendDate: new Date(),
-              body_text: shippingmessage,
-              type: 'automated',
-              isAutomated: true,
-              botName: 'shipping_charges_bot',
-            },
-          });
-          break;
-        
-        // Add shipping charges logic here
+        await this.databaseService.chat.create({
+          data: {
+            prospectId: chatMessage.Prospect.id,
+            chatId: shippingmessageSendResponse?.messages?.[0]?.id ?? '',
+            senderPhoneNo: chatMessage.Prospect.business.whatsapp_mobile,
+            receiverPhoneNo:
+              shippingmessageSendResponse?.contacts?.[0]?.input ?? '',
+            sendDate: new Date(),
+            body_text: shippingmessage,
+            type: 'automated',
+            isAutomated: true,
+            botName: 'shipping_charges_bot',
+          },
+        });
+
         break;
 
+        // Add shipping charges logic here
+      
+
       case 'repeat_order_bot':
-        console.log('Handling repeat order request');
+       if(gemniResponse.orderId){
+        const placeOrder = await this.repeatOrder(gemniResponse.orderId,shopifyConfig)
+        console.log(placeOrder)
+       }
         // Add repeat order logic here
+        const repeatOrder = await this.repeatOrder(gemniResponse.orderId,shopifyConfig)
+        console.log(repeatOrder)
         break;
 
       case 'None':
@@ -600,7 +677,124 @@ Hurry, offer valid for a limited time!`;
   }
   async getAllOrdersByCustomer(
     contact: string,
-    config: any, // Can be either phone or email
+    config: any,
+    first: number = 10,
+    after: string | null = null
+  ): Promise<{
+    orders: Array<{
+      id: string;
+      orderStatusUrl: string;
+      totalPrice: string;
+      createdAt: string;
+      displayFinancialStatus: string;
+      displayFulfillmentStatus: string;
+      lineItems: Array<{ title: string; image: string | null }>;
+    }>;
+    pageInfo: { hasNextPage: boolean; endCursor: string | null };
+  }> {
+    // Determine if contact is an email or phone number
+    const isEmail = contact.includes('@');
+    const identifier = isEmail
+      ? { email: contact }
+      : { phoneNumber: contact };
+  
+    // GraphQL query
+    const query = `
+      query GetCustomerOrders($identifier: CustomerIdentifierInput!, $first: Int!, $after: String) {
+        customerByIdentifier(identifier: $identifier) {
+          id
+          displayName
+          phone
+          orders(first: $first, after: $after, sortKey: PROCESSED_AT, reverse: true) {
+            edges {
+              node {
+              
+              phone
+                id
+                createdAt
+                statusPageUrl
+                totalPrice
+                displayFinancialStatus
+                displayFulfillmentStatus
+                lineItems(first: 250) {
+                  edges {
+                    node {
+                      id
+                      title
+                      variant {
+                        id
+                      }
+                      product {
+                        images(first: 1) {
+                          edges {
+                            node {
+                              url
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            pageInfo {
+              hasNextPage
+              endCursor
+            }
+          }
+        }
+      }
+    `;
+  
+    const variables = { identifier, first, after };
+  
+    try {
+      console.log('Executing Shopify GraphQL query for customer orders with contact:', contact);
+      const response = await this.shopifyService.executeGraphQL(query, variables, config);
+      console.log('Raw Shopify customer orders response:', JSON.stringify(response, null, 2));
+  
+      // Validate that the customer exists
+      if (!response?.data?.customerByIdentifier) {
+        return { orders: [], pageInfo: { hasNextPage: false, endCursor: null } };
+      }
+  
+      // Extract and clean the orders data
+      const orderEdges = response.data.customerByIdentifier.orders.edges || [];
+      const orders = orderEdges.map((edge: any) => {
+        const order = edge.node;
+        const lineItems = (order.lineItems?.edges || []).map((itemEdge: any) => ({
+          id: itemEdge.node.id,
+          variantId: itemEdge.node.variant.id,
+          title: itemEdge.node.title,
+          image: itemEdge.node.product?.images?.edges?.[0]?.node?.url || null,
+        }));
+  
+        return {
+          id: order.id,
+          orderStatusUrl: order.statusPageUrl,
+          totalPrice: order.totalPrice,
+          displayFinancialStatus: order.displayFinancialStatus,
+          displayFulfillmentStatus: order.displayFulfillmentStatus,
+          lineItems,
+          createdAt: order.createdAt,
+        };
+      });
+  
+      const pageInfo = response.data.customerByIdentifier.orders.pageInfo || {
+        hasNextPage: false,
+        endCursor: null,
+      };
+      return { orders, pageInfo };
+    } catch (error) {
+      console.error('Error in getAllOrdersByCustomer:', error);
+      throw error;
+    }
+  }
+  
+  async getUnfulfilledOrdersByCustomer(
+    contact: string,
+    config: any, // Configuration object for Shopify API access
     first: number = 10,
     after: string | null = null,
   ): Promise<{
@@ -617,30 +811,41 @@ Hurry, offer valid for a limited time!`;
   }> {
     // Determine if contact is an email or phone number
     const isEmail = contact.includes('@');
-    const queryField = isEmail
-      ? `customer_email:"${contact}"`
-      : `customer_phone:${contact}`;
-
-    const query = `
-      query GetAllOrdersByCustomer($first: Int!, $after: String, $query: String!) {
-        orders(first: $first, after: $after, query: $query, sortKey: PROCESSED_AT, reverse: true) {
-          edges {
-            node {
-              id
-              createdAt
-              statusPageUrl
-              totalPrice
-              displayFinancialStatus
-              displayFulfillmentStatus
-              lineItems(first: 50) {
-                edges {
-                  node {
-                    title
-                    product {
-                      images(first: 1) {
-                        edges {
-                          node {
-                            url
+    const identifier = isEmail
+      ? { email: contact }
+      : { phoneNumber: contact };
+  
+      const query = `
+      query GetCustomerOrders($identifier: CustomerIdentifierInput!, $first: Int!, $after: String) {
+        customerByIdentifier(identifier: $identifier) {
+          id
+          displayName
+          phone
+          orders(first: $first, after: $after, sortKey: PROCESSED_AT, reverse: true,query:"fulfillment_status:unfulfilled") {
+            edges {
+              node {
+              
+              phone
+                id
+                createdAt
+                statusPageUrl
+                totalPrice
+                displayFinancialStatus
+                displayFulfillmentStatus
+                lineItems(first: 250) {
+                  edges {
+                    node {
+                      id
+                      title
+                      variant {
+                        id
+                      }
+                      product {
+                        images(first: 1) {
+                          edges {
+                            node {
+                              url
+                            }
                           }
                         }
                       }
@@ -649,20 +854,20 @@ Hurry, offer valid for a limited time!`;
                 }
               }
             }
-          }
-          pageInfo {
-            hasNextPage
-            endCursor
+            pageInfo {
+              hasNextPage
+              endCursor
+            }
           }
         }
       }
     `;
-
-    const variables = { first, after, query: queryField };
-
+  
+    const variables = { identifier, first, after };
+  
     try {
       console.log(
-        'Executing Shopify GraphQL query for orders with contact:',
+        'Executing Shopify GraphQL query for unfulfilled orders with contact:',
         contact,
       );
       const response = await this.shopifyService.executeGraphQL(
@@ -671,21 +876,21 @@ Hurry, offer valid for a limited time!`;
         config,
       );
       console.log(
-        'Raw Shopify orders response:',
+        'Raw Shopify unfulfilled orders response:',
         JSON.stringify(response, null, 2),
       );
-
+  
       // Extract and clean the orders data
-      const orderEdges = response?.data?.orders?.edges || [];
+      const orderEdges = response?.data?.customerByIdentifier?.orders?.edges || [];
       const orders = orderEdges.map((edge: any) => {
         const order = edge.node;
         const lineItems = (order.lineItems?.edges || []).map(
           (itemEdge: any) => ({
             title: itemEdge.node.title,
-            image: itemEdge.node.product?.images?.edges?.[0]?.node?.url || null, // Fetch first image from main product
+            image: itemEdge.node.product?.images?.edges?.[0]?.node?.url || null,
           }),
         );
-
+  
         return {
           id: order.id,
           orderStatusUrl: order.statusPageUrl,
@@ -696,17 +901,237 @@ Hurry, offer valid for a limited time!`;
           createdAt: order.createdAt,
         };
       });
-
-      const pageInfo = response?.data?.orders?.pageInfo || {
+  
+      const pageInfo = response?.data?.customerByIdentifier?.orders?.pageInfo || {
         hasNextPage: false,
         endCursor: null,
       };
       const cleanData = { orders, pageInfo };
-      console.log('Clean orders data:', JSON.stringify(cleanData, null, 2));
+      console.log(
+        'Clean unfulfilled orders data:',
+        JSON.stringify(cleanData, null, 2),
+      );
       return cleanData;
     } catch (error) {
-      console.error('Error in getAllOrdersByCustomer:', error);
+      console.error('Error in getUnfulfilledOrdersByCustomer:', error);
       throw error;
     }
   }
+  
+
+  async cancelOrder(orderId: string, phoneNumber: string, config: any): Promise<{ status: boolean; message: string }> {
+    // Convert to Shopify Global ID
+    const shopifyOrderId = `gid://shopify/Order/${orderId}`;
+  
+    // GraphQL query to fetch order details
+    const orderQuery = `
+      query GetOrderDetails($orderId: ID!) {
+        order(id: $orderId) {
+          id
+          customer {
+            phone
+          }
+        }
+      }
+    `;
+  
+    try {
+      // Fetch order details
+      const response = await this.shopifyService.executeGraphQL(
+        orderQuery,
+        { orderId: shopifyOrderId },
+        config
+      );
+  
+      const orderData = response?.data?.order;
+      if (!orderData) {
+        return { status: false, message: "Order not found." };
+      }
+  
+      const customerPhone = orderData.customer?.phone;
+      if (customerPhone !== phoneNumber) {
+        return { status: false, message: "Phone number does not match the order's customer." };
+      }
+  
+      // Proceed with order cancellation
+      const mutation = `
+        mutation CancelOrder($orderId: ID!, $refund: Boolean!, $restock: Boolean!, $reason: OrderCancelReason!) {
+          orderCancel(orderId: $orderId, refund: $refund, restock: $restock, reason: $reason) {
+            userErrors {
+              field
+              message
+            }
+          }
+        }
+      `;
+  
+      const variables = {
+        orderId: shopifyOrderId,
+        refund: true,
+        restock: false,
+        reason: "CUSTOMER",
+      };
+  
+      const cancelResponse = await this.shopifyService.executeGraphQL(
+        mutation,
+        variables,
+        config
+      );
+  
+      const errors = cancelResponse?.data?.orderCancel?.userErrors || [];
+      if (errors.length > 0) {
+        return { status: false, message: errors[0].message || "Unable to cancel the order." };
+      }
+  
+      return { status: true, message: "Order has been successfully canceled." };
+    } catch (error) {
+      console.error("Error in cancelOrder:", error);
+      return { status: false, message: "An error occurred while attempting to cancel the order." };
+    }
+  }
+  async repeatOrder(
+    orderId: string,
+    config: any
+  ): Promise<{
+    status: boolean;
+    message: string;
+    draftOrderId?: string;
+    invoiceUrl?: string;
+  }> {
+    // Convert the provided orderId to Shopify Global ID format
+    const shopifyOrderId = `gid://shopify/Order/${orderId}`;
+  
+    // GraphQL query to fetch order details
+    const orderQuery = `
+      query GetOrderDetails($orderId: ID!) {
+        order(id: $orderId) {
+          id
+          customer {
+            id
+          }
+          shippingAddress {
+            address1
+            address2
+            city
+            country
+            countryCode
+            zip
+          }
+          billingAddress {
+            address1
+            address2
+            city
+            country
+            countryCode
+            zip
+          }
+          lineItems(first: 250) {
+            edges {
+              node {
+                variant {
+                  id
+                }
+                quantity
+                customAttributes {
+                  key
+                  value
+                }
+              }
+            }
+          }
+        }
+      }
+    `;
+  
+    try {
+      // Fetch order details
+      const response = await this.shopifyService.executeGraphQL(
+        orderQuery,
+        { orderId: shopifyOrderId },
+        config
+      );
+  
+      const orderData = response?.data?.order;
+      if (!orderData) {
+        return { status: false, message: "Order not found." };
+      }
+  console.log(JSON.stringify(orderData,null,2))
+      const customerId = orderData.customer?.id;
+      if (!customerId) {
+        return { status: false, message: "Customer not found for this order." };
+      }
+  
+      // Extract line items
+      const lineItems = orderData.lineItems.edges.map((edge: any) => ({
+        variantId: edge.node.variant.id,
+        quantity: edge.node.quantity,
+        customAttributes: edge.node.customAttributes,
+      }));
+  
+      // Draft order input
+      const draftOrderInput = {
+        customerId,
+        lineItems,
+        shippingAddress: orderData.shippingAddress,
+        billingAddress: orderData.billingAddress,
+        useCustomerDefaultAddress: false,
+      };
+  
+      // GraphQL mutation to create draft order
+      const draftOrderMutation = `
+        mutation CreateDraftOrder($input: DraftOrderInput!) {
+          draftOrderCreate(input: $input) {
+            draftOrder {
+              id
+              invoiceUrl
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }
+      `;
+  
+      // Create draft order
+      const createResponse = await this.shopifyService.executeGraphQL(
+        draftOrderMutation,
+        { input: draftOrderInput },
+        config
+      );
+  
+      const errors = createResponse?.data?.draftOrderCreate?.userErrors || [];
+      if (errors.length > 0) {
+        return {
+          status: false,
+          message:
+            errors[0].message ||
+            "We couldn't create the repeat order. Please contact support.",
+        };
+      }
+  
+      const newDraftOrderId =
+        createResponse?.data?.draftOrderCreate?.draftOrder?.id;
+      const invoiceUrl =
+        createResponse?.data?.draftOrderCreate?.draftOrder?.invoiceUrl;
+  
+      return {
+        status: true,
+        message: "Repeat order created successfully.",
+        draftOrderId: newDraftOrderId,
+        invoiceUrl,
+      };
+    } catch (error) {
+      console.error("Error in repeatOrder:", error);
+      return {
+        status: false,
+        message:
+          "We couldn't create the repeat order. Please contact support.",
+      };
+    }
+  }
+  
+  
+  
+
 }
