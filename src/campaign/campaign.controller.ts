@@ -7,15 +7,15 @@ import { UpdateCampaignDto } from './dto/update-campaign.dto';
 export class CampaignController {
   constructor(private readonly campaignService: CampaignService) {}
 
-  @Post('/createOrder')
-  createOrderCampaign(@Body() createCampaignDto: CreateCampaignDto,@Req() req:any) {
-    return this.campaignService.createOrderCampaign(createCampaignDto,req);
+  @Post('/')
+  createOrderCampaign(@Body() createCampaignDto: any,@Req() req:any) {
+    return this.campaignService.createrCampaign(createCampaignDto,req);
   }
 
-  @Post('/createCheckout')
-  createCheckoutCampaign(@Body() createCampaignDto: CreateCampaignDto,@Req() req:any) {
-    return this.campaignService.createOrderCampaign(createCampaignDto,req);
-  }
+  // @Post('/createCheckout')
+  // createCheckoutCampaign(@Body() createCampaignDto: CreateCampaignDto,@Req() req:any) {
+  //   return this.campaignService.createOrderCampaign(createCampaignDto,req);
+  // }
 
 
 

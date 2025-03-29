@@ -1,5 +1,6 @@
 import { Business } from "@prisma/client";
 import { differenceInMilliseconds, format } from 'date-fns';
+
 export const sanitizePhoneNumber = (phone: any) => {
   const phoneStr = String(phone); // Convert to string if not already
   return phoneStr.startsWith('+') ? phoneStr.slice(1) : phoneStr;
@@ -130,13 +131,17 @@ export function noneTagPresent(tagsFromField, tagsFromDb) {
 }
 
 
-export function getFutureTimestamp(expression: string): number {
-  // Example of valid expressions: "24 days", "3 hours", "30 minutes"
-  const [valueString, unit] = expression.trim().split(" ");
-  const value = parseInt(valueString, 10);
 
-  if (isNaN(value) || !unit) {
-    throw new Error(`Invalid time expression: "${expression}"`);
+interface Expression {
+  time: number;
+  unit: string;
+}
+
+export function getFutureTimestamp(expression: Expression): number {
+  const { time, unit } = expression;
+
+  if (isNaN(time) || !unit) {
+    throw new Error(`Invalid time expression: ${JSON.stringify(expression)}`);
   }
 
   let msToAdd = 0;
@@ -144,15 +149,15 @@ export function getFutureTimestamp(expression: string): number {
   switch (unit.toLowerCase()) {
     case "day":
     case "days":
-      msToAdd = value * 24 * 60 * 60 * 1000; // Convert days to milliseconds
+      msToAdd = time * 24 * 60 * 60 * 1000; // Convert days to milliseconds
       break;
     case "hour":
     case "hours":
-      msToAdd = value * 60 * 60 * 1000; // Convert hours to milliseconds
+      msToAdd = time * 60 * 60 * 1000; // Convert hours to milliseconds
       break;
     case "minute":
     case "minutes":
-      msToAdd = value * 60 * 1000; // Convert minutes to milliseconds
+      msToAdd = time * 60 * 1000; // Convert minutes to milliseconds
       break;
     default:
       throw new Error(`Invalid unit in time expression: "${unit}"`);

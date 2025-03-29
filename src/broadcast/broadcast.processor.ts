@@ -158,15 +158,20 @@ export class BroadcastProcessor extends WorkerHost {
             components.push({
               type: 'button',
               sub_type: 'url',
-              index: '0',
+              index: index,
               parameters: [{ type: 'text', text: button.value }],
             });
           } else if (button.type === 'COPY_CODE') {
             components.push({
               type: 'button',
-              sub_type: 'copy_code',
-              index: index,
-              parameters: [{ type: 'otp', text: button.value }],
+              sub_type: 'COPY_CODE',
+              index: button.index,
+              parameters: [
+                {
+                  type: 'coupon_code', // Must be exactly "coupon_code" for copy_code buttons
+                  coupon_code: button.value, // The actual coupon code text you want to be copied
+                },
+              ],
             });
           }
         });

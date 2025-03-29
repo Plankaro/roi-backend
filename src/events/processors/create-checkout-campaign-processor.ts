@@ -42,16 +42,15 @@ export class CreateCheckoutCampaign extends WorkerHost {
         this.databaseService.campaign.findUnique({
           where: { id: campaignId },
           include: {
-            createdFor: true,
-            creator: true,
-            Filter: true,
-            CheckoutCreatedCampaign: true,
+            User: true,
+            Business: true,
+            filters: true,
           },
         }),
       ]);
 
       if (
-        campaign?.CheckoutCreatedCampaign?.related_order_created &&
+        campaign?.related_order_created &&
         checkout.completedAt !== null
       )
         return null;
@@ -61,69 +60,69 @@ export class CreateCheckoutCampaign extends WorkerHost {
       });
 
       //get order
-      if (campaign?.CheckoutCreatedCampaign.filter_condition_match) {
-        if (order?.tags && campaign.Filter.is_order_tag_filter_enabled) {
+   
+        if (order?.tags && campaign.filters.is_order_tag_filter_enabled) {
           const tagsfromField = getTagsArray(order?.tags);
-          if (campaign.Filter.order_tag_filer_all.length > 0) {
+          if (campaign.filters.order_tag_filter_all.length > 0) {
             if (
               !allTagsPresent(
                 tagsfromField,
-                campaign.Filter.order_tag_filer_all,
+                campaign.filters.order_tag_filter_all,
               )
             )
               return;
           }
-          if (campaign.Filter.order_tag_filter_any.length > 0) {
+          if (campaign.filters.order_tag_filter_any.length > 0) {
             if (
               !anyTagPresent(
                 tagsfromField,
-                campaign.Filter.order_tag_filter_any,
+                campaign.filters.order_tag_filter_any,
               )
             )
               return;
           }
-          if (campaign.Filter.order_tag_filter_none.length > 0) {
+          if (campaign.filters.order_tag_filter_none.length > 0) {
             if (
               !noneTagPresent(
                 tagsfromField,
-                campaign.Filter.order_tag_filter_none,
+                campaign.filters.order_tag_filter_none,
               )
             )
               return;
           }
         }
-        const shopifyConfig = getShopifyConfig(campaign.createdFor);
+        const shopifyConfig = getShopifyConfig(campaign.Business);
         const customer = checkout.customer as any;
         const getCustomerById = await this.getCustomerById(
           customer?.id?.toString(),
           shopifyConfig,
         );
         //customer filter
-        if (campaign.Filter.is_customer_tag_filter_enabled) {
+        if (campaign.filters.is_customer_tag_filter_enabled) {
           const tagsfromField = getTagsArray(getCustomerById?.tags);
-          if (campaign.Filter.customer_tag_filter_all.length > 0) {
+          if (campaign.filters.customer_tag_filter_all.length > 0) {
             if (
               !allTagsPresent(
                 tagsfromField,
-                campaign.Filter.customer_tag_filter_all,
+                campaign.filters.customer_tag_filter_all,
               )
             )
               return;
           }
-          if (campaign.Filter.customer_tag_filter_any.length > 0) {
+          if (campaign.filters.customer_tag_filter_any.length > 0) {
             if (
               !anyTagPresent(
                 tagsfromField,
-                campaign.Filter.customer_tag_filter_any,
+                campaign.filters.customer_tag_filter_any,
               )
             )
               return;
           }
-          if (campaign.Filter.customer_tag_filter_none.length > 0) {
+          if (campaign.filters.customer_tag_filter_none.length > 0) {
             if (
               !noneTagPresent(
                 tagsfromField,
-                campaign.Filter.customer_tag_filter_none,
+                campaign.filters.customer_tag_filter_none,
               )
             )
               return;
@@ -136,53 +135,53 @@ export class CreateCheckoutCampaign extends WorkerHost {
           products,
           shopifyConfig,
         );
-        if (ProductList && campaign.Filter.is_product_tag_filter_enabled) {
+        if (ProductList && campaign.filters.is_product_tag_filter_enabled) {
           const tagsFromField = getTagsArray(
             ProductList?.map((products) => products.tags),
           );
-          if (campaign.Filter.product_tag_filter_all.length > 0) {
+          if (campaign.filters.product_tag_filter_all.length > 0) {
             if (
               !allTagsPresent(
                 tagsFromField,
-                campaign.Filter.product_tag_filter_all,
+                campaign.filters.product_tag_filter_all,
               )
             )
               return;
           }
-          if (campaign.Filter.product_tag_filter_any.length > 0) {
+          if (campaign.filters.product_tag_filter_any.length > 0) {
             if (
               !anyTagPresent(
                 tagsFromField,
-                campaign.Filter.product_tag_filter_any,
+                campaign.filters.product_tag_filter_any,
               )
             )
               return;
           }
-          if (campaign.Filter.product_tag_filter_none.length > 0) {
+          if (campaign.filters.product_tag_filter_none.length > 0) {
             if (
               !noneTagPresent(
                 tagsFromField,
-                campaign.Filter.product_tag_filter_none,
+                campaign.filters.product_tag_filter_none,
               )
             )
               return;
           }
         }
         //discount_code
-        if (campaign.Filter.is_discount_code_filter_enabled) {
+        if (campaign.filters.is_discount_code_filter_enabled) {
           const discount_code = checkout.discountCodes as any;
           const discountCodeArray = discount_code?.map((code) => code.code);
           if (
-            campaign.Filter.discount_code_filter_any.length > 0 &&
-            !campaign.Filter.discount_code_filter_any.some((tag) =>
+            campaign.filters.discount_code_filter_any.length > 0 &&
+            !campaign.filters.discount_code_filter_any.some((tag) =>
               discountCodeArray.includes(tag),
             )
           ) {
             return;
           }
           if (
-            campaign.Filter.discount_code_filter_none.length > 0 &&
-            !campaign.Filter.discount_code_filter_none.every((tag) =>
+            campaign.filters.discount_code_filter_none.length > 0 &&
+            !campaign.filters.discount_code_filter_none.every((tag) =>
               discountCodeArray.includes(tag),
             )
           ) {
@@ -190,39 +189,39 @@ export class CreateCheckoutCampaign extends WorkerHost {
           }
         }
 
-        if (campaign.Filter.is_payment_gateway_filter_enabled) {
+        if (campaign.filters.is_payment_gateway_filter_enabled) {
           if (
-            campaign.Filter.discount_code_filter_any.length > 0 &&
-            !campaign.Filter.discount_code_filter_any.includes(checkout.gateway)
+            campaign.filters.discount_code_filter_any.length > 0 &&
+            !campaign.filters.discount_code_filter_any.includes(checkout.gateway)
           ) {
             return;
           }
 
           if (
-            campaign.Filter.discount_code_filter_none.length > 0 &&
-            campaign.Filter.discount_code_filter_none.includes(checkout.gateway)
+            campaign.filters.discount_code_filter_none.length > 0 &&
+            campaign.filters.discount_code_filter_none.includes(checkout.gateway)
           ) {
             return;
           }
         }
         //resolving tags\
         if (
-          campaign.Filter.is_payment_option_filter_enabled &&
+          campaign.filters.is_payment_option_filter_enabled &&
           order?.status &&
-          campaign.Filter.payment_options_type !== order.status
+          campaign.filters.payment_options_type !== order.status
         ) {
           return;
         }
-        if (campaign.Filter.is_send_to_unsub_customer_filter_enabled) {
+        if (campaign.filters.is_send_to_unsub_customer_filter_enabled) {
           if (
-            campaign.Filter.send_to_unsub_customer == false &&
+            campaign.filters.send_to_unsub_customer == false &&
             customer.emailMarketingConsent.marketingState !== 'subscribed'
           ) {
             return;
           }
         }
 
-        if (campaign.Filter.is_order_amount_filter_enabled) {
+        if (campaign.filters.is_order_amount_filter_enabled) {
           const orderAmount = Number(order.amount);
 
           const {
@@ -230,7 +229,7 @@ export class CreateCheckoutCampaign extends WorkerHost {
             order_amount_filter_less_or_equal: maxAmount,
             order_amount_min: rangeMin,
             order_amount_max: rangeMax,
-          } = campaign.Filter;
+          } = campaign.filters;
 
           if (
             (minAmount && orderAmount < minAmount) ||
@@ -247,7 +246,7 @@ export class CreateCheckoutCampaign extends WorkerHost {
 
         if (
           checkout.discountCodes &&
-          campaign.Filter.is_discount_amount_filter_enabled
+          campaign.filters.is_discount_amount_filter_enabled
         ) {
           const discountCodeArray = checkout.discountCodes as any;
           const discountAmount = discountCodeArray.reduce((acc, discount) => {
@@ -258,7 +257,7 @@ export class CreateCheckoutCampaign extends WorkerHost {
             discount_amount_filter_less_or_equal: maxAmount,
             discount_amount_min: rangeMin,
             discount_amount_max: rangeMax,
-          } = campaign.Filter;
+          } = campaign.filters;
           if (
             (minAmount && discountAmount < minAmount) ||
             (maxAmount !== 0 && discountAmount > maxAmount) ||
@@ -270,14 +269,14 @@ export class CreateCheckoutCampaign extends WorkerHost {
           }
         }
         // Proceed with processing the order
-        if (campaign.Filter.is_order_count_filter_enabled) {
+        if (campaign.filters.is_order_count_filter_enabled) {
           const orderCount = customer.OrderCount;
           const {
             order_count_greater_or_equal: minAmount,
             order_count_less_or_equal: maxAmount,
             order_count_min: rangeMin,
             order_count_max: rangeMax,
-          } = campaign.Filter;
+          } = campaign.filters;
           if (
             (minAmount && orderCount < minAmount) ||
             (maxAmount !== 0 && orderCount > maxAmount) ||
@@ -295,23 +294,22 @@ export class CreateCheckoutCampaign extends WorkerHost {
             campaignId: campaign.id,
           },
         });
-      }
+    
 
       if (
-        campaign.CheckoutCreatedCampaign.new_checkout_abandonment_filter ===
+        campaign.new_checkout_abandonment_filter ===
         true
       ) {
         const abondnedcartdate = getFromDate(
-          campaign.CheckoutCreatedCampaign.new_checkout_abandonment_type ===
-            'BETWEEN_TRIGGER_TO_EVENT'
-            ? campaign.CheckoutCreatedCampaign.trigger_time
+          campaign.new_checkout_abandonment_type === "AFTER_EVENT"
+            ? campaign.
             : (campaign.CheckoutCreatedCampaign.trigger_time ?? '0'),
         );
         const abondned_checkout = await this.databaseService.checkout.findFirst(
           {
             where: {
               phone: checkout.phone,
-           id: { not: checkout.id },
+              id: { not: checkout.id },
               completedAt: null,
               createdAt: { gt: abondnedcartdate },
             },
@@ -330,7 +328,7 @@ export class CreateCheckoutCampaign extends WorkerHost {
         );
         const new_order = await this.databaseService.order.findFirst({
           where: {
-            customer_phoneno:order.customer_phoneno,
+            customer_phoneno: order.customer_phoneno,
             id: { not: order.id },
             created_at: { gt: orderCreationDate },
           },

@@ -436,27 +436,37 @@ enum PaymentStatus {
 }
 
 model Campaign {
-  id   String @id @default(cuid())
-  name String
-
-  status                          CampaignStatus                   @default(ACTIVE)
+  id                              String                @id @default(cuid())
+  name                            String
   type                            CampaignType
-  createdAt                       DateTime                         @default(now())
-  updatedAt                       DateTime                         @updatedAt
-  createdBy                       String?
-  creator                         User?                            @relation(fields: [createdBy], references: [id])
-  createdFor                      Business?                        @relation(fields: [createdForId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  createdForId                    String?
-  CheckoutCreatedCampaign         CheckoutCreatedCampaign?
-  OrderCreatedCampaign            orderCreatedCampaign?
-  FullfillmentCreateCampaign      FullfillmentCreateCampaign?
-  FullfillmentEventCreateCampaign FullfillmentEventCreateCampaign?
-  OrderUpdateCampaign             OrderUpdateCampaign?
-  OrderTagAddedCampaigin          OrderTagAdded?
-  OrderCancelCampaign             OrderCancelCampaign?
-  Filter                          Filter?
-
-  Chat Chat[]
+  status                          CampaignStatus        @default(ACTIVE)
+  trigger_type                    campaign_trigger_type
+  trigger_time                    Json?
+  template_name                   String
+  template_type                   String
+  template_lang                   String
+  components                      Json
+  is_discount_given               Boolean               @default(true)
+  discount                        Int?
+  coupon_code                     String?
+  discount_type                   discount_type
+  filter_condition_match          Boolean
+  new_checkout_abandonment_filter Boolean
+  new_checkout_abandonment_type   trigger_type?
+  new_checkout_abandonment_time   Json?
+  new_order_creation_filter       Boolean?
+  new_order_creation_type         trigger_type
+  new_order_creation_time         Json?
+  related_order_created           Boolean  @default(false)
+  related_order_fulfilled         Boolean @default(false)
+  related_order_cancelled          Boolean  @default(false)
+  checkouts                       CheckoutOnCampaign[]
+  filters                         Filter?
+  User                            User?                 @relation(fields: [userId], references: [id])
+  userId                          String?
+  Business                        Business?             @relation(fields: [businessId], references: [id])
+  businessId                      String?
+  Chat                            Chat[]
 }
 
 model Filter {
@@ -464,7 +474,7 @@ model Filter {
   campaign_id                              String             @unique
   campaign                                 Campaign           @relation(fields: [campaign_id], references: [id])
   is_order_tag_filter_enabled              Boolean            @default(false)
-  order_tag_filer_all                      String[]
+  order_tag_filter_all                     String[]
   order_tag_filter_any                     String[]
   order_tag_filter_none                    String[]
   is_product_tag_filter_enabled            Boolean            @default(false)
@@ -504,71 +514,19 @@ model Filter {
   order_method                             OrderMethod?
 }
 
-enum OrderMethod {
-  confirmed
-  label_printed
-  label_purchases
-  ready_for_pickup
-  picked_up
-  in_transit
-  out_for_delivery
-  attemped_delivery
-  failed_delivery
-  delivered
-}
-
-enum PaymentOptionType {
-  PAID
-  UNPAID
-}
-
-model CheckoutCreatedCampaign {
-  id                              String                @id @default(cuid())
-  campaign                        Campaign              @relation(fields: [campaignId], references: [id])
-  campaignId                      String                @unique
-  trigger_type                    campaign_trigger_type
-  trigger_time                    String
-  template_name                   String
-  template_type                   String
-  template_lang                   String
-  components                      Json
-  isdiscountgiven                 Boolean               @default(true)
-  discount                        Int?
-  coupon_code                     String?
-  discount_type                   discount_type
-  filter_condition_match          Boolean
-  new_checkout_abandonment_filter Boolean
-  new_checkout_abandonment_type   trigger_type?
-  new_checkout_abandonment_time   String?
-
-  new_order_creation_filter Boolean?
-  new_order_creation_type   trigger_type
-  new_order_creation_time   String
-
-  related_order_created   Boolean
-  related_order_cancelled Boolean
-  checkouts               CheckoutOnCampaign[] // Relation to the join table
-}
-
-enum trigger_type {
-  BETWEEN_TRIGGER_TO_EVENT
-  CUSTOM
-}
-
 model Checkout {
-  id             String   @id @default(cuid())
-  shopify_id     String   @unique
-  token          String
-  cartToken      String
-  email          String?
-  gateway        String?
-  createdAt      DateTime
-  updatedAt      DateTime
-  landingSite    String
-  note           String?
-  noteAttributes Json?
-  domain         String
-
+  id                   String               @id @default(cuid())
+  shopify_id           String               @unique
+  token                String
+  cartToken            String
+  email                String?
+  gateway              String?
+  createdAt            DateTime
+  updatedAt            DateTime
+  landingSite          String
+  note                 String?
+  noteAttributes       Json?
+  domain               String
   currency             String
   completedAt          DateTime?
   phone                String?
@@ -586,30 +544,29 @@ model Checkout {
   subtotalPrice        String
   totalPrice           String
   totalDuties          String
-
-  customer Json?
-
-  source           String?
-  closedAt         DateTime?
-  for_campaign     Boolean   @default(false)
-  shipping_address Json?
-  billingAddress   Json?
-
-  processedAt DateTime?
-
-  campaigns CheckoutOnCampaign[] // Relation to the join table
+  customer             Json?
+  source               String?
+  closedAt             DateTime?
+  for_campaign         Boolean              @default(false)
+  shipping_address     Json?
+  billingAddress       Json?
+  processedAt          DateTime?
+  campaigns            CheckoutOnCampaign[]
 }
 
-// Join table to establish the many-to-many relationship
 model CheckoutOnCampaign {
   checkoutId String
   campaignId String
   assignedAt DateTime @default(now())
+  checkout   Checkout @relation(fields: [checkoutId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 
-  checkout Checkout                @relation(fields: [checkoutId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  campaign CheckoutCreatedCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  @@id([checkoutId, campaignId])
+}
 
-  @@id([checkoutId, campaignId]) // Composite primary key
+enum trigger_type {
+  AFTER_EVENT
+  CUSTOM
 }
 
 enum discount_type {
@@ -617,153 +574,9 @@ enum discount_type {
   AMOUNT
 }
 
-model orderCreatedCampaign {
-  id                              String                @id @default(cuid())
-  campaign                        Campaign              @relation(fields: [campaignId], references: [id])
-  campaignId                      String                @unique
-  template_name                   String
-  template_type                   String
-  template_lang                   String
-  components                      Json
-  trigger_type                    campaign_trigger_type
-  trigger_time                    String
-  filter_condition_match          Boolean
-  new_checkout_abandonment_filter Boolean
-  new_checkout_abandonment_type   trigger_type?
-  new_checkout_abandonment_time   String?
-
-  new_order_creation_filter Boolean?
-  new_order_creation_type   trigger_type
-  new_order_creation_time   String
-
-  related_order_created    Boolean
-  related_order_fullfilled Boolean
-}
-
-model FullfillmentCreateCampaign {
-  id                              String                @id @default(cuid())
-  campaign                        Campaign              @relation(fields: [campaignId], references: [id])
-  campaignId                      String                @unique
-  template_name                   String
-  template_type                   String
-  template_lang                   String
-  components                      Json
-  trigger_type                    campaign_trigger_type
-  trigger_time                    String
-  filter_condition_match          Boolean
-  new_checkout_abandonment_filter Boolean
-  new_checkout_abandonment_type   trigger_type?
-  new_checkout_abandonment_time   String?
-
-  new_order_creation_filter Boolean?
-  new_order_creation_type   trigger_type
-  new_order_creation_time   String
-
-  related_order_created    Boolean
-  related_order_fullfilled Boolean
-}
-
-model OrderUpdateCampaign {
-  id                              String                @id @default(cuid())
-  campaign                        Campaign              @relation(fields: [campaignId], references: [id])
-  campaignId                      String                @unique
-  template_name                   String
-  template_type                   String
-  template_lang                   String
-  components                      Json
-  trigger_type                    campaign_trigger_type
-  trigger_time                    String
-  filter_condition_match          Boolean
-  new_checkout_abandonment_filter Boolean
-  new_checkout_abandonment_type   trigger_type?
-  new_checkout_abandonment_time   String?
-
-  new_order_creation_filter Boolean?
-  new_order_creation_type   trigger_type
-  new_order_creation_time   String
-
-  related_order_created    Boolean
-  related_order_fullfilled Boolean
-}
-
-model OrderCancelCampaign {
-  id                              String                @id @default(cuid())
-  campaign                        Campaign              @relation(fields: [campaignId], references: [id])
-  campaignId                      String                @unique
-  template_name                   String
-  template_type                   String
-  template_lang                   String
-  components                      Json
-  trigger_type                    campaign_trigger_type
-  trigger_time                    String
-  filter_condition_match          Boolean
-  new_checkout_abandonment_filter Boolean
-  new_checkout_abandonment_type   trigger_type?
-  new_checkout_abandonment_time   String?
-
-  new_order_creation_filter Boolean?
-  new_order_creation_type   trigger_type
-  new_order_creation_time   String
-
-  related_order_created    Boolean
-  related_order_fullfilled Boolean
-}
-
-model FullfillmentEventCreateCampaign {
-  id                              String                @id @default(cuid())
-  campaign                        Campaign              @relation(fields: [campaignId], references: [id])
-  campaignId                      String                @unique
-  template_name                   String
-  template_type                   String
-  template_lang                   String
-  components                      Json
-  trigger_type                    campaign_trigger_type
-  trigger_time                    String
-  filter_condition_match          Boolean
-  new_checkout_abandonment_filter Boolean
-  new_checkout_abandonment_type   trigger_type?
-  new_checkout_abandonment_time   String?
-
-  new_order_creation_filter Boolean?
-  new_order_creation_type   trigger_type
-  new_order_creation_time   String
-
-  related_order_created    Boolean
-  related_order_fullfilled Boolean
-}
-
-model OrderTagAdded {
-  id                              String                @id @default(cuid())
-  campaign                        Campaign              @relation(fields: [campaignId], references: [id])
-  campaignId                      String                @unique
-  template_name                   String
-  template_type                   String
-  template_lang                   String
-  components                      Json
-  trigger_type                    campaign_trigger_type
-  trigger_time                    String
-  filter_condition_match          Boolean
-  new_checkout_abandonment_filter Boolean
-  new_checkout_abandonment_type   trigger_type?
-  new_checkout_abandonment_time   String?
-
-  new_order_creation_filter Boolean?
-  new_order_creation_type   trigger_type
-  new_order_creation_time   String
-
-  related_order_created    Boolean
-  related_order_fullfilled Boolean
-}
-
 enum campaign_trigger_type {
   AFTER_CAMPAIGN_CREATED
   CUSTOM
-}
-
-enum time_unit {
-  DAY
-  HOUR
-  MINUTE
 }
 
 enum CampaignType {
@@ -782,6 +595,30 @@ enum CampaignStatus {
   ARCHIVED
 }
 
+enum OrderMethod {
+  confirmed
+  label_printed
+  label_purchases
+  ready_for_pickup
+  picked_up
+  in_transit
+  out_for_delivery
+  attemped_delivery
+  failed_delivery
+  delivered
+}
+
+enum PaymentOptionType {
+  PAID
+  UNPAID
+}
+
+enum time_unit {
+  DAY
+  HOUR
+  MINUTE
+}
+
 model Fulfillment {
   id              String   @id @default(cuid()) // Local DB ID
   shopifyId       String   @unique // Shopify Fulfillment ID
@@ -796,7 +633,7 @@ model Fulfillment {
 
 model discount {
   id         String        @id @default(cuid()) // Local DB ID
-// Shopify Discount ID
+  // Shopify Discount ID
   title      String // e.g., "20% off all items"\
   amount     Float // Amount off (negative for a discount)
   type       discount_type // "PERCENTAGE" or "AMOUNT"

@@ -223,19 +223,18 @@ export class CreateCheckoutQueue extends WorkerHost {
       
       const Campaigns = await this.databaseService.campaign.findMany({
         where: {
-          createdFor: { shopify_domain: domain },
+          Business: { shopify_domain: domain },
           status: 'ACTIVE',
           type: 'CHECKOUT_CREATED',
         },
-        include:{
-          CheckoutCreatedCampaign:true
-        }
+       
       });
 
       if (Campaigns.length === 0) return;
 
       Campaigns.forEach((campaign) => {
-        const time =campaign.CheckoutCreatedCampaign.trigger_type ==="AFTER_CAMPAIGN_CREATED"? 0: getFutureTimestamp(campaign.CheckoutCreatedCampaign.trigger_time)
+
+        const time =campaign.trigger_type ==="AFTER_CAMPAIGN_CREATED"? 0: getFutureTimestamp(campaign.trigger_time as any)
         this.createCheckoutCampaignQueue
           .add(
             'createCheckoutCampaign',

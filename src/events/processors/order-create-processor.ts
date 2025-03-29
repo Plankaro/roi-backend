@@ -233,159 +233,159 @@ export class CreateOrderQueue extends WorkerHost {
     super();
   }
   async process(job: Job<any>): Promise<void> {
-    try {
-      const { orderData, domain } = job.data as JobData;
+    // try {
+    //   const { orderData, domain } = job.data as JobData;
 
  
-      const contact =
-        orderData.billing_address?.phone || orderData.customer?.phone;
+    //   const contact =
+    //     orderData.billing_address?.phone || orderData.customer?.phone;
 
-      const sanitizedContact = sanitizePhoneNumber(contact);
+    //   const sanitizedContact = sanitizePhoneNumber(contact);
 
-      const order_created = await this.databaseService.order.create({
-        data: {
-          shopify_id: orderData.id.toString(),
-          customer_phoneno: sanitizedContact,
-          // propspect_id: prospect ? prospect.id : null, // Ensure prospect ID is mapped correctly
-          status: orderData.financial_status,
-          amount: orderData.current_total_price,
-          Date: new Date(orderData.created_at),
-          // fromBroadcast: true,
-          // BroadCastId: latestBroadcast.id,/
-          shopify_store: domain,
-          order_status_url: orderData.order_status_url,
-          processed_at: orderData.processed_at,
-          cancel_reason: orderData.cancel_reason,
-          cancelled_at: orderData.cancelled_at,
-          cart_token: orderData.cart_token,
-          checkout_id: String(orderData.checkout_id),
-          checkout_token: orderData.checkout_token,
-          closed_at: orderData.closed_at,
-          confirmation_number: orderData.confirmation_number,
-          confirmed: orderData.confirmed,
-          contact_email: orderData.contact_email,
-          created_at: orderData.created_at,
-          currency: orderData.currency,
-          discount_codes: orderData.discount_codes,
-          fulfillment_status: orderData.fulfillment_status,
-          fulfillments :orderData.fulfillments,
-          landing_site: orderData.landing_site,
-          updated_at: orderData.updated_at,
-          total_weight: orderData.total_weight,
-          merchant_business_entity_id: orderData.merchant_business_entity_id,
-          name: orderData.name,
-          order_number: orderData.order_number,
-          shipping_lines: orderData.shipping_lines,
-          shipping_address: orderData.shipping_address,
-        },
-      });
+    //   const order_created = await this.databaseService.order.create({
+    //     data: {
+    //       shopify_id: orderData.id.toString(),
+    //       customer_phoneno: sanitizedContact,
+    //       // propspect_id: prospect ? prospect.id : null, // Ensure prospect ID is mapped correctly
+    //       status: orderData.financial_status,
+    //       amount: orderData.current_total_price,
+    //       Date: new Date(orderData.created_at),
+    //       // fromBroadcast: true,
+    //       // BroadCastId: latestBroadcast.id,/
+    //       shopify_store: domain,
+    //       order_status_url: orderData.order_status_url,
+    //       processed_at: orderData.processed_at,
+    //       cancel_reason: orderData.cancel_reason,
+    //       cancelled_at: orderData.cancelled_at,
+    //       cart_token: orderData.cart_token,
+    //       checkout_id: String(orderData.checkout_id),
+    //       checkout_token: orderData.checkout_token,
+    //       closed_at: orderData.closed_at,
+    //       confirmation_number: orderData.confirmation_number,
+    //       confirmed: orderData.confirmed,
+    //       contact_email: orderData.contact_email,
+    //       created_at: orderData.created_at,
+    //       currency: orderData.currency,
+    //       discount_codes: orderData.discount_codes,
+    //       fulfillment_status: orderData.fulfillment_status,
+    //       fulfillments :orderData.fulfillments,
+    //       landing_site: orderData.landing_site,
+    //       updated_at: orderData.updated_at,
+    //       total_weight: orderData.total_weight,
+    //       merchant_business_entity_id: orderData.merchant_business_entity_id,
+    //       name: orderData.name,
+    //       order_number: orderData.order_number,
+    //       shipping_lines: orderData.shipping_lines,
+    //       shipping_address: orderData.shipping_address,
+    //     },
+    //   });
 
-      const Campaigns = await this.databaseService.campaign.findMany({
-        where: { // ✅ Add 'where'
-          createdFor: {
-            shopify_domain: domain, // ✅ Correct nested filtering
-          },
-          status: 'ACTIVE',
-          type: 'ORDER_CREATED',
-        },
-        include:{
-          OrderCreatedCampaign: true,
-        }
-      });
+    //   const Campaigns = await this.databaseService.campaign.findMany({
+    //     where: { // ✅ Add 'where'
+    //       createdFor: {
+    //         shopify_domain: domain, // ✅ Correct nested filtering
+    //       },
+    //       status: 'ACTIVE',
+    //       type: 'ORDER_CREATED',
+    //     },
+    //     include:{
+    //       OrderCreatedCampaign: true,
+    //     }
+    //   });
       
-      if (Campaigns.length > 0) {
-         Campaigns.forEach((campaign) => {
-               const time =campaign.OrderCreatedCampaign.trigger_type ==="AFTER_CAMPAIGN_CREATED"? 0: getFutureTimestamp(campaign.OrderCreatedCampaign.trigger_time)
-               this.createOrderCampaign
-                 .add(
-                   'createOrderCampaignQueue',
-                   { campaignId: campaign.id,orderId: order_created.id },
+    //   if (Campaigns.length > 0) {
+    //      Campaigns.forEach((campaign) => {
+    //            const time =campaign.OrderCreatedCampaign.trigger_type ==="AFTER_CAMPAIGN_CREATED"? 0: getFutureTimestamp(campaign.OrderCreatedCampaign.trigger_time)
+    //            this.createOrderCampaign
+    //              .add(
+    //                'createOrderCampaignQueue',
+    //                { campaignId: campaign.id,orderId: order_created.id },
                    
-                   {
-                     delay: time,
-                     removeOnComplete: true,
-                   },
-                 )
-                 .then((job) => {
-                   console.log('Job added to createCheckoutCampaignQueue:', job.id);
-                 })
-                 .catch((error) => {
-                   console.error('Error adding job:', error);
-                 });
-             });
-      }
+    //                {
+    //                  delay: time,
+    //                  removeOnComplete: true,
+    //                },
+    //              )
+    //              .then((job) => {
+    //                console.log('Job added to createCheckoutCampaignQueue:', job.id);
+    //              })
+    //              .catch((error) => {
+    //                console.error('Error adding job:', error);
+    //              });
+    //          });
+    //   }
 
-      const threeDaysAgo = new Date();
-      threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+    //   const threeDaysAgo = new Date();
+    //   threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
 
-      const latestBroadcast = await this.databaseService.broadcast.findFirst({
-        where: {
-          createdAt: {
-            gte: threeDaysAgo,
-          },
-          Chat: {
-            some: {
-              receiverPhoneNo: sanitizedContact,
-            },
-          },
-          createdFor: {
-            shopify_domain: domain,
-          },
-        },
-        orderBy: {
-          createdAt: 'desc',
-        },
-      });
+    //   const latestBroadcast = await this.databaseService.broadcast.findFirst({
+    //     where: {
+    //       createdAt: {
+    //         gte: threeDaysAgo,
+    //       },
+    //       Chat: {
+    //         some: {
+    //           receiverPhoneNo: sanitizedContact,
+    //         },
+    //       },
+    //       createdFor: {
+    //         shopify_domain: domain,
+    //       },
+    //     },
+    //     orderBy: {
+    //       createdAt: 'desc',
+    //     },
+    //   });
 
-      if (latestBroadcast) {
-        let prospect = await this.databaseService.prospect.findUnique({
-          where: {
-            phoneNo: sanitizedContact,
-          },
-        });
+    //   if (latestBroadcast) {
+    //     let prospect = await this.databaseService.prospect.findUnique({
+    //       where: {
+    //         phoneNo: sanitizedContact,
+    //       },
+    //     });
 
-        if (prospect && !prospect.shopify_id) {
-          prospect = await this.databaseService.prospect.update({
-            where: {
-              phoneNo: sanitizedContact,
-            },
-            data: {
-              shopify_id: orderData.customer.id.toString(),
-            },
-          });
-        }
+    //     if (prospect && !prospect.shopify_id) {
+    //       prospect = await this.databaseService.prospect.update({
+    //         where: {
+    //           phoneNo: sanitizedContact,
+    //         },
+    //         data: {
+    //           shopify_id: orderData.customer.id.toString(),
+    //         },
+    //       });
+    //     }
 
-        const isOrderUnique = await this.databaseService.order.findFirst({
-          where: {
-            customer_phoneno: sanitizedContact,
-            BroadCastId: latestBroadcast.id,
-          },
-        });
+    //     const isOrderUnique = await this.databaseService.order.findFirst({
+    //       where: {
+    //         customer_phoneno: sanitizedContact,
+    //         BroadCastId: latestBroadcast.id,
+    //       },
+    //     });
 
-        if (!isOrderUnique) {
-          await this.databaseService.broadcast.update({
-            where: { id: latestBroadcast.id },
-            data: {
-              unique_order_created: { increment: 1 },
-            },
-          });
-        }
+    //     if (!isOrderUnique) {
+    //       await this.databaseService.broadcast.update({
+    //         where: { id: latestBroadcast.id },
+    //         data: {
+    //           unique_order_created: { increment: 1 },
+    //         },
+    //       });
+    //     }
 
-        await this.databaseService.order.update({
-          where: {
-            id: order_created.id,
-          },
-          data: {
-            propspect_id: prospect ? prospect.id : null,
-            fromBroadcast: true,
-            BroadCastId: latestBroadcast.id, /// Ensure
-          },
-        });
-      } else {
-        console.log('No recent broadcast found for this contact.');
-      }
-    } catch (error) {
-      console.error('Error in manipulateOrder:', error);
-    }
+    //     await this.databaseService.order.update({
+    //       where: {
+    //         id: order_created.id,
+    //       },
+    //       data: {
+    //         propspect_id: prospect ? prospect.id : null,
+    //         fromBroadcast: true,
+    //         BroadCastId: latestBroadcast.id, /// Ensure
+    //       },
+    //     });
+    //   } else {
+    //     console.log('No recent broadcast found for this contact.');
+    //   }
+    // } catch (error) {
+    //   console.error('Error in manipulateOrder:', error);
+    // }
   }
 }

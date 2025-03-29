@@ -113,7 +113,7 @@ export class ChatsService {
         components.push({
           type: 'button',
           sub_type: 'url',
-          index: '0',
+          index: button.index,
           parameters: [
             {
               type: 'text',
@@ -121,15 +121,15 @@ export class ChatsService {
             },
           ],
         });
-      } else if (button.type === 'COPY_CODE') {
+      }  else if (button.type === 'COPY_CODE') {
         components.push({
           type: 'button',
-          sub_type: 'copy_code',
-          index: index,
+          sub_type: 'COPY_CODE',
+          index: button.index,
           parameters: [
             {
-              type: 'otp',
-              text: button.value,
+              type: 'coupon_code', // Must be exactly "coupon_code" for copy_code buttons
+              coupon_code: '25OFF', // The actual coupon code text you want to be copied
             },
           ],
         });
