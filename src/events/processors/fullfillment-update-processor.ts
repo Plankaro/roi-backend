@@ -11,5 +11,7 @@ export class FullfillmentEventProcessor extends  WorkerHost{
     constructor(private readonly databaseService: DatabaseService) {
         super();
     }
-    async process(job: Job<JobData>): Promise<void> {}
+    async process(job: Job<JobData>): Promise<void> {
+        
+    }
 }

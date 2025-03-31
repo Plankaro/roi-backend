@@ -15,7 +15,7 @@ export class EventsController {
     @Body() checkoutData: any,
     @Headers() headers: Record<string, string>,
   ) {
-    console.log("Checkout data",JSON.stringify(checkoutData,null,2))
+   
     await this.eventsService.manipulateCheckout(checkoutData, headers["x-shopify-shop-domain"]);
 
     return { success: true };
@@ -27,7 +27,7 @@ export class EventsController {
     @Body() updateCheckout: any,
     @Headers() headers: Record<string, string>,
   ) {
-    console.log("updateCheckout", JSON.stringify(updateCheckout,null,2))
+    
    
     await this.eventsService.manipulateUpdatedCheckout(updateCheckout, headers["x-shopify-shop-domain"]);
     return { success: true };
@@ -96,6 +96,19 @@ async fullfillment(
   ) {
     await this.eventsService.manipulateCreateFullFillment(orderData, headers["x-shopify-shop-domain"]);
     // Pass the order data to your service for further processing
+
+    return { success: true };
+  }
+
+
+  @Public()
+  @Post('/payment')
+async Payment(
+    @Body() orderData: any,
+    @Headers() headers: Record<string, string>,
+  ) {
+   console.log("payment",JSON.stringify(orderData,null,2))
+   await this.eventsService.manipulatePayment(orderData);
 
     return { success: true };
   }

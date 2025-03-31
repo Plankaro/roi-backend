@@ -88,6 +88,8 @@ model Business {
   whatsapp_token       String?
   whatsapp_buisness_id String?
   whatsapp_app_id      String?
+  razorpay_id           String?
+  razorpay_secret      String?
 
   Broadcast     Broadcast[]
   Template      Template[]
@@ -174,6 +176,10 @@ model Order {
 
   total_weight Int?
   updated_at   DateTime?
+
+  OrderCampaign OrderCampaign[]
+
+  PaymentLink PaymentLink[]
 }
 
 enum Status {
@@ -282,7 +288,7 @@ enum OrderStatus {
   CANCELLED
 }
 
-model Broadcast {
+model Broadcast {model buc
   id String @id @default(cuid())
 
   template_name                         String
@@ -326,6 +332,7 @@ model Broadcast {
   skip_inactive_contacts_days           Int?
   reply_count                           Int             @default(0)
   unique_interactions                   Int             @default(0)
+
 }
 
 enum broadcastStatus {
@@ -438,7 +445,8 @@ enum PaymentStatus {
 model Campaign {
   id                              String                @id @default(cuid())
   name                            String
-  type                            CampaignType
+  trigger                         CampaignType          @default(CHECKOUT_CREATED)
+  type                            String
   status                          CampaignStatus        @default(ACTIVE)
   trigger_type                    campaign_trigger_type
   trigger_time                    Json?
@@ -449,7 +457,7 @@ model Campaign {
   is_discount_given               Boolean               @default(true)
   discount                        Int?
   coupon_code                     String?
-  discount_type                   discount_type
+  discount_type                   discount_type  @default(PERCENTAGE)
   filter_condition_match          Boolean
   new_checkout_abandonment_filter Boolean
   new_checkout_abandonment_type   trigger_type?
@@ -457,9 +465,9 @@ model Campaign {
   new_order_creation_filter       Boolean?
   new_order_creation_type         trigger_type
   new_order_creation_time         Json?
-  related_order_created           Boolean  @default(false)
-  related_order_fulfilled         Boolean @default(false)
-  related_order_cancelled          Boolean  @default(false)
+  related_order_created           Boolean               @default(false)
+  related_order_fulfilled         Boolean               @default(false)
+  related_order_cancelled         Boolean               @default(false)
   checkouts                       CheckoutOnCampaign[]
   filters                         Filter?
   User                            User?                 @relation(fields: [userId], references: [id])
@@ -467,6 +475,10 @@ model Campaign {
   Business                        Business?             @relation(fields: [businessId], references: [id])
   businessId                      String?
   Chat                            Chat[]
+
+  OrderCampaign OrderCampaign[]
+
+  PaymentLink PaymentLink[]
 }
 
 model Filter {
@@ -563,6 +575,37 @@ model CheckoutOnCampaign {
 
   @@id([checkoutId, campaignId])
 }
+
+model OrderCampaign {
+  orderId     String
+  campaignId String
+  assignedAt DateTime @default(now())
+  order     Order @relation(fields: [orderId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@id([orderId, campaignId])
+
+}
+
+model PaymentLink {
+  id                String   @id @default(cuid()) // Unique identifier for the payment link record
+  razorpay_link_id  String   @unique             // Unique identifier provided by Razorpay for the payment link
+  order_id          String? 
+  order              Order? @relation(fields: [order_id],references: [id],onDelete: Cascade)                      // Optional: Associated order ID from your system
+  amount            String                          // Amount to be paid, in the smallest currency unit (e.g., paise for INR)
+  currency          String                        // Currency code (e.g., 'INR')
+  description       String?                       // Optional: Description of the payment purpose
+  customer_name     String?                       // Optional: Customer's name                     // Optional: Customer's email address
+  customer_phone  String?                       // Optional: Customer's contact number
+  status            String                        // Status of the payment link (e.g., 'created', 'paid', 'expired')
+  short_url         String                        // Shortened URL for the payment link provided by Razorpay
+  expire_by         Int?                          // Optional: Expiration time as Unix timestamp
+  created_at        DateTime @default(now())      // Timestamp when the record is created
+  updated_at        DateTime @updatedAt  
+  campaign_id       String?
+  campaign          Campaign? @relation(fields: [campaign_id],references: [id],onDelete: Cascade)         // Timestamp when the record is last updated
+}
+
 
 enum trigger_type {
   AFTER_EVENT

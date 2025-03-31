@@ -14,10 +14,12 @@ import { updateOrderCampaign } from './processors/update-order-campaign';
 import { cancelOrderQueue } from './processors/cancel-order-processor';
 import { cancelOrderCampaign } from './processors/cancel-order-campaign';
 import { orderTagsAddedCampaign } from './processors/order-tag-added-campaign';
+import { RazorpayModule } from 'src/razorpay/razorpay.module';
 
 @Module({
   imports: [
     DatabaseModule,
+    RazorpayModule,
     ShopifyModule,
     WhatsappModule,
     BullModule.registerQueue(

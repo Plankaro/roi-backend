@@ -225,7 +225,7 @@ export class CreateCheckoutQueue extends WorkerHost {
         where: {
           Business: { shopify_domain: domain },
           status: 'ACTIVE',
-          type: 'CHECKOUT_CREATED',
+          trigger: 'CHECKOUT_CREATED',
         },
        
       });

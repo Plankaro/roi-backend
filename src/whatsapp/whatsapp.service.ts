@@ -57,10 +57,12 @@ export class WhatsappService {
         `/${config.whatsappMobileId}/messages`,
         payload,
       );
+      console.log(result.data);
 
       return result.data;
     } catch (error: any) {
-      const errorMessage = error.response?.data.error.error_data.details;
+      console.log(JSON.stringify(error,null,2));
+      const errorMessage = error.response?.data?.error?.error_data?.details;
       console.error(errorMessage || 'gjgyjf');
       throw new InternalServerErrorException(
         errorMessage ||

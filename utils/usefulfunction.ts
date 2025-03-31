@@ -34,6 +34,13 @@ export function getWhatsappConfig(buisness?:Business){
   }
 }
 
+export function getRazorpayConfig(buisness?:Business){
+  return {
+    razorpayApiKey: buisness?.razorpay_id,
+    razorpayApiSecret: buisness?.razorpay_secret,
+  }
+}
+
 
 export function mergeDateTime(dateStr: string, timeStr: string): string {
   const parsedDate = new Date(dateStr); // Convert date string to Date object
@@ -164,4 +171,9 @@ export function getFutureTimestamp(expression: Expression): number {
   }
 
   return Date.now() + msToAdd; // Return future timestamp in milliseconds
+}
+
+
+export function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }

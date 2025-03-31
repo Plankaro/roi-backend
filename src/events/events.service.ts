@@ -14,12 +14,13 @@ export class EventsService {
     @InjectQueue('updatedCheckoutQueue')
     private readonly updatedCheckoutQueue: Queue,
     @InjectQueue('updateOrderQueue') private readonly updateOrderQueue:Queue,
-    @InjectQueue('cancelOrderQueue') private readonly cancelOrderQueue:Queue
+    @InjectQueue('cancelOrderQueue') private readonly cancelOrderQueue:Queue,
+    private readonly databaseService: DatabaseService
 
     
   ) {}
   async manipulateOrder(orderData: any, domain: string) {
-    console.log(JSON.stringify(orderData, null, 2));
+   
 
   
     await this.createOrderQueue.add(
@@ -143,7 +144,7 @@ export class EventsService {
   }
 
   async manipulateUpdateOrder(updateOrder: any,domain: string){
-    console.log("updateOrder",JSON.stringify(updateOrder, null, 2));
+
     await this.updateOrderQueue.add(
       'createOrder',
       { orderData: updateOrder, domain },
@@ -157,7 +158,7 @@ export class EventsService {
   }
 
   async manipulateCancelOrder(cancelOrder: any, domain: string) {
-    console.log("cancelOrder",JSON.stringify(cancelOrder, null, 2));
+  
     await this.cancelOrderQueue.add(
       'cancelOrderQueue',
       { cancelOrderData: cancelOrder, domain },
@@ -173,7 +174,7 @@ export class EventsService {
     
   }
   async manipulateUpdatedFulfillment(updatedFulfillment: any, domain: string) {
-    console.log("updatedFulfillment",JSON.stringify(updatedFulfillment, null, 2));
+ 
   }
 
   async manipulateUpdatedCheckout(updateCheckout: any, domain: string) {
@@ -192,7 +193,7 @@ export class EventsService {
   }
 
   async manipulateCheckout(checkOutData: any, domain: string) {
-    console.log('createdCheck', checkOutData);
+ 
     await this.createCheckoutQueue.add(
       'createCheckoutQueue',
       { checkOutData, domain },
@@ -207,4 +208,22 @@ export class EventsService {
     //   console.log('Received checkout data:', checkOutData);
   }
 
+  async manipulatePayment(paymentData: any) {
+    const payment = await this.databaseService.paymentLink.findUnique({
+      where: {
+        razorpay_link_id:paymentData.payload.payment_link.entity.id,
+      }
+    })
+    if (payment) {
+      const updatedPayment = await this.databaseService.paymentLink.update({
+        where: {
+          razorpay_link_id:paymentData.payload.payment_link.entity.id,
+        },
+        data: {
+          status: paymentData.payload.payment_link.entity.status,
+        },
+      })
+      console.log('Payment updated successfully:', updatedPayment)
+    }
+  }
 }

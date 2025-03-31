@@ -14,7 +14,8 @@ export class CampaignService {
     const createOrderCampaign = await this.databaseService.campaign.create({
       data: {
         name: createCampaignDto.name,
-        type: 'CHECKOUT_CREATED',
+        type: createCampaignDto.type,
+        trigger: createCampaignDto.trigger,
         User: { connect: { id: user.id } },
         Business: { connect: { id: user.business.id } },
         template_name: createCampaignDto.template.name,
@@ -34,6 +35,7 @@ export class CampaignService {
         related_order_cancelled: createCampaignDto.related_order_fullfilled,
         discount_type: createCampaignDto.discount_type,
         discount: createCampaignDto.discount,
+        
       
       filters: {
         create: {
