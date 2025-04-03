@@ -168,9 +168,17 @@ export class CreateCheckoutQueue extends WorkerHost {
 
   async process(job: Job<any>): Promise<void> {
     try {
+      console.log('Received checkout data:'); 
+      console.log(job.id);
       const { checkOutData, domain }: JobData = job.data;
 
       if (!checkOutData.token) return;
+    
+      const findBuisness = await this.databaseService.business.findUnique({
+        where: {
+          shopify_domain: domain,
+        },
+      })
 
       const checkout = await this.databaseService.checkout.create({
         data: {
@@ -213,6 +221,7 @@ export class CreateCheckoutQueue extends WorkerHost {
           // or update as needed if different from shipping_address
           
           processedAt: checkOutData.processed_at,
+          businessId: findBuisness.id
     
        
           // campaigns field is a relation; you can associate related campaigns here if necessary.
@@ -220,7 +229,7 @@ export class CreateCheckoutQueue extends WorkerHost {
           // campaigns: { connect: [{ id: someCampaignId }] },
         },
       });
-      
+      console.log(checkout);
       const Campaigns = await this.databaseService.campaign.findMany({
         where: {
           Business: { shopify_domain: domain },

@@ -77,8 +77,9 @@ async createOrder(
  async  updatefullfillment(
     @Body() orderData: any,
     @Headers() headers: Record<string, string>,
+  
   ) {
-    // console.log("updatefullfillment",headers)
+    console.log("updatefullfillment",JSON.stringify(orderData,null,2))
    await this.eventsService.manipulateUpdatedFulfillment(orderData, headers["x-shopify-shop-domain"]);
     // Pass the order data to your service for further processing
 
@@ -94,6 +95,7 @@ async fullfillment(
     @Body() orderData: any,
     @Headers() headers: Record<string, string>,
   ) {
+    console.log("updatefullfillment",JSON.stringify(orderData,null,2))
     await this.eventsService.manipulateCreateFullFillment(orderData, headers["x-shopify-shop-domain"]);
     // Pass the order data to your service for further processing
 

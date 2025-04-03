@@ -608,6 +608,8 @@ export class CreateOrderCampaign extends WorkerHost {
            template_components: components,
            isForCampaign: true,
            campaignId: campaign.id,
+        
+
          },
        });
      } catch (error) {

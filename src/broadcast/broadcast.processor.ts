@@ -257,6 +257,7 @@ export class BroadcastProcessor extends WorkerHost {
             template_components: components,
             isForBroadcast: true,
             broadcastId: broadcast.id,
+            
           },
         });
         console.log('Chat record created:', addTodb);

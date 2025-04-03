@@ -32,6 +32,7 @@ import { AgentsModule } from './agents/agents.module';
 import { CampaignModule } from './campaign/campaign.module';
 import { GemniModule } from './gemni/gemni.module';
 import { RazorpayModule } from './razorpay/razorpay.module';
+import { AnalyticsModule } from './analytics/analytics.module';
 
 
 
@@ -80,6 +81,7 @@ import { RazorpayModule } from './razorpay/razorpay.module';
     CampaignModule,
     GemniModule,
     RazorpayModule,
+    AnalyticsModule,
   
    
   ],

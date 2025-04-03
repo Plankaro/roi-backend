@@ -21,6 +21,7 @@ import {
 } from 'utils/usefulfunction';
 import { Order } from 'src/orders/entities/order.entity';
 import { Campaign } from 'src/campaign/entities/campaign.entity';
+import { add } from 'date-fns';
 
 @Processor('createCheckoutCampaign')
 @Injectable()
@@ -574,8 +575,10 @@ export class CreateCheckoutCampaign extends WorkerHost {
           template_components: components,
           isForCampaign: true,
           campaignId: campaign.id,
+          
         },
       });
+      console.log(addTodb)
     } catch (error) {
       console.error('Error in getShopifyPercentageDiscount:', error);
       throw error;

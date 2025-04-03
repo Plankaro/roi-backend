@@ -236,20 +236,33 @@ export class CreateOrderQueue extends WorkerHost {
     try {
       const { orderData, domain } = job.data as JobData;
 
+      
  
       const contact =
         orderData.billing_address?.phone || orderData.customer?.phone;
 
       const sanitizedContact = sanitizePhoneNumber(contact);
-
+      const ifCheckout = await this.databaseService.checkout.findUnique({
+        where: {
+          shopify_id: String(orderData.checkout_id),
+        },
+      })
+      console.log("checkoutdb",ifCheckout);
+      const findBuisness = await this.databaseService.business.findUnique({
+        where: {
+          shopify_domain: domain,
+        },
+      })
+      console.log("business",findBuisness);
       const order_created = await this.databaseService.order.create({
         data: {
           shopify_id: orderData.id.toString(),
           customer_phoneno: sanitizedContact,
-          // propspect_id: prospect ? prospect.id : null, // Ensure prospect ID is mapped correctly
+          buisnessId: findBuisness?.id,
           status: orderData.financial_status,
           amount: orderData.current_total_price,
           Date: new Date(orderData.created_at),
+          db_checkout_id: ifCheckout ? ifCheckout.id : null,
           // fromBroadcast: true,
           // BroadCastId: latestBroadcast.id,/
           shopify_store: domain,
@@ -277,6 +290,7 @@ export class CreateOrderQueue extends WorkerHost {
           order_number: orderData.order_number,
           shipping_lines: orderData.shipping_lines,
           shipping_address: orderData.shipping_address,
+        
         },
       });
 

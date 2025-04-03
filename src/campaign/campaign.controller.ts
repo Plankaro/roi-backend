@@ -12,6 +12,11 @@ export class CampaignController {
     return this.campaignService.createrCampaign(createCampaignDto,req);
   }
 
+@Get('/')
+getCampaign(@Req() req:any){
+  return this.campaignService.getCampaigns(req);
+}
+
   // @Post('/createCheckout')
   // createCheckoutCampaign(@Body() createCampaignDto: CreateCampaignDto,@Req() req:any) {
   //   return this.campaignService.createOrderCampaign(createCampaignDto,req);

@@ -1,4 +1,9 @@
-import { Injectable, Body, InternalServerErrorException } from '@nestjs/common';
+import {
+  Injectable,
+  Body,
+  InternalServerErrorException,
+  BadRequestException,
+} from '@nestjs/common';
 import { SendTemplateMessageDto } from './dto/template-chat';
 import { WhatsappService } from 'src/whatsapp/whatsapp.service';
 import { ChatsGateway } from './chats.gateway';
@@ -6,6 +11,7 @@ import { DatabaseService } from 'src/database/database.service';
 import { MediaDto } from './dto/media-chat-dto';
 import { Business, HeaderType } from '@prisma/client';
 import {
+  escapeRegExp,
   getFirstAndLastName,
   getWhatsappConfig,
   sanitizePhoneNumber,
@@ -22,186 +28,209 @@ export class ChatsService {
     private readonly chatsGateway: ChatsGateway,
     private readonly databaseService: DatabaseService,
     private readonly ShopifyService: ShopifyService,
-     @InjectQueue('receiveChatsQueue') private readonly receiveChatsQueue: Queue,
+    @InjectQueue('receiveChatsQueue') private readonly receiveChatsQueue: Queue,
   ) {}
   async sendTemplatemessage(sendTemplateMessageDto: any, req: any) {
-    const {
-      body, // Array of body objects
-      buttons, // Array of buttons
-      header, // Header object
-      language, // Language string
-      parameter_format, // Format type
-      recipientNo, // Recipient's phone number
-      template_name,
-      previewSection,
-      template_type,
-
-      // Template name
-    } = sendTemplateMessageDto;
-
-    console.log(JSON.stringify(sendTemplateMessageDto, null, 2));
-
-    const components = [];
-    const buisness = req.user.business;
-
-    if (header && header.isEditable) {
-      if (header.type === 'TEXT') {
-        // For text headers: include parameter_name only for NAMED templates.
-        if (parameter_format === 'NAMED' && header.parameter_name) {
+  try {
+      const {
+        name,
+        templateForm,
+        recipientNo,
+  
+        // Template name
+      } = sendTemplateMessageDto;
+  
+      console.log(JSON.stringify(sendTemplateMessageDto, null, 2));
+      const user = req.user;
+      const buisness = req.user.business;
+      const components = [];
+      const whatsappConfig = getWhatsappConfig(buisness);
+      const response = await this.whatsappService.findSpecificTemplate(
+        whatsappConfig,
+        name,
+      );
+      const template = response?.data?.[0];
+      console.log(template);
+  
+      if (!template) {
+        throw new BadRequestException('Template not found');
+      }
+      const { header, body, buttons } = templateForm;
+      if (header && header.isEditable) {
+        let headerValue = '';
+        if (header.type === 'TEXT') {
+          headerValue = header.value;
+          if (
+            template.parameter_format === 'NAMED' &&
+            template.components[0]?.example?.header_text_named_params?.[0]
+              ?.param_name
+          ) {
+            components.push({
+              type: 'header',
+              parameters: [
+                {
+                  type: 'text',
+                  parameter_name:
+                    template.components[0].example.header_text_named_params[0]
+                      .param_name,
+                  text: headerValue,
+                },
+              ],
+            });
+          } else {
+            components.push({
+              type: 'header',
+              parameters: [{ type: 'text', text: headerValue }],
+            });
+          }
+        } else if (header.type === 'IMAGE') {
           components.push({
             type: 'header',
+            parameters: [{ type: 'image', image: { link: header.value } }],
+          });
+        } else if (header.type === 'VIDEO') {
+          components.push({
+            type: 'header',
+            parameters: [{ type: 'video', video: { link: header.value } }],
+          });
+        } else if (header.type === 'DOCUMENT') {
+          components.push({
+            type: 'header',
+            parameters: [{ type: 'document', document: { link: header.value } }],
+          });
+        }
+        console.log('Header processed with value:', headerValue);
+      }
+  
+      // Process body component parameters
+      const bodyParameters = body.map((param) => {
+        const value = param.value || 'test';
+        return template.parameter_format === 'NAMED'
+          ? {
+              type: 'text',
+              parameter_name: param.parameter_name.replace(/{{|}}/g, ''),
+              text: value,
+            }
+          : { type: 'text', text: value };
+      });
+      components.push({ type: 'body', parameters: bodyParameters });
+      console.log('Body parameters processed:', bodyParameters);
+  
+      // Process buttons
+      buttons.forEach((button, index) => {
+        if (button.type === 'URL' && button.isEditable === true) {
+          components.push({
+            type: 'button',
+            sub_type: 'url',
+            index: index,
+            parameters: [{ type: 'text', text: button.value }],
+          });
+        } else if (button.type === 'COPY_CODE') {
+          components.push({
+            type: 'button',
+            sub_type: 'COPY_CODE',
+            index: button.index,
             parameters: [
               {
-                type: 'text',
-                parameter_name: header.parameter_name,
-                text: header.value,
+                type: 'coupon_code', // Must be exactly "coupon_code" for copy_code buttons
+                coupon_code: button.value, // The actual coupon code text you want to be copied
               },
             ],
           });
-        } else {
-          // For POSITIONAL templates, only include the text.
-          components.push({
-            type: 'header',
-            parameters: [{ type: 'text', text: header.value }],
-          });
         }
-      } else if (header.type === 'IMAGE') {
-        // For image headers, use the "image" key.
-        components.push({
-          type: 'header',
-          parameters: [{ type: 'image', image: { link: header.value } }],
-        });
-      } else if (header.type === 'VIDEO') {
-        // For video headers, use the "video" key.
-        components.push({
-          type: 'header',
-          parameters: [{ type: 'video', video: { link: header.value } }],
-        });
-      } else if (header.type === 'DOCUMENT') {
-        // For document headers, use the "document" key.
-        components.push({
-          type: 'header',
-          parameters: [{ type: 'document', document: { link: header.value } }],
-        });
-      }
-    }
-
-    const bodyParameters = body.map((param) => {
-      if (parameter_format === 'NAMED') {
-        return {
-          type: 'text',
-          parameter_name: param.parameter_name, // e.g., "customer_name"
-          text: param.value, // e.g., "John"
-        };
-      } else {
-        // Default to positional
-        return {
-          type: 'text',
-          text: param.value, // e.g., "John"
-        };
-      }
-    });
-    components.push({
-      type: 'body',
-      parameters: bodyParameters,
-    });
-
-    console.log(buttons);
-
-    buttons.map((button, index) => {
-      if (button.type === 'URL' && button.isEditable == true) {
-        components.push({
-          type: 'button',
-          sub_type: 'url',
-          index: button.index,
-          parameters: [
-            {
-              type: 'text',
-              text: button.value,
-            },
-          ],
-        });
-      }  else if (button.type === 'COPY_CODE') {
-        components.push({
-          type: 'button',
-          sub_type: 'COPY_CODE',
-          index: button.index,
-          parameters: [
-            {
-              type: 'coupon_code', // Must be exactly "coupon_code" for copy_code buttons
-              coupon_code: '25OFF', // The actual coupon code text you want to be copied
-            },
-          ],
-        });
-      }
-    });
-
-    console.log(JSON.stringify(components, null, 2));
-
-    //  const buisnessNo =
-
-    try {
-      const prospect = await this.databaseService.prospect.upsert({
-        where: {
-          buisnessNo_phoneNo: {
-            // Correct format for compound unique constraint
-            phoneNo: recipientNo as string,
-            buisnessNo: buisness.whatsapp_mobile,
-          },
-        },
-        update: {
-          // Add the fields you want to update when the record exists
-        },
-        create: {
-          phoneNo: recipientNo as string,
-          buisnessNo: buisness.whatsapp_mobile,
-          lead: 'LEAD',
-          // Add other required fields for new record creation
-        },
       });
-
-      const message: any = await this.whatsappService.sendTemplateMessage(
-        {
+      console.log(JSON.stringify(components, null, 2));
+  
+      const params = {
           recipientNo: recipientNo,
-          templateName: template_name,
-          languageCode: language,
+          templateName: template.name,
+          languageCode: template.language,
           components: components,
-        },
-        {
-          whatsappMobileId: buisness.whatsapp_mobile_id,
-          whatsappApiToken: buisness.whatsapp_token,
-        },
+        
+      }
+      console.log(params);
+      const sendTemplateMessage = await this.whatsappService.sendTemplateMessage(
+       params,
+        whatsappConfig,
       );
-      console.log(message);
-
+      console.log('Message sent successfully:', sendTemplateMessage);
+      const footer = template.components.find(
+        (component) => component.type === 'footer',
+      );
+      let bodycomponent = template.components.find(
+        (component) => component.type.toLowerCase() === 'body',
+      );
+      console.log('Body component found:', bodycomponent);
+      let bodyRawText = '';
+      if (bodycomponent && bodycomponent.text) {
+        bodyRawText = bodycomponent.text;
+        const mapping = body.reduce((acc, param) => {
+          acc[param.parameter_name] =  param.value;
+          return acc;
+        }, {});
+        console.log('Mapping for body text:', mapping);
+        Object.keys(mapping).forEach((placeholder) => {
+          const escapedPlaceholder = escapeRegExp(placeholder);
+          const regex = new RegExp(escapedPlaceholder, 'g');
+          bodyRawText = bodyRawText.replace(regex, mapping[placeholder]);
+        });
+      } else {
+        console.log('No valid body component text found.');
+      }
+      console.log('Final body raw text:', bodyRawText);
+  
+      let findContact = await this.databaseService.prospect.findUnique({
+        where: {
+          phoneNo:sanitizePhoneNumber(recipientNo)
+        },
+      })
+      if (!findContact) {
+        const addContact = await this.databaseService.prospect.create({
+          data: {
+            phoneNo: sanitizePhoneNumber(recipientNo),
+            buisnessNo:buisness.whatsapp_mobile,
+          },
+        });
+      
+        findContact  = addContact;
+      }
+  
       const addTodb = await this.databaseService.chat.create({
         data: {
-          prospectId: prospect.id,
-          chatId: message?.messages[0]?.id ?? '',
+          chatId:sendTemplateMessage?.messages[0]?.id ?? '',
+          prospectId: findContact.id,
           template_used: true,
-          template_name: template_name,
-          senderPhoneNo: '15551365364',
-          receiverPhoneNo: message?.contacts[0].input.replace(/^\+/, ''),
+          template_name: template.name,
+          senderPhoneNo: sendTemplateMessage.creator.business.whatsapp_mobile,
+          receiverPhoneNo: sanitizePhoneNumber(recipientNo),
           sendDate: new Date(),
-          header_type: previewSection.header.type,
-          header_value: previewSection.header.value,
-          body_text: previewSection.bodyText,
-          footer_included: previewSection.footer.length > 0,
-          footer_text: previewSection.footer,
+          header_type: header?.type,
+          header_value:
+            header?.isEditable && header?.type === 'TEXT' && header?.value,
+          body_text: bodyRawText,
+          footer_included: footer ? true : false,
+          footer_text: footer?.text || '',
           Buttons: buttons,
-          type: template_type || 'text',
+          type: template.type || 'text',
           template_components: components,
+          senderId:user.id
+         
+         
+          
         },
       });
+      console.log(addTodb);
       return addTodb;
-    } catch (error) {
-      console.log(error);
-      throw new InternalServerErrorException(error);
-    }
+  } catch (error) {
+    throw new InternalServerErrorException(error);
+  }
+    // } catch (error) {
+    //   console.log(error);
+    //   throw new InternalServerErrorException(error);
+    // }
   }
 
   async receiveMessage(receiveMessageDto: any) {
-   
     try {
       await this.receiveChatsQueue.add(
         'receiveMessage',
@@ -210,10 +239,10 @@ export class ChatsService {
           removeOnComplete: true,
           delay: 0,
           attempts: 2, // Retry on failure up to 2 times
-          priority: 1,  // Set job priority to 1
-        }
+          priority: 1, // Set job priority to 1
+        },
       );
-      return {sucess: true};
+      return { sucess: true };
     } catch (error) {
       throw new InternalServerErrorException(error);
     }
@@ -228,7 +257,7 @@ export class ChatsService {
         whatsappMobileId: buisness.whatsapp_mobile_id,
         whatsappApiToken: buisness.whatsapp_token,
       };
-      // const prospect = await this.databaseService.prospect.upsert({
+  
       //   where: {
       //     buisnessNo_phoneNo: { // Correct format for compound unique constraint
       //       phoneNo: recipientNo as string,
@@ -303,8 +332,12 @@ export class ChatsService {
       console.log(Templates.data);
       console.log(typeof Templates.data);
       const approvedTemplates = Templates?.data?.filter(
-        (templates) => templates.status === 'APPROVED',
+        (template) => 
+          template.status === 'APPROVED' &&
+          !template.components?.some(component => component.type === 'CAROUSEL')
       );
+
+
 
       return approvedTemplates;
     } catch (error) {
@@ -494,5 +527,4 @@ export class ChatsService {
       console.error(error);
     }
   }
-  
 }
