@@ -227,8 +227,10 @@ export interface JobData {
 @Processor('createOrderQueue')
 @Injectable()
 export class CreateOrderQueue extends WorkerHost {
-  constructor(private readonly databaseService: DatabaseService,
-    @InjectQueue('createOrderCampaign') private readonly createOrderCampaign: Queue
+  constructor(
+    private readonly databaseService: DatabaseService,
+    @InjectQueue('createOrderCampaign')
+    private readonly createOrderCampaign: Queue,
   ) {
     super();
   }
@@ -236,8 +238,6 @@ export class CreateOrderQueue extends WorkerHost {
     try {
       const { orderData, domain } = job.data as JobData;
 
-      
- 
       const contact =
         orderData.billing_address?.phone || orderData.customer?.phone;
 
@@ -246,14 +246,14 @@ export class CreateOrderQueue extends WorkerHost {
         where: {
           shopify_id: String(orderData.checkout_id),
         },
-      })
-      console.log("checkoutdb",ifCheckout);
+      });
+      console.log('checkoutdb', ifCheckout);
       const findBuisness = await this.databaseService.business.findUnique({
         where: {
           shopify_domain: domain,
         },
-      })
-      console.log("business",findBuisness);
+      });
+      console.log('business', findBuisness);
       const order_created = await this.databaseService.order.create({
         data: {
           shopify_id: orderData.id.toString(),
@@ -281,7 +281,7 @@ export class CreateOrderQueue extends WorkerHost {
           currency: orderData.currency,
           discount_codes: orderData.discount_codes,
           fulfillment_status: orderData.fulfillment_status,
-          fulfillments :orderData.fulfillments,
+          fulfillments: orderData.fulfillments,
           landing_site: orderData.landing_site,
           updated_at: orderData.updated_at,
           total_weight: orderData.total_weight,
@@ -290,41 +290,43 @@ export class CreateOrderQueue extends WorkerHost {
           order_number: orderData.order_number,
           shipping_lines: orderData.shipping_lines,
           shipping_address: orderData.shipping_address,
-        
         },
       });
 
       const Campaigns = await this.databaseService.campaign.findMany({
-        where: { // ✅ Add 'where'
+        where: {
+          // ✅ Add 'where'
           Business: {
             shopify_domain: domain, // ✅ Correct nested filtering
           },
           status: 'ACTIVE',
           trigger: 'ORDER_CREATED',
         },
-        
       });
-      
+
       if (Campaigns.length > 0) {
-         Campaigns.forEach((campaign) => {
-          const time =campaign.trigger_type ==="AFTER_CAMPAIGN_CREATED"? 0: getFutureTimestamp(campaign.trigger_time as any)
-               this.createOrderCampaign
-                 .add(
-                   'createOrderCampaignQueue',
-                   { campaignId: campaign.id,orderId: order_created.id },
-                   
-                   {
-                     delay: time,
-                     removeOnComplete: true,
-                   },
-                 )
-                 .then((job) => {
-                   console.log('Job added to createCheckoutCampaignQueue:', job.id);
-                 })
-                 .catch((error) => {
-                   console.error('Error adding job:', error);
-                 });
-             });
+        Campaigns.forEach((campaign) => {
+          const time =
+            campaign.trigger_type === 'AFTER_CAMPAIGN_CREATED'
+              ? 0
+              : getFutureTimestamp(campaign.trigger_time as any);
+          this.createOrderCampaign
+            .add(
+              'createOrderCampaignQueue',
+              { campaignId: campaign.id, orderId: order_created.id },
+
+              {
+                delay: time,
+                removeOnComplete: true,
+              },
+            )
+            .then((job) => {
+              console.log('Job added to createCheckoutCampaignQueue:', job.id);
+            })
+            .catch((error) => {
+              console.error('Error adding job:', error);
+            });
+        });
       }
 
       const threeDaysAgo = new Date();
@@ -335,14 +337,18 @@ export class CreateOrderQueue extends WorkerHost {
           createdAt: {
             gte: threeDaysAgo,
           },
+          createdFor: {
+            shopify_domain: domain,
+          },
           Chat: {
             some: {
               receiverPhoneNo: sanitizedContact,
             },
           },
-          createdFor: {
-            shopify_domain: domain,
-          },
+         
+        },
+        include: {
+          createdFor: true,
         },
         orderBy: {
           createdAt: 'desc',
@@ -352,14 +358,20 @@ export class CreateOrderQueue extends WorkerHost {
       if (latestBroadcast) {
         let prospect = await this.databaseService.prospect.findUnique({
           where: {
-            phoneNo: sanitizedContact,
+            buisnessNo_phoneNo: {
+              buisnessNo: latestBroadcast.createdFor.whatsapp_mobile,
+              phoneNo: sanitizedContact,
+            },
           },
         });
 
         if (prospect && !prospect.shopify_id) {
           prospect = await this.databaseService.prospect.update({
             where: {
-              phoneNo: sanitizedContact,
+              buisnessNo_phoneNo: {
+                buisnessNo: latestBroadcast.createdFor.whatsapp_mobile,
+                phoneNo: sanitizedContact,
+              },
             },
             data: {
               shopify_id: orderData.customer.id.toString(),

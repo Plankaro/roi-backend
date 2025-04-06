@@ -21,6 +21,7 @@ import { Public } from 'src/auth/decorator/public.decorator';
 import { Buisness } from 'src/buisness/entities/buisness.entity';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
+import { console } from 'inspector';
 @Injectable()
 export class ChatsService {
   constructor(
@@ -31,51 +32,61 @@ export class ChatsService {
     @InjectQueue('receiveChatsQueue') private readonly receiveChatsQueue: Queue,
   ) {}
   async sendTemplatemessage(sendTemplateMessageDto: any, req: any) {
-  try {
+    try {
       const {
         name,
         templateForm,
         recipientNo,
-  
-        // Template name
       } = sendTemplateMessageDto;
   
+      console.log('--- Incoming Request DTO ---');
       console.log(JSON.stringify(sendTemplateMessageDto, null, 2));
+  
       const user = req.user;
       const buisness = req.user.business;
+      console.log('--- Business Info ---');
+      console.log(buisness);
+  
       const components = [];
       const whatsappConfig = getWhatsappConfig(buisness);
+      console.log('--- WhatsApp Config ---');
+      console.log(whatsappConfig);
+  
       const response = await this.whatsappService.findSpecificTemplate(
         whatsappConfig,
         name,
       );
+  
       const template = response?.data?.[0];
-      console.log(template);
+      console.log('--- Template Response ---');
+      console.log(JSON.stringify(template, null, 2));
   
       if (!template) {
+        console.error('❌ Template not found');
         throw new BadRequestException('Template not found');
       }
+  
       const { header, body, buttons } = templateForm;
+  
+      // Process header
       if (header && header.isEditable) {
+        console.log('--- Processing Header ---');
         let headerValue = '';
         if (header.type === 'TEXT') {
           headerValue = header.value;
+          console.log('Header value (TEXT):', headerValue);
+  
           if (
             template.parameter_format === 'NAMED' &&
             template.components[0]?.example?.header_text_named_params?.[0]
               ?.param_name
           ) {
+            const paramName =
+              template.components[0].example.header_text_named_params[0]
+                .param_name;
             components.push({
               type: 'header',
-              parameters: [
-                {
-                  type: 'text',
-                  parameter_name:
-                    template.components[0].example.header_text_named_params[0]
-                      .param_name,
-                  text: headerValue,
-                },
-              ],
+              parameters: [{ type: 'text', parameter_name: paramName, text: headerValue }],
             });
           } else {
             components.push({
@@ -83,28 +94,21 @@ export class ChatsService {
               parameters: [{ type: 'text', text: headerValue }],
             });
           }
-        } else if (header.type === 'IMAGE') {
+        } else {
+          console.log(`Header value (${header.type}):`, header.value);
+          const mediaType = header.type.toLowerCase();
           components.push({
             type: 'header',
-            parameters: [{ type: 'image', image: { link: header.value } }],
-          });
-        } else if (header.type === 'VIDEO') {
-          components.push({
-            type: 'header',
-            parameters: [{ type: 'video', video: { link: header.value } }],
-          });
-        } else if (header.type === 'DOCUMENT') {
-          components.push({
-            type: 'header',
-            parameters: [{ type: 'document', document: { link: header.value } }],
+            parameters: [{ type: mediaType, [mediaType]: { link: header.value } }],
           });
         }
-        console.log('Header processed with value:', headerValue);
       }
   
-      // Process body component parameters
+      // Process body
+      console.log('--- Processing Body Parameters ---');
       const bodyParameters = body.map((param) => {
         const value = param.value || 'test';
+        console.log(`Param: ${param.parameter_name}, Value: ${value}`);
         return template.parameter_format === 'NAMED'
           ? {
               type: 'text',
@@ -114,11 +118,12 @@ export class ChatsService {
           : { type: 'text', text: value };
       });
       components.push({ type: 'body', parameters: bodyParameters });
-      console.log('Body parameters processed:', bodyParameters);
   
-      // Process buttons
+      // Process buttons into components
+      console.log('--- Processing Buttons into Components ---');
       buttons.forEach((button, index) => {
-        if (button.type === 'URL' && button.isEditable === true) {
+        console.log(`Button [${index}]:`, button);
+        if (button.type === 'URL' && button.isEditable) {
           components.push({
             type: 'button',
             sub_type: 'url',
@@ -132,106 +137,136 @@ export class ChatsService {
             index: button.index,
             parameters: [
               {
-                type: 'coupon_code', // Must be exactly "coupon_code" for copy_code buttons
-                coupon_code: button.value, // The actual coupon code text you want to be copied
+                type: 'coupon_code',
+                coupon_code: button.value,
               },
             ],
           });
         }
       });
-      console.log(JSON.stringify(components, null, 2));
   
       const params = {
-          recipientNo: recipientNo,
-          templateName: template.name,
-          languageCode: template.language,
-          components: components,
-        
-      }
-      console.log(params);
-      const sendTemplateMessage = await this.whatsappService.sendTemplateMessage(
-       params,
-        whatsappConfig,
-      );
-      console.log('Message sent successfully:', sendTemplateMessage);
-      const footer = template.components.find(
-        (component) => component.type === 'footer',
-      );
+        recipientNo: recipientNo,
+        templateName: template.name,
+        languageCode: template.language,
+        components: components,
+      };
+      console.log('--- Final Message Params to be Sent ---');
+      console.log(JSON.stringify(params, null, 2));
+  
+      const sendTemplateMessage =
+        await this.whatsappService.sendTemplateMessage(params, whatsappConfig);
+  
+      console.log('✅ Message sent successfully:', sendTemplateMessage);
+  
+      // Parse template body text and replace named variables
+      const footer = template.components.find((c) => c.type === 'footer');
       let bodycomponent = template.components.find(
-        (component) => component.type.toLowerCase() === 'body',
+        (c) => c.type.toLowerCase() === 'body',
       );
-      console.log('Body component found:', bodycomponent);
+  
       let bodyRawText = '';
       if (bodycomponent && bodycomponent.text) {
         bodyRawText = bodycomponent.text;
         const mapping = body.reduce((acc, param) => {
-          acc[param.parameter_name] =  param.value;
+          acc[param.parameter_name] = param.value;
           return acc;
         }, {});
-        console.log('Mapping for body text:', mapping);
+        console.log('--- Body Text Placeholder Mapping ---', mapping);
+  
         Object.keys(mapping).forEach((placeholder) => {
           const escapedPlaceholder = escapeRegExp(placeholder);
           const regex = new RegExp(escapedPlaceholder, 'g');
           bodyRawText = bodyRawText.replace(regex, mapping[placeholder]);
         });
       } else {
-        console.log('No valid body component text found.');
+        console.warn('⚠️ No valid body component text found.');
       }
       console.log('Final body raw text:', bodyRawText);
   
+      // Check or create prospect
       let findContact = await this.databaseService.prospect.findUnique({
         where: {
-          phoneNo:sanitizePhoneNumber(recipientNo)
+         buisnessNo_phoneNo: {
+           buisnessNo: buisness.whatsapp_mobile,
+           phoneNo: sanitizePhoneNumber(recipientNo),
+         }
         },
-      })
+      });
+  
       if (!findContact) {
+        console.log('Prospect not found. Creating new...');
         const addContact = await this.databaseService.prospect.create({
           data: {
             phoneNo: sanitizePhoneNumber(recipientNo),
-            buisnessNo:buisness.whatsapp_mobile,
+            buisnessNo: buisness.whatsapp_mobile,
           },
         });
-      
-        findContact  = addContact;
+        findContact = addContact;
       }
+  
+      // Replace placeholder in URL buttons from template
+      console.log('--- Updating Button URLs ---');
+      const updatedButtons = buttons.map((button) => {
+        if (button.type === 'URL' && button.isEditable === true) {
+          const findButtonfromtemplate = template.components.find(
+            (component) => component.type === 'BUTTONS'
+          );
+          if (findButtonfromtemplate) {
+            const templateUrlButton = findButtonfromtemplate.buttons.find(
+              (btn) => btn.type === 'URL'
+            );
+            if (templateUrlButton && templateUrlButton.url) {
+              console.log('Original template URL:', templateUrlButton.url);
+              const placeholder = '{{1}}';
+              const finalUrl = templateUrlButton.url.split(placeholder).join(button.value);
+              console.log('✅ Final URL:', finalUrl);
+              return {
+                ...button,
+                value: finalUrl,
+              };
+            }
+          }
+        }
+        return button;
+      });
+  
+      console.log('--- Updated Buttons ---');
+      console.log(JSON.stringify(updatedButtons, null, 2));
   
       const addTodb = await this.databaseService.chat.create({
         data: {
-          chatId:sendTemplateMessage?.messages[0]?.id ?? '',
+          chatId: sendTemplateMessage?.messages[0]?.id ?? '',
           prospectId: findContact.id,
           template_used: true,
           template_name: template.name,
-          senderPhoneNo: sendTemplateMessage.creator.business.whatsapp_mobile,
+          senderPhoneNo: buisness.whatsapp_mobile,
           receiverPhoneNo: sanitizePhoneNumber(recipientNo),
           sendDate: new Date(),
           header_type: header?.type,
-          header_value:
-            header?.isEditable && header?.type === 'TEXT' && header?.value,
+          header_value: header?.isEditable && header?.value,
           body_text: bodyRawText,
           footer_included: footer ? true : false,
           footer_text: footer?.text || '',
-          Buttons: buttons,
+          Buttons: updatedButtons,
           type: template.type || 'text',
           template_components: components,
-          senderId:user.id
-         
-         
-          
+          senderId: user.id,
         },
       });
-      console.log(addTodb);
+  
+      console.log('✅ Chat saved to DB:', addTodb);
       return addTodb;
-  } catch (error) {
-    throw new InternalServerErrorException(error);
+    } catch (error) {
+      console.error('❌ Error in sendTemplatemessage:', error);
+      throw new InternalServerErrorException(error);
+    }
   }
-    // } catch (error) {
-    //   console.log(error);
-    //   throw new InternalServerErrorException(error);
-    // }
-  }
+  
 
   async receiveMessage(receiveMessageDto: any) {
     try {
+      console.log(JSON.stringify(receiveMessageDto, null, 2));
       await this.receiveChatsQueue.add(
         'receiveMessage',
         { receiveMessageDto: receiveMessageDto },
@@ -253,11 +288,12 @@ export class ChatsService {
     const { recipientNo, message, prospect_id } = sendChatDto;
     try {
       const buisness = req.user.business;
+      console.log(buisness);
       const config = {
         whatsappMobileId: buisness.whatsapp_mobile_id,
         whatsappApiToken: buisness.whatsapp_token,
       };
-  
+
       //   where: {
       //     buisnessNo_phoneNo: { // Correct format for compound unique constraint
       //       phoneNo: recipientNo as string,
@@ -284,13 +320,13 @@ export class ChatsService {
         data: {
           prospectId: prospect_id,
           chatId: sendMessage?.messages[0]?.id ?? '',
-          senderPhoneNo: '15551365364',
+          senderPhoneNo: buisness.whatsapp_mobile,
           receiverPhoneNo: sendMessage?.contacts[0].input,
           sendDate: new Date(),
           // body_type: 'text',
           body_text: message,
           type: 'personal',
-          // Handle non-text messages
+          senderId: req.user.id,
         },
       });
 
@@ -332,12 +368,12 @@ export class ChatsService {
       console.log(Templates.data);
       console.log(typeof Templates.data);
       const approvedTemplates = Templates?.data?.filter(
-        (template) => 
+        (template) =>
           template.status === 'APPROVED' &&
-          !template.components?.some(component => component.type === 'CAROUSEL')
+          !template.components?.some(
+            (component) => component.type === 'CAROUSEL',
+          ),
       );
-
-
 
       return approvedTemplates;
     } catch (error) {
@@ -363,10 +399,7 @@ export class ChatsService {
   }
   async sendMedia(MediaDto: MediaDto, req: any) {
     const buisness: Business = req.user.business;
-    const config = {
-      whatsappMobileId: buisness.whatsapp_mobile_id,
-      whatsappApiToken: buisness.whatsapp_token,
-    };
+    const config = getWhatsappConfig(buisness);
 
     try {
       function mapMediaTypeToHeaderType(mediaType: string): HeaderType {
@@ -402,7 +435,7 @@ export class ChatsService {
           header_value: MediaDto.mediaUrl,
           body_text: MediaDto.caption,
           type: 'personal',
-          // Handle non-text messages
+          senderId: req.user.id,
         },
       });
 
@@ -413,73 +446,7 @@ export class ChatsService {
     }
   }
 
-  // async getShopifyProspectUsingPhoneNumber(phoneNumber: string) {
-  //   const query = `
-  //     query getCustomerByPhone($query: String!) {
-  //       customers(first: 1, query: $query) {
-  //         edges {
-  //           node {
-  //             id
-  //             firstName
-  //             lastName
-  //             email
-  //             phone
-  //                image {
-  //             url
-  //             src
-  //           }
-  //           }
-  //         }
-  //       }
-  //     }
-  //   `;
-  //   const variables = {
-  //     query: `phone:${phoneNumber}`,
-  //   };
 
-  //   try {
-  //     console.log(JSON.stringify(variables));
-  //     const result = await this.ShopifyService.executeGraphQL(query, variables);
-  //     if (result.data.customers.edges && result.data.customers.edges.length > 0) {
-  //       return result.data.customers.edges[0].node;
-  //     }
-  //     return null;
-  //   } catch (error) {
-  //     console.error('Error executing GraphQL query:', error);
-  //     throw new InternalServerErrorException(
-  //       'Failed to fetch customer data from Shopify'
-  //     );
-  //   }
-  // }
-
-  // async createShopifyusingPhoneNumber(data: { firstName?: string; lastName?: string; phone?: string }) {
-  //   const query = `mutation createCustomer($input: CustomerInput!) {
-  //     customerCreate(input: $input) {
-  //       customer {
-  //         id
-  //         firstName
-  //         lastName
-  //         email
-  //         phone
-  //            image {
-  //             url
-  //             src
-  //           }
-  //       }
-  //       userErrors {
-  //         field
-  //         message
-  //       }
-  //     }
-  //   }`;
-  //   const variables = { input: data };
-  //   const response = await this.ShopifyService.executeGraphQL(query, variables);
-  //   if (response.data.customerCreate && response.data.customerCreate.customer) {
-  //     return response.data.customerCreate.customer;
-  //   } else {
-  //     throw new InternalServerErrorException('Failed to create customer on Shopify');
-  //   }
-  // }
 
   async deleteMessage(prospectorId: string) {
     try {
@@ -497,34 +464,47 @@ export class ChatsService {
     }
   }
 
-  async markMessageAsRead(prospectorId: string, req, ids: string[]) {
+  async markMessageAsRead(prospectorId: string, req: any) {
     try {
-      const buisness: Business = req.user.business;
-
-      // const findprospect = await this.databaseService.prospect.findUnique({
-      //   where: {
-      //     id:prospectorId
-      //   }
-      // })
-      // const chats = await this.databaseService.chat.findMany({
-      //   where: {
-      //     prospectId:prospectorId,
-      //     deleted:false,
-      //     receiverPhoneNo:findprospect.phoneNo
-      //   }
-      // })
-      const config = getWhatsappConfig(buisness);
-      ids.forEach(async (chat) => {
-        const updatechat = await this.whatsappService.markstatusasread(
-          chat,
-          config,
-        );
-        console.log(updatechat);
+      const business: Business = req.user.business;
+      const config = getWhatsappConfig(business);
+  
+      // Step 1: Find relevant chats
+      const chats = await this.databaseService.chat.findMany({
+        where: {
+          prospectId: prospectorId,
+          deleted: false,
+          receiverPhoneNo: business.whatsapp_mobile,
+        },
       });
-
+  
+      // Step 2: Bulk update to mark all as 'read'
+      await this.databaseService.chat.updateMany({
+        where: {
+          prospectId: prospectorId,
+          deleted: false,
+          receiverPhoneNo: business.whatsapp_mobile,
+        },
+        data: {
+          Status: 'read',
+        },
+      });
+  
+      // Step 3: Concurrently mark each message as read on WhatsApp
+      await Promise.all(
+        chats.map((chat) =>
+          this.whatsappService.markstatusasread(chat.chatId, config).catch((err) => {
+            console.error(`Failed to mark chat ${chat.id} as read`, err);
+            // Optionally: return some error info or null
+          })
+        )
+      );
+  
       return 'success';
     } catch (error) {
-      console.error(error);
+      console.error('Error in markMessageAsRead:', error);
+      throw new Error('Failed to mark messages as read');
     }
   }
+  
 }

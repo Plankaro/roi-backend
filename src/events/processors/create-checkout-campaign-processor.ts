@@ -539,7 +539,10 @@ export class CreateCheckoutCampaign extends WorkerHost {
 
       const prospect = await this.databaseService.prospect.upsert({
         where:{
-          phoneNo: sanitizePhoneNumber(checkout.phone),
+          buisnessNo_phoneNo: {
+            buisnessNo: campaign.Business.whatsapp_mobile,
+            phoneNo: sanitizePhoneNumber(checkout.phone)
+          }
         },
         update:{},
         create:{

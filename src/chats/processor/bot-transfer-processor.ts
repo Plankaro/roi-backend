@@ -126,7 +126,7 @@ How can I assist you today?
         const isDiscountGivenWithinWeek =
           await this.databaseService.discount.findFirst({
             where: {
-              prospect_phone: sanitizePhoneNumber(chatMessage.senderPhoneNo),
+              prospect_id: chatMessage.Prospect.id,
               createdAt: {
                 gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // 1 week ago
               },
@@ -231,7 +231,7 @@ Hurry, offer valid for a limited time!`;
             code: discountCode,
             type: 'PERCENTAGE',
             amount: 15,
-            prospect: { connect: { phoneNo: chatMessage.Prospect.phoneNo } },
+            prospect_id: chatMessage.Prospect.id,
           },
         });
         console.log('Discount record created in DB:', discountRecord);

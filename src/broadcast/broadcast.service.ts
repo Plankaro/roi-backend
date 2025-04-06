@@ -115,7 +115,7 @@ export class BroadcastService {
 
     await this.broadcastQueue.add(
       'sendBroadcast',
-      { id: createBroadcast.id, template: template },
+      { id: createBroadcast.id },
       { delay: delay, removeOnComplete: true },
     );
 
@@ -193,23 +193,50 @@ export class BroadcastService {
     });
 
     components.push({ type: 'body', parameters: bodyParameters });
-    buttons.forEach((button, index) => {
-      if (button.type === 'URL' && button.isEditable === true) {
-        components.push({
-          type: 'button',
-          sub_type: 'url',
-          index: '0',
-          parameters: [{ type: 'text', text: button.value }],
+      buttons.forEach((button, index) => {
+          if (button.type === 'URL' && button.isEditable === true) {
+            components.push({
+              type: 'button',
+              sub_type: 'url',
+              index: index,
+              parameters: [{ type: 'text', text: button.value }],
+            });
+          } else if (button.type === 'COPY_CODE') {
+            components.push({
+              type: 'button',
+              sub_type: 'COPY_CODE',
+              index: button.index,
+              parameters: [
+                {
+                  type: 'coupon_code', // Must be exactly "coupon_code" for copy_code buttons
+                  coupon_code: button.value, // The actual coupon code text you want to be copied
+                },
+              ],
+            });
+          }
         });
-      } else if (button.type === 'COPY_CODE') {
-        components.push({
-          type: 'button',
-          sub_type: 'copy_code',
-          index: index,
-          parameters: [{ type: 'otp', text: button.value }],
+        buttons.forEach((button, index) => {
+          if (button.type === 'URL' && button.isEditable === true) {
+            components.push({
+              type: 'button',
+              sub_type: 'url',
+              index: index,
+              parameters: [{ type: 'text', text: button.value }],
+            });
+          } else if (button.type === 'COPY_CODE') {
+            components.push({
+              type: 'button',
+              sub_type: 'COPY_CODE',
+              index: button.index,
+              parameters: [
+                {
+                  type: 'coupon_code', // Must be exactly "coupon_code" for copy_code buttons
+                  coupon_code: button.value, // The actual coupon code text you want to be copied
+                },
+              ],
+            });
+          }
         });
-      }
-    });
 
 
     const message: any = await this.whatsappService.sendTemplateMessage(
@@ -475,6 +502,7 @@ export class BroadcastService {
 
       const createretry = await this.databaseService.retry.create({
         data: {
+          
           broadcastId: broadcast.id,
         },
       });

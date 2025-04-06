@@ -5,7 +5,7 @@ import { DatabaseService } from 'src/database/database.service';
 import { ShopifyService } from 'src/shopify/shopify.service';
 import { getShopifyConfig } from 'utils/usefulfunction';
 
-
+import { differenceInDays, isValid } from 'date-fns';
 @Injectable()
 export class AnalyticsService {
   constructor(
@@ -20,55 +20,58 @@ export class AnalyticsService {
     return 'This action adds a new analytics';
   }
 
+  
   async getEcommerceAnalytics(req, query) {
-    const user = req.user;
-    const getOrderAnalytics = await this.databaseService.order.findMany({
-      where: {
-        buisnessId: user.business.id,
-        BroadCastId: { not: null },
-        created_at:{
-          gte: new Date(query.startDate),
-          lte: new Date(query.endDate),
-        }
-      },
-      
-    });
-    const getAbondnedCheckoutanalytics = await this.databaseService.checkoutOnCampaign.findMany({
-      where: {
-        campaign: {
-          businessId: user.business.id, 
-          createdAt: {
-            gte: new Date(query.startDate),
-            lte: new Date(query.endDate),
-          }// Directly referencing the businessId
-        },
-      },
-      include: {
-        checkout: {
-          include: {
-            Order: true, // Ensuring Orders are included properly
-          },
-        },
-      },
-    });
-    
-    const getCodToCheckoutAnalytics = await this.databaseService.paymentLink.findMany({
-      where: {
-        businessId: user.business.id,
-        created_at:{
-          gte: new Date(query.startDate),
-          lte: new Date(query.endDate),
-        }
-      },
-      
-      include: {
-        order: true,
-      }
-  })
-
-    return { getOrderAnalytics, getAbondnedCheckoutanalytics, getCodToCheckoutAnalytics };
-}
-
+    const startDate = new Date(query.startDate);
+    const endDate = new Date(query.endDate);
+    const now = new Date();
+  
+    if (!isValid(startDate) || !isValid(endDate)) {
+      throw new Error('Invalid startDate or endDate');
+    }
+  
+    const isToday = endDate.toDateString() === now.toDateString();
+    const effectiveEndDate = isToday ? now : endDate;
+  
+    const dayDiff = differenceInDays(effectiveEndDate, startDate);
+  
+    let groupByClause = `DATE("created_at")`;
+    let formatClause = `TO_CHAR(DATE("created_at"), 'YYYY-MM-DD')`;
+  
+    if (dayDiff > 365 * 3) {
+      groupByClause = `DATE_TRUNC('year', "created_at")`;
+      formatClause = `TO_CHAR(DATE_TRUNC('year', "created_at"), 'YYYY')`;
+    } else if (dayDiff > 180) {
+      groupByClause = `DATE_TRUNC('month', "created_at")`;
+      formatClause = `TO_CHAR(DATE_TRUNC('month', "created_at"), 'YYYY-MM')`;
+    }
+  
+    const groupedOrders: any = await this.databaseService.$queryRawUnsafe(
+      `
+      SELECT 
+        ${formatClause} AS order_date,
+        COUNT(*) AS order_count,
+        SUM(CAST("amount" AS numeric)) AS total_revenue
+      FROM "Order"
+      WHERE 
+        "created_at" >= $1
+        AND "created_at" <= $2
+      GROUP BY ${groupByClause}
+      ORDER BY ${groupByClause};
+      `,
+      startDate, // ✅ PASS AS DATE OBJECT
+      effectiveEndDate // ✅ PASS AS DATE OBJECT
+    );
+  
+    const result = groupedOrders.map((row: any) => ({
+      order_date: row.order_date,
+      order_count: Number(row.order_count),
+      total_revenue: parseFloat(row.total_revenue),
+    }));
+  
+    console.log(groupedOrders)
+    return { result };
+  }
 async getEngagementAnalytics(req, query) {
   const businessId = req.user.business.id;
   const startDate = new Date(query.startDate);
@@ -200,7 +203,7 @@ async getChatAnalytics(req,query){
       createdAt: { gte: startDate, lte: endDate },
     },
   });
-
+ 
   const automatedMessages = await this.databaseService.chat.count({
     where:{
       isAutomated: true,

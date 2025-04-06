@@ -245,4 +245,6 @@ export class ReceiveChatsQueue extends WorkerHost {
     );
     return result.data?.customerByIdentifier;
   }
+
+  
 }

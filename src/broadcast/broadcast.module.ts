@@ -7,6 +7,7 @@ import { BroadcastProcessor } from './broadcast.processor';
 import { BullModule } from '@nestjs/bullmq';
 import { CustomersModule } from 'src/customers/customers.module';
 import { BroadcastRetryProcessor } from './broadcastretry.processor';
+import { ChatsModule } from 'src/chats/chats.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { BroadcastRetryProcessor } from './broadcastretry.processor';
     BullModule.registerQueue({ name: 'broadcastQueue' }),
     BullModule.registerQueue({ name: 'broadcastRetryQueue' }),
     CustomersModule,
+    ChatsModule
   ],
   controllers: [BroadcastController],
   providers: [BroadcastService, BroadcastProcessor,BroadcastRetryProcessor],

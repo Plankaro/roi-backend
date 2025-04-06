@@ -11,7 +11,7 @@ import {
   sanitizePhoneNumber,
 } from 'utils/usefulfunction';
 import { CustomersService } from 'src/customers/customers.service';
-
+import { ChatsGateway } from 'src/chats/chats.gateway';
 @Processor('broadcastQueue')
 @Injectable()
 export class BroadcastProcessor extends WorkerHost {
@@ -20,6 +20,7 @@ export class BroadcastProcessor extends WorkerHost {
     private readonly databaseService: DatabaseService,
     @InjectQueue('broadcastQueue') private readonly broadcastQueue: Queue,
     private readonly customersService: CustomersService,
+     private readonly chatsGateway: ChatsGateway,
   ) {
     super();
   }
@@ -28,7 +29,7 @@ export class BroadcastProcessor extends WorkerHost {
     console.log('==== PROCESSING JOB ====');
     console.log('Job ID:', job.id);
     try {
-      const { id, template } = job.data;
+      const { id } = job.data;
       console.log('Job Data:', job.data);
 
       // Update broadcast status to running
@@ -43,6 +44,22 @@ export class BroadcastProcessor extends WorkerHost {
         'Status:',
         broadcast.status,
       );
+
+      const config = getWhatsappConfig(broadcast.creator.business);
+
+      const response = await this.whatsappService.findSpecificTemplate(
+        config,
+        broadcast.template_name,
+      );
+
+      const template = response?.data?.[0];
+      console.log('--- Template Response ---');
+      console.log(JSON.stringify(template, null, 2));
+
+      if (!template) {
+        console.error('❌ Template not found');
+        return;
+      }
 
       // Retrieve contacts based on contacts type
       let data: any;
@@ -67,12 +84,12 @@ export class BroadcastProcessor extends WorkerHost {
         throw new Error('Invalid contacts type');
       }
       console.log('Total contacts:', data.length);
-      console.log()
+      console.log();
 
       // Process each contact
       for (const broadcastData of data) {
         console.log('===================================');
-        console.log(broadcastData.phone)
+        console.log(broadcastData.phone);
         const contact = sanitizePhoneNumber(broadcastData.phone);
         console.log('Processing contact:', contact);
 
@@ -80,7 +97,6 @@ export class BroadcastProcessor extends WorkerHost {
         const components = [];
         const { header, buttons, body } = broadcast.componentData as any;
         console.log('Component Data:', { header, buttons, body });
-        
 
         // Process header component
         if (header && header.isEditable) {
@@ -143,14 +159,13 @@ export class BroadcastProcessor extends WorkerHost {
           return template.parameter_format === 'NAMED'
             ? {
                 type: 'text',
-                parameter_name: param.parameter_name.replace(/{{|}}/g, '') ,
+                parameter_name: param.parameter_name.replace(/{{|}}/g, ''),
                 text: value,
               }
             : { type: 'text', text: value };
         });
         components.push({ type: 'body', parameters: bodyParameters });
         console.log('Body parameters processed:', bodyParameters);
-    
 
         // Process buttons
         buttons.forEach((button, index) => {
@@ -179,28 +194,27 @@ export class BroadcastProcessor extends WorkerHost {
 
         // Retrieve or create prospect for the contact
         let prospect = await this.databaseService.prospect.findUnique({
-          where: { phoneNo: contact },
+          where: { buisnessNo_phoneNo: { phoneNo: contact,buisnessNo: broadcast.creator.business.whatsapp_mobile } },
         });
-     
-
 
         console.log('Prospect:', prospect ? prospect.id : 'Not found');
         let uniqueContact = false;
         if (!prospect) {
-          const iflinkedToShopify = await this.customersService.getCustomerByPhone(
-            `+${contact}`,
-            broadcast.creator,
-          )
+          const iflinkedToShopify =
+            await this.customersService.getCustomerByPhone(
+              `+${contact}`,
+              broadcast.creator,
+            );
           uniqueContact = true;
-          console.log('Unique contact:', iflinkedToShopify)
-    
+          console.log('Unique contact:', iflinkedToShopify);
+
           prospect = await this.databaseService.prospect.create({
             data: {
               phoneNo: contact,
               buisnessNo: broadcast.creator.business.whatsapp_mobile,
-              shopify_id:iflinkedToShopify?.id.replace(/^\D+/g, ''),
-              name:iflinkedToShopify?.displayName,
-              email:iflinkedToShopify?.email
+              shopify_id: iflinkedToShopify?.id.replace(/^\D+/g, ''),
+              name: iflinkedToShopify?.displayName,
+              email: iflinkedToShopify?.email,
             },
           });
           console.log('New prospect created:', prospect.id);
@@ -235,6 +249,31 @@ export class BroadcastProcessor extends WorkerHost {
         console.log('Final body raw text:', bodyRawText);
 
         // Save chat record to the database
+        const updatedButtons = buttons.map((button) => {
+          if (button.type === 'URL' && button.isEditable === true) {
+            const findButtonfromtemplate = template.components.find(
+              (component) => component.type === 'BUTTONS',
+            );
+            if (findButtonfromtemplate) {
+              const templateUrlButton = findButtonfromtemplate.buttons.find(
+                (btn) => btn.type === 'URL',
+              );
+              if (templateUrlButton && templateUrlButton.url) {
+                console.log('Original template URL:', templateUrlButton.url);
+                const placeholder = '{{1}}';
+                const finalUrl = templateUrlButton.url
+                  .split(placeholder)
+                  .join(button.value);
+                console.log('✅ Final URL:', finalUrl);
+                return {
+                  ...button,
+                  value: finalUrl,
+                };
+              }
+            }
+          }
+          return button;
+        });
         console.log('Creating chat record in DB for contact:', contact);
         const addTodb = await this.databaseService.chat.create({
           data: {
@@ -252,11 +291,12 @@ export class BroadcastProcessor extends WorkerHost {
             body_text: bodyRawText,
             footer_included: footer ? true : false,
             footer_text: footer?.text || '',
-            Buttons: buttons,
+            Buttons: updatedButtons,
             type: template.type || 'text',
             template_components: components,
             isForBroadcast: true,
             broadcastId: broadcast.id,
+            isAutomated: true,
             
           },
         });
@@ -339,7 +379,6 @@ export class BroadcastProcessor extends WorkerHost {
           }
         }
 
-        const config = getWhatsappConfig(broadcast.creator.business);
         console.log(
           'Sending message to:',
           contact,
@@ -360,23 +399,37 @@ export class BroadcastProcessor extends WorkerHost {
 
           console.log('Message sent successfully:', messageResponse);
           if (messageResponse?.messages?.[0]?.id) {
-            await this.databaseService.chat.update({
+            const message = await this.databaseService.chat.update({
               where: { id: addTodb.id },
               data: {
                 Status: 'pending',
                 chatId: messageResponse.messages[0].id,
               },
             });
+            this.chatsGateway.sendMessageToSubscribedClients(
+              broadcast.creator.business.whatsapp_mobile,
+              'prospect',
+              prospect,
+            );
+
+
+            this.chatsGateway.sendMessageToSubscribedClients(
+              broadcast.creator.business.whatsapp_mobile,
+              'messages',
+              message,
+            );
           } else {
             await this.databaseService.chat.update({
               where: { id: addTodb.id },
-              data: { Status: 'failed',failedReason:"failed due to unknown reason" },
+              data: {
+                Status: 'failed',
+                failedReason: 'failed due to unknown reason',
+              },
             });
           }
         } catch (error: any) {
           // Capture detailed error info, using error.response.data if available
-          const errorDetail =
-            error.message
+          const errorDetail = error.message;
 
           console.error('Error sending message:', errorDetail);
 

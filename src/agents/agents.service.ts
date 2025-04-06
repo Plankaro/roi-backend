@@ -8,6 +8,7 @@ import { CreateAgentDto } from './dto/create-agent.dto';
 import { UpdateAgentDto } from './dto/update-agent.dto';
 import { DatabaseService } from 'src/database/database.service';
 import { hash, compare } from 'bcrypt';
+import { agent } from 'supertest';
 @Injectable()
 export class AgentsService {
   constructor(private readonly databaseService: DatabaseService) {}
@@ -65,7 +66,7 @@ export class AgentsService {
       const user = req.user;
       console.log(user);
 
-      const teams =await this.databaseService.user.findMany({
+      const teams = await this.databaseService.user.findMany({
         where: {
           business: {
             id: user.business.id,
@@ -81,13 +82,13 @@ export class AgentsService {
           manageTeam: true,
           ManageBroadcast: true,
           assignChat: true,
-        }
+        },
       });
       const groupedTeams = {
         admin: teams.find((member) => member.role === 'ADMIN'),
         agents: teams.filter((member) => member.role === 'AGENT'),
       };
-      
+
       return groupedTeams;
     } catch (error) {
       console.log(error);
@@ -95,76 +96,74 @@ export class AgentsService {
     }
   }
 
-  async findOne(id: string,req:any) {
-   try {
-     const user = req.user;
-     const agent = await this.databaseService.user.findUnique({
-       where: {
-         id,
-         businessId:user.business.id,
-       }
-     })
-     if (!agent) {
-       throw new BadRequestException('Agent not found');
-     }
-     return agent;
-
-   } catch (error) {
-     throw new InternalServerErrorException(error);
-   }
-  }
-
-  async update(id: string, updateAgentDto: UpdateAgentDto,req:any) {
+  async findOne(id: string, req: any) {
     try {
       const user = req.user;
-      if (user.role!== 'ADMIN' && user.id!== id) {
-        throw new UnauthorizedException("You are not allowed to update agents");
-      }
-      console.log(id)
       const agent = await this.databaseService.user.findUnique({
-        where:{
+        where: {
           id,
-          businessId:user.business.id,
-        }
+          businessId: user.business.id,
+        },
+      });
+      if (!agent) {
+        throw new BadRequestException('Agent not found');
+      }
+      return agent;
+    } catch (error) {
+      throw new InternalServerErrorException(error);
+    }
+  }
 
-      })
+  async update(id: string, updateAgentDto: UpdateAgentDto, req: any) {
+    try {
+      const user = req.user;
+      if (user.role !== 'ADMIN' && user.id !== id) {
+        throw new UnauthorizedException('You are not allowed to update agents');
+      }
+      console.log(id);
+      const agent = await this.databaseService.user.findUnique({
+        where: {
+          id,
+          businessId: user.business.id,
+        },
+      });
 
       if (!agent) {
         throw new BadRequestException('Agent not found');
       }
-      if(agent.role!=='AGENT'){
+      if (agent.role !== 'AGENT') {
         throw new BadRequestException('Only update agents is allowed');
       }
-      if(updateAgentDto?.password){
+      if (updateAgentDto?.password) {
         const hashedPassword = await hash(updateAgentDto.password, 10);
         updateAgentDto.password = hashedPassword;
       }
-     console.log(updateAgentDto);
+      console.log(updateAgentDto);
       const updateAgent = await this.databaseService.user.update({
         where: {
           id,
         },
-        data:{
+        data: {
           ...updateAgentDto,
         },
-      })
+      });
 
       return updateAgent;
-    }catch (error) {
+    } catch (error) {
       console.log(error);
       throw new InternalServerErrorException(error);
     }
   }
 
-  remove(id: string, req: any) {
+  async remove(id: string, req: any) {
     try {
       const user = req.user;
 
       if (user.role !== 'ADMIN' || user.manageTeam !== true) {
-        throw new UnauthorizedException("You are not allowed to delete agents");
+        throw new UnauthorizedException('You are not allowed to delete agents');
       }
 
-      const agent = this.databaseService.user.delete({
+      const agent = await this.databaseService.user.delete({
         where: {
           id,
           role: 'AGENT',
@@ -174,6 +173,76 @@ export class AgentsService {
         },
       });
       return agent;
-    } catch (error) {}
+    } catch (error) {
+      throw new InternalServerErrorException(error);
+    }
+  }
+
+  async assignChat(updateAgent: any, req: any) {
+    try {
+      const user = req.user;
+      const { agentId, prospectId } = updateAgent;
+
+      console.log(agentId, prospectId);
+      if (user.role !== 'ADMIN' || user.manageTeam !== true) {
+        throw new UnauthorizedException(
+          'Admin or user with manage team permission can assign chat to agents',
+        );
+      }
+      const findifAgentExists = await this.databaseService.user.findUnique({
+        where: {
+          id: agentId,
+          // role: 'AGENT',
+          business: {
+            id: user.business.id,
+          },
+        },
+      })
+      if (!findifAgentExists) {
+        throw new BadRequestException('Agent does not exist');
+      }
+      const findifProspectExists = await this.databaseService.prospect.findUnique({
+        where: {
+          id: prospectId,
+        },
+      });
+      if (!findifProspectExists) {
+        throw new BadRequestException('Prospect does not exist');
+      }
+      const update = await this.databaseService.prospect.update({
+        where: {
+          id: prospectId,
+        },
+        data: {
+          assignedToId: findifAgentExists.id,
+        },
+        include: {
+          chats: {
+            take: 1,
+
+            orderBy: {
+              createdAt: 'desc', // Adjust this field based on your schema
+            },
+            where: {
+              deleted: false,
+            },
+          },
+          assignedTo: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              image: true,
+            },
+          },
+        },
+      });
+      console.log(update);
+
+      return update;
+    } catch (error) {
+      console.log(error);
+      throw new InternalServerErrorException(error);
+    }
   }
 }

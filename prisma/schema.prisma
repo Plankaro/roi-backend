@@ -39,6 +39,8 @@ model User {
   Campaign Campaign[]
 
   Chat Chat[]
+
+  Tag Tag[]
 }
 
 enum Acess {
@@ -109,6 +111,20 @@ model Business {
   PaymentLink PaymentLink[]
 }
 
+model Tag {
+  id         String    @id @default(cuid())
+  tagName     String
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id])
+  created_at  DateTime @default(now())
+  userId String
+  user       User     @relation(fields: [userId], references: [id])
+
+  ProspectTag ProspectTag[]
+}
+
+
+
 model Prospect {
   id          String    @id @default(cuid())
   shopify_id  String?   @unique
@@ -116,7 +132,7 @@ model Prospect {
   email       String?
   image       String?
   last_Online DateTime?
-  phoneNo     String    @unique
+  phoneNo     String    
   lead        Lead      @default(LEAD)
 
   assignedToId String?
@@ -134,6 +150,19 @@ model Prospect {
   discount discount[]
 
   @@unique([buisnessNo, phoneNo])
+  ProspectTag ProspectTag[]
+}
+
+model ProspectTag {
+  id         String   @id @default(cuid())
+  prospectId String
+  tagId      String
+  created_at DateTime @default(now())
+
+  prospect   Prospect @relation(fields: [prospectId], references: [id])
+  tag        Tag      @relation(fields: [tagId], references: [id])
+
+  @@unique([prospectId, tagId]) // Optional: prevents duplicate tag-prospect links
 }
 
 model Order {
@@ -207,12 +236,6 @@ enum Lead {
   OTHER
 }
 
-model Tag {
-  id         String    @id @default(cuid())
-  title      String
-  business   Business? @relation(fields: [businessId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  businessId String?
-}
 
 model Chat {
   id                  String   @id @default(cuid())
@@ -703,6 +726,6 @@ model discount {
   usageLimit Int?
 
   createdAt      DateTime @default(now())
-  prospect_phone String
-  prospect       Prospect @relation(fields: [prospect_phone], references: [phoneNo]) // Optional limit for the discount code
+  prospect_id String
+  prospect       Prospect @relation(fields: [prospect_id], references: [id]) // Optional limit for the discount code
 }

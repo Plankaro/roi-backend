@@ -26,5 +26,6 @@ import { BottransferQueue } from './processor/bot-transfer-processor';
   ],
   controllers: [ChatsController],
   providers: [ChatsService, ChatsGateway, ReceiveChatsQueue,BottransferQueue],
+  exports: [ChatsGateway],
 })
 export class ChatsModule {}

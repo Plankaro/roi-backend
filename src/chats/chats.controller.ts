@@ -81,7 +81,7 @@ export class ChatsController {
 
   @Patch('/')
   markMessageAsRead(@Query('prospect_id') prospectId: string,@Req() req: Request,@Body() ids: string[]) {
-    return this.chatsService.markMessageAsRead(prospectId,req,ids);
+    return this.chatsService.markMessageAsRead(prospectId,req);
   }
 
  

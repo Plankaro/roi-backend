@@ -48,6 +48,7 @@ export class ProspectsService {
               deleted: false,
             },
           },
+          assignedTo: true,
         },
       });
 
@@ -59,37 +60,142 @@ export class ProspectsService {
     }
   }
 
-  async findAll(req: any) {
+  async findAll(req: any, query: any) {
     console.log(req.user);
-
+    console.log(query.broadcast);
+  
     try {
       const buisnessNo = req.user.business.whatsapp_mobile;
       if (!buisnessNo) {
         throw new BadRequestException('An error occurred');
       }
+  
+      // Destructure query parameters
+      const {
+        broadcast,
+        Agents,
+        conversation_status,
+        assignment_status,
+        campaigns,
+        engagement_status,
+        tags,
+      } = query;
+  
+      // Start building a dynamic Prisma filter
+      const whereFilter: any = {
+        buisnessNo, // Always filter by business number
+      };
+  
+      // Build an array to collect conditions for the `chats` relation
+      const chatConditions: any[] = [];
+  
+      // Filter by broadcast IDs if provided.
+      if (broadcast) {
+        const broadcastIds = Array.isArray(broadcast) ? broadcast : [broadcast];
+        chatConditions.push({
+          broadcastId: { in: broadcastIds },
+        });
+      }
+  
+      // Filter by conversation_status using the Chat table.
+      if (conversation_status) {
+        if (conversation_status === "read") {
+          chatConditions.push({
+            receiverPhoneNo: buisnessNo,
+            Status: "read",
+          });
+        } else if (conversation_status === "unread") {
+          chatConditions.push({
+            receiverPhoneNo: buisnessNo,
+            Status: { not: "read" },
+          });
+        }
+        // Always ensure chats are not deleted
+        chatConditions.push({ deleted: false });
+      }
+  
+      // Filter by campaigns if provided.
+      if (campaigns) {
+        const campaignIds = Array.isArray(campaigns) ? campaigns : [campaigns];
+        chatConditions.push({
+          campaignId: { in: campaignIds },
+        });
+      }
+  
+      // If any chat-related conditions were set, attach them as an AND condition inside a `some`
+      if (chatConditions.length > 0) {
+        whereFilter.chats = {
+          some: {
+            AND: chatConditions,
+          },
+        };
+      }
+  
+      // Filter by Agents (assuming this refers to assignedTo user ids)
+      if (Agents) {
+        const agentIds = Array.isArray(Agents) ? Agents : [Agents];
+        whereFilter.assignedTo = {
+          id: { in: agentIds },
+        };
+      }
+  
+      // Filter by assignment_status.
+      if (assignment_status) {
+        if (assignment_status === "assigned") {
+          whereFilter.assignedToId = { not: null };
+        } else if (assignment_status === "unassigned") {
+          whereFilter.assignedToId = null;
+        }
+      }
+  
+      // Filter by engagement_status.
+      if (engagement_status) {
+        const engagements = Array.isArray(engagement_status)
+          ? engagement_status
+          : [engagement_status];
+        whereFilter.lead = { in: engagements };
+      }
+  
+      // Filter by tags using the many-to-many relation via ProspectTag.
+      if (tags) {
+        const tagIds = Array.isArray(tags) ? tags : [tags];
+        whereFilter.ProspectTag = {
+          some: {
+            tagId: { in: tagIds },
+          },
+        };
+      }
+  
+      // Execute the query with the dynamic filter.
       const response = await this.databaseService.prospect.findMany({
-        where: {
-          buisnessNo: buisnessNo,
-        },
+        where: whereFilter,
         include: {
           chats: {
             take: 1,
-
-            orderBy: {
-              createdAt: 'desc', // Adjust this field based on your schema
-            },
-            where: {
-              deleted: false,
+            orderBy: { createdAt: 'desc' },
+            where: { deleted: false },
+          },
+          assignedTo: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              image: true,
             },
           },
+          ProspectTag: true,
         },
       });
+  
+      console.log(response);
       return response;
     } catch (error) {
       console.log(error);
       throw new InternalServerErrorException(error);
     }
   }
+  
+  
 
   async findOne(id: string) {
     try {
@@ -167,6 +273,48 @@ export class ProspectsService {
       return updateProspect;
     } catch (error) {
       console.error(error);
+    }
+  }
+  async getTags(req: any) {
+    try {
+      const buisness = req.user.business;
+      const tags = await this.databaseService.tag.findMany({
+        where:{
+          businessId: buisness.id,
+        }
+    });
+      return tags;
+    } catch (error) {
+      throw new InternalServerErrorException(error);
+    }
+  }
+  async createTags(createTagDto: any, req: any) {
+    try {
+      const user = req.user;
+      const createTags = await this.databaseService.tag.create({
+        data: {
+          tagName: createTagDto.tagName,
+          businessId: user.business.id,
+          userId: user.id
+        }
+      })
+      return createTags;
+    } catch (error) {
+      throw new InternalServerErrorException(error);
+    }
+  }
+  async deleteTags(id: string, req: any) {
+    try {
+      const user = req.user;
+      await this.databaseService.tag.delete({
+        where: {
+          id,
+          businessId: user.business.id,
+        }
+      });
+      return { message: 'Tag deleted successfully' };
+    } catch (error) {
+      throw new InternalServerErrorException(error);
     }
   }
 }

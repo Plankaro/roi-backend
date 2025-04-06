@@ -31,4 +31,8 @@ export class AgentsController {
   remove(@Param('id') id: string,@Req() req: Request) {
     return this.agentsService.remove(id,req);
   }
+  @Post('assign-chat')
+  assignChat( @Body() updateAgent: any, @Req() req: any) {
+    return this.agentsService.assignChat(updateAgent, req);
+  }
 }
