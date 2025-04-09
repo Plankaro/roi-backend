@@ -5,7 +5,8 @@ import { DatabaseService } from 'src/database/database.service';
 import { ShopifyService } from 'src/shopify/shopify.service';
 import { getShopifyConfig } from 'utils/usefulfunction';
 
-import { differenceInDays, isValid } from 'date-fns';
+
+import { differenceInDays, isValid,subDays } from 'date-fns';
 @Injectable()
 export class AnalyticsService {
   constructor(
@@ -98,11 +99,14 @@ async getEngagementAnalytics(req, query) {
       variables,
       config
     );
-    const customerCount = shopifyResponse.data.customersCount.count;
+    console.log(shopifyResponse)
+    const customerCount = shopifyResponse?.data?.customersCount?.count;
+
 
     // Run database queries concurrently
     const [
       totalMessages,
+    
       sessionMessage,
       templateMessage,
       engagementCount,
@@ -110,18 +114,20 @@ async getEngagementAnalytics(req, query) {
       deliveredMessage,
       sentMessage,
       skippedMessage,
+      readMessage,
     ] = await Promise.all([
       // Total messages for the business within the date range
       this.databaseService.chat.count({
         where: {
-          Prospect: { business: businessId },
+          Prospect: { business: {id:businessId}},
           createdAt: { gte: startDate, lte: endDate },
         },
       }),
+      
       // Non-template messages within the date range
       this.databaseService.chat.count({
         where: {
-          Prospect: { business: businessId },
+          Prospect: { business: {id:businessId} },
           template_used: false,
           createdAt: { gte: startDate, lte: endDate },
         },
@@ -129,7 +135,7 @@ async getEngagementAnalytics(req, query) {
       // Template messages only within the date range
       this.databaseService.chat.count({
         where: {
-          Prospect: { business: businessId },
+          Prospect: { business: {id:businessId} },
           template_used: true,
           createdAt: { gte: startDate, lte: endDate },
         },
@@ -137,14 +143,16 @@ async getEngagementAnalytics(req, query) {
       // Engagement count as total prospects within the date range
       this.databaseService.prospect.count({
         where: {
-          business: businessId,
+          business: {id:businessId},
+          created_at: { gte: startDate, lte: endDate },
+          chats:{some:{}}
          
         },
       }),
       // Failed messages within the date range
       this.databaseService.chat.count({
         where: {
-          Prospect: { business: businessId },
+          Prospect: { business: {id:businessId}  },
           Status: "failed",
           createdAt: { gte: startDate, lte: endDate },
         },
@@ -152,7 +160,7 @@ async getEngagementAnalytics(req, query) {
       // Delivered messages within the date range
       this.databaseService.chat.count({
         where: {
-          Prospect: { business: businessId },
+          Prospect: { business: {id:businessId} },
           Status: "delivered",
           createdAt: { gte: startDate, lte: endDate },
         },
@@ -160,7 +168,7 @@ async getEngagementAnalytics(req, query) {
       // Sent messages within the date range
       this.databaseService.chat.count({
         where: {
-          Prospect: { business: businessId },
+          Prospect: { business: {id:businessId} },
           Status: "sent",
           createdAt: { gte: startDate, lte: endDate },
         },
@@ -168,15 +176,26 @@ async getEngagementAnalytics(req, query) {
       // Skipped messages within the date range
       this.databaseService.chat.count({
         where: {
-          Prospect: { business: businessId },
+          Prospect: { business: {id:businessId} },
           Status: "skipped",
           createdAt: { gte: startDate, lte: endDate },
         },
       }),
+      // Read messages within the date range
+      this.databaseService.chat.count({
+        where: {
+          Prospect: { business: {id:businessId} },
+          Status: "read",
+          createdAt: { gte: startDate, lte: endDate },
+        },
+      }),
     ]);
+    
+
 
     return {
       customerCount,
+     
       totalMessages,
       sessionMessage,
       templateMessage,
@@ -185,6 +204,7 @@ async getEngagementAnalytics(req, query) {
       deliveredMessage,
       sentMessage,
       skippedMessage,
+      readMessage
     };
   } catch (error) {
     // Log error and rethrow or handle accordingly
@@ -192,35 +212,93 @@ async getEngagementAnalytics(req, query) {
   }
 }
 
-async getChatAnalytics(req,query){
+async getChatAnalytics(req, query) {
   const businessId = req.user.business.id;
+  const business = req.user;
   const startDate = new Date(query.startDate);
   const endDate = new Date(query.endDate);
+  const threeDaysBeforeEnd = subDays(endDate, 3);
 
-  const totalMessages = await this.databaseService.chat.count({
-    where: {
-      Prospect: { business: businessId },
-      createdAt: { gte: startDate, lte: endDate },
-    },
-  });
- 
-  const automatedMessages = await this.databaseService.chat.count({
-    where:{
-      isAutomated: true,
-      createdAt: { gte: startDate, lte: endDate },
-    }
-  })
+  // Run independent queries in parallel
+  const [
+    totalMessages,
+    automatedMessages,
+    totalEngagements,
+    abandonedEngagements,
+    messagesByAgents
+  ] = await Promise.all([
+    // Total messages within time range
+    this.databaseService.chat.count({
+      where: {
+        Prospect: { business: businessId },
+        createdAt: { gte: startDate, lte: endDate },
+      },
+    }),
 
-  const getMessagesByAgents = await this.databaseService.chat.groupBy({
-    by:["prospectId"],
-    _count: {
-      _all: true
-    },
-    where: {
-      createdAt: { gte: startDate, lte: endDate },
-    },
-  })
+    // Automated messages
+    this.databaseService.chat.count({
+      where: {
+        isAutomated: true,
+        createdAt: { gte: startDate, lte: endDate },
+      },
+    }),
 
+    // Prospects with any chat
+    this.databaseService.prospect.count({
+      where: {
+        business: { id: businessId },
+        created_at: { gte: startDate, lte: endDate },
+        chats: { some: {} },
+      },
+    }),
+
+    // Abandoned engagements (last message sent more than 3 days before endDate)
+    this.databaseService.prospect.findMany({
+      where: {
+        business: { id: businessId },
+        created_at: { gte: startDate, lte: endDate },
+        chats: { some: {} },
+      },
+      include: {
+        chats: {
+          where: {
+            senderPhoneNo: business.whatsapp_mobile,
+            createdAt: { lte: threeDaysBeforeEnd },
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+        },
+      },
+    }),
+
+    // Messages by agents with sender name
+    this.databaseService.$queryRawUnsafe<
+      { senderId: string; senderName: string; messageCount: number }[]
+    >(
+      `
+      SELECT 
+        c."senderId", 
+        u."name" AS "senderName", 
+        COUNT(*) AS "messageCount"
+      FROM "Chat" c
+      JOIN "User" u ON c."senderId" = u."id"
+      WHERE c."createdAt" BETWEEN $1 AND $2
+      GROUP BY c."senderId", u."name"
+      ORDER BY "messageCount" DESC
+    `,
+      startDate,
+      endDate
+    ),
+  ]);
+
+  return {
+    totalMessages,
+    totalEngagements,
+    abondnedEngagements: abandonedEngagements,
+    automatedMessages,
+    messagesByAgents,
+  };
 }
+
 
 }

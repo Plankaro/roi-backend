@@ -34,6 +34,7 @@ export class ShopifyService {
         query,
         variables,
       });
+      
       console.log(response.data);
       return response.data;
     } catch (error: any) {

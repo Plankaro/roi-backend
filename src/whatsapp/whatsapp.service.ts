@@ -185,10 +185,7 @@ export class WhatsappService {
       console.log('Template successfully sent to Meta:', response.data);
       return response.data;
     } catch (error: any) {
-      console.error(
-        'Error sending template to Meta:',
-        error.response ? error.response.data : error.message,
-      );
+     console.log(JSON.stringify(error.response ? error.response.data : error.message,null,2))
       throw error;
     }
   }

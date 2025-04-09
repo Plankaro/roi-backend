@@ -12,10 +12,14 @@ import { extname } from 'path';
 export class TemplateController {
   constructor(private readonly templateService: TemplateService) {}
 
+  @Get()
+  GetTemplate(@Req req: any) {
+    return this.
+  }
+  
  
-  @Public()
   @Post()
-  create(@Body() CreateTemplateDto:  any,@Req() req:any ) {
+  create(@Body() CreateTemplateDto: any,@Req() req:any ) {
     
     return this.templateService.create(CreateTemplateDto,req);
   }
