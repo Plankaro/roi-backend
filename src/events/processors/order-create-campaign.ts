@@ -55,7 +55,7 @@ export class CreateOrderCampaign extends WorkerHost {
        const orderById = await this.getOrderById(order.shopify_id, shopifyConfig);
 
        
-       console.log(JSON.stringify(orderById, null, 2));
+   
 
        if(!orderById){
         return
@@ -142,10 +142,7 @@ export class CreateOrderCampaign extends WorkerHost {
                  campaign.filters.customer_tag_filter_none,
                )
              )
-             console.log(noneTagPresent(
-               tagsfromField,
-               campaign.filters.customer_tag_filter_none,
-             ));
+           
                return;
            }
          }
@@ -314,10 +311,7 @@ export class CreateOrderCampaign extends WorkerHost {
              ? '0 minutes'
              : `${trigger_time.time} ${trigger_time.unit}`,
          );
-         console.log(
-           'Checking for abandoned checkouts since:',
-           abandonedCartDate,
-         );
+       
  
          const abandoned_checkout =
            await this.databaseService.checkout.findFirst({
@@ -329,7 +323,7 @@ export class CreateOrderCampaign extends WorkerHost {
              },
            });
          if (abandoned_checkout) {
-           console.log('Abandoned checkout found. Exiting.');
+         
            return;
          }
        }
@@ -348,14 +342,14 @@ export class CreateOrderCampaign extends WorkerHost {
            campaignId: campaign.id,
          },
        })
-       console.log(campaign.components);
+      
  
-       console.log('All filters passed. Proceeding to message sending logic...');
+      
       let razorpaymentUrl = ""
  
        const components = [];
        const { header, buttons, body } = campaign.components as any;
-       console.log('Component Data:', { header, buttons, body });
+       
        const isCodToCheckoutLink = buttons.some((button) => button.segmentname === 'cod_to_checkout_link')
         if(isCodToCheckoutLink){
           const data = await this.razorpayService.generatePaymentLink(
@@ -368,7 +362,7 @@ export class CreateOrderCampaign extends WorkerHost {
             Number(orderById.totalPrice),
             'cod to checkout link',
           );
-          console.log('Razorpay Link:', JSON.stringify(data,null,2));
+          
           razorpaymentUrl = data.short_url
           await this.databaseService.paymentLink.create({
             data: {
@@ -392,7 +386,7 @@ export class CreateOrderCampaign extends WorkerHost {
          campaign.template_name,
        );
        const template = response?.data?.[0];
-       console.log('Template Data:', template); // Ensure safe access
+      // Ensure safe access
  
     
        // // Process header component
@@ -443,7 +437,7 @@ export class CreateOrderCampaign extends WorkerHost {
              ],
            });
          }
-         console.log('Header processed with value:', headerValue);
+       
        }
  
        // Process body component parameters
@@ -500,7 +494,7 @@ export class CreateOrderCampaign extends WorkerHost {
            });
          }
        });
-       console.log('Buttons processed:', JSON.stringify(components, null, 2));
+      
  
        const messageResponse = await this.whatsappService.sendTemplateMessage(
          {
@@ -512,7 +506,7 @@ export class CreateOrderCampaign extends WorkerHost {
          whatsappConfig,
        );
  
-       console.log(JSON.stringify(messageResponse, null, 2));
+
  
        const footer = template.components.find(
          (component) => component.type === 'footer'
@@ -520,12 +514,12 @@ export class CreateOrderCampaign extends WorkerHost {
        let bodycomponent = template.components.find(
          (component) => component.type.toLowerCase() === 'body'
        );
-       console.log('Body component found:', bodycomponent);
+       
        
        let bodyRawText = '';
        if (bodycomponent && bodycomponent.text) {
          bodyRawText = bodycomponent.text;
-         console.log('Original bodyRawText:', bodyRawText);
+        
        
          // Build a mapping for placeholders from the body parameters
          const mapping = body.reduce(
@@ -537,13 +531,13 @@ export class CreateOrderCampaign extends WorkerHost {
                ? this.getOrderValue(orderById, param.segmentname)
                : param.value;
              acc[key] = value;
-             console.log(`Mapping key: "${key}" with value:`, value);
+          
              return acc;
            },
            {} as Record<string, string | number | null>
          );
        
-         console.log('Mapping for body text:', mapping);
+      
        
          // Replace each placeholder in the bodyRawText with its mapped value
          Object.keys(mapping).forEach((placeholder) => {
@@ -551,23 +545,17 @@ export class CreateOrderCampaign extends WorkerHost {
            // Create a regex pattern to match the placeholder wrapped in curly braces,
            // with optional whitespace inside the braces.
            const regex = new RegExp(`{{\\s*${escapedPlaceholder}\\s*}}`, 'g');
-           console.log(
-             `Replacing all occurrences of placeholder "{{${placeholder}}}" using regex:`,
-             regex
-           );
+          
            bodyRawText = bodyRawText.replace(
              regex,
              mapping[placeholder] as string
            );
-           console.log(
-             `Updated bodyRawText after replacing "${placeholder}":`,
-             bodyRawText
-           );
+          
          });
        
          // Remove any remaining curly braces in case some placeholders weren't replaced
          bodyRawText = bodyRawText.replace(/{{|}}/g, '');
-         console.log('Final bodyRawText after removing curly braces:', bodyRawText);
+        
        }
  
        const prospect = await this.databaseService.prospect.upsert({

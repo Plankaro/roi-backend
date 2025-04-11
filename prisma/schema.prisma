@@ -95,6 +95,7 @@ model Business {
   razorpay_id          String?
   razorpay_secret      String?
 
+
   Broadcast     Broadcast[]
   Template      Template[]
   FlashResponse FlashResponse[]
@@ -109,6 +110,8 @@ model Business {
   Checkout Checkout[]
 
   PaymentLink PaymentLink[]
+
+  Bots Bots[]
 }
 
 model Tag {
@@ -235,6 +238,38 @@ enum Lead {
   NEGOTIATION
   OTHER
 }
+
+enum BotType {
+  WELCOME
+  PRODUCT_BROWSING
+  ORDER_CANCEL
+  SHIPPING_CHARGES
+  REPEAT_ORDER
+  DISCOUNT
+  ORDER_TRACK
+}
+
+
+
+model Bots {
+  id                                  String   @id @default(cuid())
+  type                                BotType
+  discount_type                       discount_type @default(PERCENTAGE)
+  buisness_id                         String
+  Buisness                            Business @relation(fields: [buisness_id], references: [id])
+  discount_amount                     String   @default("10")
+  discount_expiry                     String   @default("7")
+  discount_minimum                    String   @default("200")
+  no_of_days_before_asking_discount   String   @default("7")
+  is_active                           Boolean  @default(true)
+  shipping_standard_cost              String   @default("150")
+  shipping_threshold                  String   @default("200")
+  international_shipping_cost         String   @default("200")
+
+  @@unique([buisness_id, type]) // ✅ Enforces unique (buisness_id, type) pair
+}
+
+
 
 
 model Chat {

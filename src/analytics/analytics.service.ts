@@ -219,18 +219,17 @@ async getChatAnalytics(req, query) {
   const endDate = new Date(query.endDate);
   const threeDaysBeforeEnd = subDays(endDate, 3);
 
-  // Run independent queries in parallel
   const [
     totalMessages,
     automatedMessages,
     totalEngagements,
     abandonedEngagements,
-    messagesByAgents
+    messagesByAgentsRaw,
   ] = await Promise.all([
     // Total messages within time range
     this.databaseService.chat.count({
       where: {
-        Prospect: { business: businessId },
+        Prospect: { business: { id: businessId } },
         createdAt: { gte: startDate, lte: endDate },
       },
     }),
@@ -239,6 +238,7 @@ async getChatAnalytics(req, query) {
     this.databaseService.chat.count({
       where: {
         isAutomated: true,
+        Prospect: { business: { id: businessId } },
         createdAt: { gte: startDate, lte: endDate },
       },
     }),
@@ -271,34 +271,43 @@ async getChatAnalytics(req, query) {
       },
     }),
 
-    // Messages by agents with sender name
+    // Messages by agents – using LEFT JOIN to include users with zero messages
     this.databaseService.$queryRawUnsafe<
-      { senderId: string; senderName: string; messageCount: number }[]
+      { senderId: string; senderName: string; messageCount: bigint }[]
     >(
       `
       SELECT 
-        c."senderId", 
+        u.id AS "senderId", 
         u."name" AS "senderName", 
-        COUNT(*) AS "messageCount"
-      FROM "Chat" c
-      JOIN "User" u ON c."senderId" = u."id"
-      WHERE c."createdAt" BETWEEN $1 AND $2
-      GROUP BY c."senderId", u."name"
+        COUNT(c.id) AS "messageCount"
+      FROM "User" u
+      LEFT JOIN "Chat" c 
+        ON c."senderId" = u.id 
+        AND c."createdAt" BETWEEN $1 AND $2
+      GROUP BY u.id, u."name"
       ORDER BY "messageCount" DESC
-    `,
+      `,
       startDate,
       endDate
     ),
   ]);
 
+  // Convert BigInt messageCount to a regular number
+  const messagesByAgents = messagesByAgentsRaw.map(agent => ({
+    ...agent,
+    messageCount: Number(agent.messageCount),
+  }));
+
   return {
     totalMessages,
-    totalEngagements,
-    abondnedEngagements: abandonedEngagements,
     automatedMessages,
+    totalEngagements,
+    abandonedEngagements,
     messagesByAgents,
   };
 }
+
+
 
 
 }

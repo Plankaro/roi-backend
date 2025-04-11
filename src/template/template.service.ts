@@ -132,40 +132,17 @@ export class TemplateService {
   }
 
   //tested
-  async remove(id: string, req: any) {
+  async remove(name: string, req: any) {
     try {
-      const findTemplateById = await this.databaseService.template.findUnique({
-        where: {
-          id: id,
-          createdForId: req.user.business.id,
-        },
-      });
-
-      if (!findTemplateById) {
-        throw new BadRequestException('Template not found');
-      }
+      console.log('Received name param:', name);
       const config = getWhatsappConfig(req.user.business);
-
-      const deletetemplate = await this.whatsappService.deleteTemplate(
-        findTemplateById.id,
-        config,
-      );
-      console.log(deletetemplate);
-      if (deletetemplate.success === true) {
-        await this.databaseService.template.delete({
-          where: {
-            id: id,
-            createdForId: req.user.business.id,
-          },
-        });
-      }
-
-      return {
-        success: true,
-      };
-    } catch (error) {
-      console.log(JSON.stringify(error.data));
-      throw new InternalServerErrorException(error);
+      const deletetemplate = await this.whatsappService.deleteTemplate(name, config);
+      console.log('Delete result:', deletetemplate);
+  
+      return { success: true };
+    } catch (error: any) {
+      console.log('Delete error:', JSON.stringify(error?.response?.data || error.message));
+      throw new InternalServerErrorException(error?.response?.data?.error || error.message);
     }
   }
 
@@ -278,4 +255,28 @@ export class TemplateService {
     const response = await this.whatsappService.getMedia(fileName, config);
     return response;
   }
+
+   async findAllTemplate(req: any) {
+      const buisness = req.user.business;
+      const config = getWhatsappConfig(buisness);
+  
+      try {
+        console.log('fetching templates');
+        const Templates = await this.whatsappService.getTemplates(config);
+        console.log(Templates.data);
+        console.log(typeof Templates.data);
+        const approvedTemplates = Templates?.data?.filter(
+          (template) =>
+            
+            !template.components?.some(
+              (component) => component.type === 'CAROUSEL',
+            ),
+        );
+  
+        return approvedTemplates;
+      } catch (error) {
+        console.log(error);
+        throw new InternalServerErrorException('Failed to fetch templates');
+      }
+    }
 }

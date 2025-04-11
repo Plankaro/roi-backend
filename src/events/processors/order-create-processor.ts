@@ -247,13 +247,13 @@ export class CreateOrderQueue extends WorkerHost {
           shopify_id: String(orderData.checkout_id),
         },
       });
-      console.log('checkoutdb', ifCheckout);
+
       const findBuisness = await this.databaseService.business.findUnique({
         where: {
           shopify_domain: domain,
         },
       });
-      console.log('business', findBuisness);
+     
       const order_created = await this.databaseService.order.create({
         data: {
           shopify_id: orderData.id.toString(),

@@ -168,8 +168,7 @@ export class CreateCheckoutQueue extends WorkerHost {
 
   async process(job: Job<any>): Promise<void> {
     try {
-      console.log('Received checkout data:'); 
-      console.log(job.id);
+ 
       const { checkOutData, domain }: JobData = job.data;
 
       if (!checkOutData.token) return;
@@ -229,7 +228,7 @@ export class CreateCheckoutQueue extends WorkerHost {
           // campaigns: { connect: [{ id: someCampaignId }] },
         },
       });
-      console.log(checkout);
+  
       const Campaigns = await this.databaseService.campaign.findMany({
         where: {
           Business: { shopify_domain: domain },

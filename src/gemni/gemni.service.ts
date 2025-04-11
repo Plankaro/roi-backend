@@ -36,6 +36,9 @@ Determine which category it falls into based on the options below:
 4) order_cancelling_bot: The user is requesting to cancel an order (e.g., "I want to cancel my order" or "Can you cancel {{some_id}}?" where an order ID may be provided)
 5) shipping_charges_bot: The user is asking about shipping charges (e.g., "I want to know shipping charges")
 6) repeat_order_bot: The user is requesting to repeat an order (e.g., "I want to repeat my order" or "Can you repeat {{some_id}}?" where an order ID may be provided)
+7) welcome_bot: The user is initiating a conversation or greeting (e.g., "Hi", "Hello", "Hey", "Good morning"), or expressing a general need for help or assistance (e.g., "I need help", "I’m having an issue", "I have a problem", etc.) without specifically mentioning customer support.
+
+8) contacting_support_bot: The user explicitly wants to speak with customer support or a customer service agent (e.g., "I want to talk to customer support", "Connect me to customer service", "I need to speak to a support agent", etc.)
 
 If the user message does not fall into any of these categories, respond with "None".
 

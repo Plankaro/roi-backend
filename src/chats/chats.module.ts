@@ -12,6 +12,7 @@ import { ReceiveChatsQueue } from './processor/receivechat-processor';
 import { CustomersModule } from 'src/customers/customers.module';
 import { GemniModule } from 'src/gemni/gemni.module';
 import { BottransferQueue } from './processor/bot-transfer-processor';
+import { BotModule } from 'src/bot/bot.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { BottransferQueue } from './processor/bot-transfer-processor';
     DatabaseModule,
     CustomersModule,
     ShopifyModule,
+    BotModule,
     BullModule.registerQueue({ name: 'receiveChatsQueue' },
       { name: 'bottransferQueue'}
     ),

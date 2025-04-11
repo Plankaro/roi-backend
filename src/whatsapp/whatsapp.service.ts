@@ -260,7 +260,7 @@ export class WhatsappService {
         `/${config.whatsappMobileId}/messages`,
         payload,
       );
-      console.log(response.data);
+      console.log(response);
       return response.data;
     } catch (error: any) {
       console.error(
@@ -271,25 +271,29 @@ export class WhatsappService {
     }
   }
 
-  async deleteTemplate(
-    templateName: string,
-    config: any,
-  ): Promise<any> {
-    // if (!config.whatsappBusinessId ) {
-    //   throw new InternalServerErrorException(
-    //     'Missing whatsappBusinessId in config',
-    //   );
-    // }
+  async deleteTemplate(templateName: string, config: any): Promise<any> {
+    if (!config?.whatsappBusinessId || !config?.whatsappApiToken) {
+      throw new InternalServerErrorException('Missing required config');
+    }
+  
+    console.log('Attempting to delete template:', templateName);
+  
     try {
-      const client = this.createClient(config?.whatsappApiToken);
+      const client = this.createClient(config.whatsappApiToken);
       const response = await client.delete(
         `${config.whatsappBusinessId}/message_templates`,
         {
-          params: { name: templateName},
+          params: { name: templateName },
         },
       );
-      
-      return response.data;
+  
+      console.log('Delete response status:', response.status);
+      console.log('Delete response data:', response.data); // May be undefined if successful
+  
+      return {
+        success: response.status === 200 || response.status === 204,
+        message: 'Template deleted successfully',
+      };
     } catch (error: any) {
       console.error(
         'Error deleting WhatsApp template:',
@@ -301,6 +305,7 @@ export class WhatsappService {
       );
     }
   }
+  
 
 
   async blockNumber(phoneNumber: string, config: WhatsappConfig): Promise<any> {

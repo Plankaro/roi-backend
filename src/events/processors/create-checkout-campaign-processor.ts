@@ -36,13 +36,10 @@ export class CreateCheckoutCampaign extends WorkerHost {
 
   async process(job: Job<any>): Promise<void> {
     try {
-      console.log('==== PROCESSING JOB ====', job.data);
+    
 
       const { checkoutId, campaignId } = job.data;
-      console.log('Fetching checkout and campaign:', {
-        checkoutId,
-        campaignId,
-      });
+    
 
       const [checkout, campaign] = await this.databaseService.$transaction([
         this.databaseService.checkout.findUnique({
@@ -58,8 +55,7 @@ export class CreateCheckoutCampaign extends WorkerHost {
         }),
       ]);
 
-      console.log('Fetched checkout:', checkout);
-      console.log('Fetched campaign:', campaign);
+    
 
       if (
         campaign?.related_order_created &&
@@ -137,10 +133,7 @@ export class CreateCheckoutCampaign extends WorkerHost {
                 campaign.filters.customer_tag_filter_none,
               )
             )
-            console.log(noneTagPresent(
-              tagsfromField,
-              campaign.filters.customer_tag_filter_none,
-            ));
+          
               return;
           }
         }
@@ -314,10 +307,7 @@ export class CreateCheckoutCampaign extends WorkerHost {
             ? '0 minutes'
             : `${trigger_time.time} ${trigger_time.unit}`,
         );
-        console.log(
-          'Checking for abandoned checkouts since:',
-          abandonedCartDate,
-        );
+     
 
         const abandoned_checkout =
           await this.databaseService.checkout.findFirst({
@@ -329,13 +319,11 @@ export class CreateCheckoutCampaign extends WorkerHost {
             },
           });
         if (abandoned_checkout) {
-          console.log('Abandoned checkout found. Exiting.');
+         
           return;
         }
       }
-      console.log(campaign.components);
-
-      console.log('All filters passed. Proceeding to message sending logic...');
+     
       await this.databaseService.checkoutOnCampaign.create({
         data: {
           checkoutId: checkout.id,
@@ -345,7 +333,7 @@ export class CreateCheckoutCampaign extends WorkerHost {
 
       const components = [];
       const { header, buttons, body } = campaign.components as any;
-      console.log('Component Data:', { header, buttons, body });
+     
 
       const config = getWhatsappConfig(campaign.Business);
       const response = await this.whatsappService.findSpecificTemplate(
@@ -353,7 +341,7 @@ export class CreateCheckoutCampaign extends WorkerHost {
         campaign.template_name,
       );
       const template = response?.data?.[0];
-      console.log('Template Data:', template); // Ensure safe access
+     // Ensure safe access
 
       const customerId = checkout.customer as any;
       let discount;
@@ -365,7 +353,7 @@ export class CreateCheckoutCampaign extends WorkerHost {
           shopifyConfig,
         );
       }
-      console.log('Discount Data:', discount);
+    
       // // Process header component
       if (header && header.isEditable) {
         let headerValue = '';
@@ -414,7 +402,7 @@ export class CreateCheckoutCampaign extends WorkerHost {
             ],
           });
         }
-        console.log('Header processed with value:', headerValue);
+   
       }
 
       // Process body component parameters
@@ -431,7 +419,7 @@ export class CreateCheckoutCampaign extends WorkerHost {
           : { type: 'text', text: value };
       });
       components.push({ type: 'body', parameters: bodyParameters });
-      console.log('Body parameters processed:', bodyParameters);
+ 
 
       // Process buttons
       buttons.forEach((button, index) => {
@@ -467,7 +455,7 @@ export class CreateCheckoutCampaign extends WorkerHost {
           });
         }
       });
-      console.log('Buttons processed:', JSON.stringify(components, null, 2));
+  
 
       const messageResponse = await this.whatsappService.sendTemplateMessage(
         {
@@ -479,7 +467,6 @@ export class CreateCheckoutCampaign extends WorkerHost {
         config,
       );
 
-      console.log(JSON.stringify(messageResponse, null, 2));
 
       const footer = template.components.find(
         (component) => component.type === 'footer'
@@ -487,12 +474,12 @@ export class CreateCheckoutCampaign extends WorkerHost {
       let bodycomponent = template.components.find(
         (component) => component.type.toLowerCase() === 'body'
       );
-      console.log('Body component found:', bodycomponent);
+ 
       
       let bodyRawText = '';
       if (bodycomponent && bodycomponent.text) {
         bodyRawText = bodycomponent.text;
-        console.log('Original bodyRawText:', bodyRawText);
+     
       
         // Build a mapping for placeholders from the body parameters
         const mapping = body.reduce(
@@ -504,13 +491,13 @@ export class CreateCheckoutCampaign extends WorkerHost {
               ? this.getCheckoutValue(checkout, param.segmentname, discount)
               : param.value;
             acc[key] = value;
-            console.log(`Mapping key: "${key}" with value:`, value);
+            
             return acc;
           },
           {} as Record<string, string | number | null>
         );
       
-        console.log('Mapping for body text:', mapping);
+   
       
         // Replace each placeholder in the bodyRawText with its mapped value
         Object.keys(mapping).forEach((placeholder) => {
@@ -518,23 +505,17 @@ export class CreateCheckoutCampaign extends WorkerHost {
           // Create a regex pattern to match the placeholder wrapped in curly braces,
           // with optional whitespace inside the braces.
           const regex = new RegExp(`{{\\s*${escapedPlaceholder}\\s*}}`, 'g');
-          console.log(
-            `Replacing all occurrences of placeholder "{{${placeholder}}}" using regex:`,
-            regex
-          );
+         
           bodyRawText = bodyRawText.replace(
             regex,
             mapping[placeholder] as string
           );
-          console.log(
-            `Updated bodyRawText after replacing "${placeholder}":`,
-            bodyRawText
-          );
+          
         });
       
         // Remove any remaining curly braces in case some placeholders weren't replaced
         bodyRawText = bodyRawText.replace(/{{|}}/g, '');
-        console.log('Final bodyRawText after removing curly braces:', bodyRawText);
+       
       }
 
       const prospect = await this.databaseService.prospect.upsert({
@@ -581,7 +562,7 @@ export class CreateCheckoutCampaign extends WorkerHost {
           
         },
       });
-      console.log(addTodb)
+     
     } catch (error) {
       console.error('Error in getShopifyPercentageDiscount:', error);
       throw error;
@@ -752,7 +733,7 @@ export class CreateCheckoutCampaign extends WorkerHost {
         variables,
         config,
       );
-      console.log(JSON.stringify(response, null, 2));
+     
       return discountCode;
     } catch (error) {
       console.error('Error in getShopifyDiscount:', error);
@@ -847,8 +828,7 @@ export class CreateCheckoutCampaign extends WorkerHost {
           return this.shopifyService.executeGraphQL(query, variables, config);
         }),
       );
-  
-      console.log(JSON.stringify(responses, null, 2)); // Log the responses
+
   
       // Process the responses to extract the product and transform the images field.
       return responses.map((response) => {
@@ -893,7 +873,7 @@ export class CreateCheckoutCampaign extends WorkerHost {
         console.warn('Failed to parse URL:', error);
       }
     }
-    console.error(discount);
+
 
     // Append discount as a query parameter if discount exists
     const modifiedAbandonUrl = abandonUrl
@@ -902,7 +882,7 @@ export class CreateCheckoutCampaign extends WorkerHost {
         : abandonUrl
       : null;
 
-    console.log('modifiedAbandonUrl', modifiedAbandonUrl);
+   
 
     const mapping: Record<string, any> = {
       customer_full_name:

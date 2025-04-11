@@ -34,6 +34,8 @@ import { GemniModule } from './gemni/gemni.module';
 import { RazorpayModule } from './razorpay/razorpay.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 
+import { BotModule } from './bot/bot.module';
+
 
 
 
@@ -82,6 +84,8 @@ import { AnalyticsModule } from './analytics/analytics.module';
     GemniModule,
     RazorpayModule,
     AnalyticsModule,
+  
+    BotModule,
   
    
   ],

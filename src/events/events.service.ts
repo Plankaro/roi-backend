@@ -21,7 +21,7 @@ export class EventsService {
   ) {}
   async manipulateOrder(orderData: any, domain: string) {
    
-
+console.log("order triggered",JSON.stringify(orderData,null,2))
   
     await this.createOrderQueue.add(
       'createOrder',
@@ -52,6 +52,7 @@ export class EventsService {
   }
 
   async manipulateCancelOrder(cancelOrder: any, domain: string) {
+
   
     await this.cancelOrderQueue.add(
       'cancelOrderQueue',
@@ -88,7 +89,7 @@ export class EventsService {
   }
 
   async manipulateCheckout(checkOutData: any, domain: string) {
-    console.log("checkoutontriggered",checkOutData)
+    console.log("checkoutontriggered",JSON.stringify(checkOutData,null,2))
  
     await this.createCheckoutQueue.add(
       'createCheckoutQueue',

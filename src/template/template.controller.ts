@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Req,UseInterceptors,UploadedFile,BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Req,UseInterceptors,UploadedFile,BadRequestException, Query } from '@nestjs/common';
 import { TemplateService } from './template.service';
 import {  CreateTemplateDto  } from './dto/create-template.dto';
 import { UpdateTemplateDto } from './dto/update-template.dto';
@@ -13,9 +13,10 @@ export class TemplateController {
   constructor(private readonly templateService: TemplateService) {}
 
   @Get()
-  GetTemplate(@Req req: any) {
-    return this.
+  findAll(@Req() req: Request) {
+    return this.templateService.findAllTemplate(req);
   }
+
   
  
   @Post()
@@ -24,11 +25,12 @@ export class TemplateController {
     return this.templateService.create(CreateTemplateDto,req);
   }
 
-@Public()
-  @Delete(':id')
-  remove(@Param('id') id: string,@Req() req:any) {
-    return this.templateService.remove(id,req);
+ 
+  @Delete('')
+  remove(@Query('name') name: string, @Req() req: any) {
+    return this.templateService.remove(name, req);
   }
+  
 
   @Public()
   @Post('upload-media')
