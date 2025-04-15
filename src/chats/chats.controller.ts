@@ -1,12 +1,13 @@
 import { Controller, Get, Post, Body, Patch, Param, Delete, Query, Res, Req, Put } from '@nestjs/common';
 import { Response } from 'express';
 import { ChatsService } from './chats.service';
-import { SendTemplateMessageDto } from './dto/template-chat';
+
 import { Public } from 'src/auth/decorator/public.decorator';
 import { MediaDto } from './dto/media-chat-dto';
 import { Request } from 'express';
 import { WhatsappService } from 'src/whatsapp/whatsapp.service';
 import { getWhatsappConfig } from 'utils/usefulfunction';
+import { SendMessageDto, SendTemplateMessageDto } from './dto/sendchat-dto';
 
 
 @Controller('chats')
@@ -30,14 +31,14 @@ export class ChatsController {
     }
   }
   @Post('/template')
-  async create(@Body() sendTemplateMessageDto: any,@Req() req: any ) {
+  async create(@Body() sendTemplateMessageDto: SendTemplateMessageDto,@Req() req: any ) {
 
 
     return this.chatsService.sendTemplatemessage(sendTemplateMessageDto,req);
   }
 
   @Post('/text')
-  SendText(@Body() sendChatDto:any,@Req() req: Request ){
+  SendText(@Body() sendChatDto:SendMessageDto,@Req() req: Request ){
     return this.chatsService.sendMessage(sendChatDto,req)
   }
 

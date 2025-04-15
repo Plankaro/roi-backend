@@ -3,8 +3,9 @@ import {
   Body,
   InternalServerErrorException,
   BadRequestException,
+  Logger,
 } from '@nestjs/common';
-import { SendTemplateMessageDto } from './dto/template-chat';
+
 import { WhatsappService } from 'src/whatsapp/whatsapp.service';
 import { ChatsGateway } from './chats.gateway';
 import { DatabaseService } from 'src/database/database.service';
@@ -24,6 +25,8 @@ import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { console } from 'inspector';
 import { connect } from 'http2';
+import { SendMessageDto,SendTemplateMessageDto } from './dto/sendchat-dto';
+
 @Injectable()
 export class ChatsService {
   constructor(
@@ -33,7 +36,7 @@ export class ChatsService {
     private readonly ShopifyService: ShopifyService,
     @InjectQueue('receiveChatsQueue') private readonly receiveChatsQueue: Queue,
   ) {}
-  async sendTemplatemessage(sendTemplateMessageDto: any, req: any) {
+  async sendTemplatemessage(sendTemplateMessageDto: SendTemplateMessageDto, req: any) {
     try {
       const {
         name,
@@ -325,34 +328,18 @@ export class ChatsService {
     }
   }
 
-  async sendMessage(sendChatDto: any, req: any) {
-    console.log(sendChatDto);
+  async sendMessage(sendChatDto: SendMessageDto, req: any) {
+
     const { recipientNo, message, prospect_id } = sendChatDto;
     try {
       const buisness = req.user.business;
-      console.log(buisness);
+      Logger.log(sendChatDto);
       const config = {
         whatsappMobileId: buisness.whatsapp_mobile_id,
         whatsappApiToken: buisness.whatsapp_token,
       };
 
-      //   where: {
-      //     buisnessNo_phoneNo: { // Correct format for compound unique constraint
-      //       phoneNo: recipientNo as string,
-      //       buisnessNo: '15551365364',
-
-      //     }
-      //   },
-      //   update: {
-      //     // Add the fields you want to update when the record exists
-      //   },
-      //   create: {
-      //     phoneNo: recipientNo as string,
-      //     buisnessNo: '15551365364',
-      //     lead :"LEAD"
-      //     // Add other required fields for new record creation
-      //   }
-      // });
+   
       const sendMessage = await this.whatsappService.sendMessage(
         recipientNo,
         message,

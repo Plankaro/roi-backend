@@ -1,6 +1,6 @@
 import { Controller, Get, Post, Body, Patch, Param, Delete, Req, Query } from '@nestjs/common';
 import { TagsService } from './tags.service';
-import { CreateTagDto } from './dto/create-tag.dto';
+import { CreateTagDto, TagAssociationDto } from './dto/create-tag.dto';
 import { UpdateTagDto } from './dto/update-tag.dto';
 
 @Controller('tags')
@@ -8,7 +8,7 @@ export class TagsController {
   constructor(private readonly tagsService: TagsService) {}
 
   @Post()
-  create(@Body() createTagDto: any, @Req() req: any) {
+  create(@Body() createTagDto: CreateTagDto, @Req() req: any) {
     return this.tagsService.create(createTagDto,req);
   }
 
@@ -30,7 +30,7 @@ export class TagsController {
   }
 
   @Post("/prospect")
-  createTagForProspect(@Body() createTagDto: any, @Req() req: any) {
+  createTagForProspect(@Body() createTagDto: TagAssociationDto, @Req() req: any) {
     
     return this.tagsService.createTagForProspect(createTagDto.ProspectId,createTagDto.tagId,req);
   }
