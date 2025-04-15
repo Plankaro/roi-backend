@@ -6,8 +6,10 @@ import { DatabaseService } from 'src/database/database.service';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import {
+  generateLinkWithUTM,
   getFromDate,
   getWhatsappConfig,
+  isTemplateButtonRedirectSafe,
   sanitizePhoneNumber,
 } from 'utils/usefulfunction';
 import { CustomersService } from 'src/customers/customers.service';
@@ -20,7 +22,7 @@ export class BroadcastProcessor extends WorkerHost {
     private readonly databaseService: DatabaseService,
     @InjectQueue('broadcastQueue') private readonly broadcastQueue: Queue,
     private readonly customersService: CustomersService,
-     private readonly chatsGateway: ChatsGateway,
+    private readonly chatsGateway: ChatsGateway,
   ) {
     super();
   }
@@ -36,7 +38,7 @@ export class BroadcastProcessor extends WorkerHost {
       const broadcast = await this.databaseService.broadcast.update({
         where: { id },
         data: { status: 'running' },
-        include: { creator: { include: { business: true } } },
+        include: { creator: true, createdFor: true },
       });
       console.log(
         'Broadcast updated:',
@@ -45,7 +47,7 @@ export class BroadcastProcessor extends WorkerHost {
         broadcast.status,
       );
 
-      const config = getWhatsappConfig(broadcast.creator.business);
+      const config = getWhatsappConfig(broadcast.createdFor);
 
       const response = await this.whatsappService.findSpecificTemplate(
         config,
@@ -88,8 +90,13 @@ export class BroadcastProcessor extends WorkerHost {
 
       // Process each contact
       for (const broadcastData of data) {
+        let trackurl: string;
+        let trackId: string;
         console.log('===================================');
         console.log(broadcastData.phone);
+        if (!broadcastData.phone) {
+          return;
+        }
         const contact = sanitizePhoneNumber(broadcastData.phone);
         console.log('Processing contact:', contact);
 
@@ -168,14 +175,63 @@ export class BroadcastProcessor extends WorkerHost {
         console.log('Body parameters processed:', bodyParameters);
 
         // Process buttons
-        buttons.forEach((button, index) => {
-          if (button.type === 'URL' && button.isEditable === true) {
-            components.push({
-              type: 'button',
-              sub_type: 'url',
-              index: index,
-              parameters: [{ type: 'text', text: button.value }],
-            });
+
+        const islinkTrackEnabled = isTemplateButtonRedirectSafe(template);
+        for (const [index, button] of buttons.entries()) {
+          console.log(`Button [${index}]:`, button);
+
+          if (button.type === 'URL' && button.isEditable) {
+            if (!islinkTrackEnabled) {
+              trackurl = button.value;
+              if (broadcast.utm_campaign) {
+                trackurl += `?utm_campaign=${broadcast.utm_campaign}`;
+              }
+
+              // Only append utm_source if enabled
+              if (button.utm_source) {
+                trackurl += trackurl.includes('?')
+                  ? `&utm_source=${broadcast.utm_source}`
+                  : `?utm_source=${broadcast.utm_source}`;
+              }
+
+              // Only append utm_medium if enabled
+              if (broadcast.utm_medium) {
+                trackurl += trackurl.includes('?')
+                  ? `&utm_medium=${broadcast.utm_medium}`
+                  : `?utm_medium=${broadcast.utm_medium}`;
+              }
+              if (broadcast.utm_id) {
+                trackurl += trackurl.includes('?')
+                  ? `&utm_id=${broadcast.id}`
+                  : `?utm_id=${broadcast.id}`;
+              }
+              components.push({
+                type: 'button',
+                sub_type: 'url',
+                index,
+                parameters: [{ type: 'text', text: trackurl }],
+              });
+            } else {
+              const url = await this.databaseService.linkTrack.create({
+                data: {
+                  link: button.value,
+                  buisness_id: broadcast.createdFor.id,
+                  broadcast_id: broadcast.id,
+                  utm_campaign: broadcast.utm_campaign,
+                  utm_source: broadcast.utm_source,
+                  utm_id: broadcast.utm_id ? broadcast.id : null,
+                },
+              });
+              console.log(url);
+              trackId = url.id;
+              trackurl = `go/${trackId}}`;
+              components.push({
+                type: 'button',
+                sub_type: 'url',
+                index,
+                parameters: [{ type: 'text', text: trackurl }], // maybe use url instead of button.value?
+              });
+            }
           } else if (button.type === 'COPY_CODE') {
             components.push({
               type: 'button',
@@ -183,18 +239,24 @@ export class BroadcastProcessor extends WorkerHost {
               index: button.index,
               parameters: [
                 {
-                  type: 'coupon_code', // Must be exactly "coupon_code" for copy_code buttons
-                  coupon_code: button.value, // The actual coupon code text you want to be copied
+                  type: 'coupon_code',
+                  coupon_code: button.value,
                 },
               ],
             });
           }
-        });
+        }
+
         console.log('Buttons processed:', buttons);
 
         // Retrieve or create prospect for the contact
         let prospect = await this.databaseService.prospect.findUnique({
-          where: { buisnessNo_phoneNo: { phoneNo: contact,buisnessNo: broadcast.creator.business.whatsapp_mobile } },
+          where: {
+            buisnessNo_phoneNo: {
+              phoneNo: contact,
+              buisnessNo: broadcast.createdFor.whatsapp_mobile,
+            },
+          },
         });
 
         console.log('Prospect:', prospect ? prospect.id : 'Not found');
@@ -211,7 +273,7 @@ export class BroadcastProcessor extends WorkerHost {
           prospect = await this.databaseService.prospect.create({
             data: {
               phoneNo: contact,
-              buisnessNo: broadcast.creator.business.whatsapp_mobile,
+              buisnessNo: broadcast.createdFor.whatsapp_mobile,
               shopify_id: iflinkedToShopify?.id.replace(/^\D+/g, ''),
               name: iflinkedToShopify?.displayName,
               email: iflinkedToShopify?.email,
@@ -263,7 +325,7 @@ export class BroadcastProcessor extends WorkerHost {
                 const placeholder = '{{1}}';
                 const finalUrl = templateUrlButton.url
                   .split(placeholder)
-                  .join(button.value);
+                  .join(trackurl);
                 console.log('✅ Final URL:', finalUrl);
                 return {
                   ...button,
@@ -280,7 +342,7 @@ export class BroadcastProcessor extends WorkerHost {
             prospectId: prospect.id,
             template_used: true,
             template_name: broadcast.template_name,
-            senderPhoneNo: broadcast.creator.business.whatsapp_mobile,
+            senderPhoneNo: broadcast.createdFor.whatsapp_mobile,
             receiverPhoneNo: contact,
             sendDate: new Date(),
             header_type: header?.type,
@@ -297,7 +359,6 @@ export class BroadcastProcessor extends WorkerHost {
             isForBroadcast: true,
             broadcastId: broadcast.id,
             isAutomated: true,
-            
           },
         });
         console.log('Chat record created:', addTodb);
@@ -319,12 +380,12 @@ export class BroadcastProcessor extends WorkerHost {
               OR: [
                 {
                   receiverPhoneNo: contact,
-                  senderPhoneNo: broadcast.creator.business.whatsapp_mobile,
+                  senderPhoneNo: broadcast.createdFor.whatsapp_mobile,
                   createdAt: { gte: fromDate },
                   Status: 'read',
                 },
                 {
-                  receiverPhoneNo: broadcast.creator.business.whatsapp_mobile,
+                  receiverPhoneNo: broadcast.createdFor.whatsapp_mobile,
                   senderPhoneNo: contact,
                   createdAt: { gte: fromDate },
                 },
@@ -355,7 +416,7 @@ export class BroadcastProcessor extends WorkerHost {
           );
           const checkMessage = await this.databaseService.chat.findMany({
             where: {
-              senderPhoneNo: broadcast.creator.business.whatsapp_mobile,
+              senderPhoneNo: broadcast.createdFor.whatsapp_mobile,
               receiverPhoneNo: contact,
               createdAt: { gte: getDate },
             },
@@ -407,14 +468,13 @@ export class BroadcastProcessor extends WorkerHost {
               },
             });
             this.chatsGateway.sendMessageToSubscribedClients(
-              broadcast.creator.business.whatsapp_mobile,
+              broadcast.createdFor.id,
               'prospect',
               prospect,
             );
 
-
             this.chatsGateway.sendMessageToSubscribedClients(
-              broadcast.creator.business.whatsapp_mobile,
+              broadcast.createdFor.id,
               'messages',
               message,
             );
@@ -438,7 +498,14 @@ export class BroadcastProcessor extends WorkerHost {
             data: { Status: 'failed', failedReason: errorDetail },
           });
         }
-
+        if (trackId && islinkTrackEnabled) {
+          await this.databaseService.linkTrack.update({
+            where: { id: trackId },
+            data: {
+              chat_id: addTodb.id,
+            },
+          });
+        }
         // Update chat record with message details
       }
       await this.databaseService.broadcast.update({
@@ -447,6 +514,7 @@ export class BroadcastProcessor extends WorkerHost {
           status: 'completed',
         },
       });
+
       console.log('==== JOB PROCESSING COMPLETE ====');
     } catch (error) {
       console.error('Error in BroadcastProcessor:', error);

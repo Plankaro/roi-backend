@@ -50,6 +50,7 @@ export class ProspectsService {
           },
           assignedTo: true,
         },
+        
       });
 
       console.log(prospect);

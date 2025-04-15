@@ -254,6 +254,8 @@ model Order {
 
   buisnessId String?
   business   Business? @relation(fields: [buisnessId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  from_link_id   String? @unique
+  from_link      LinkTrack? @relation(fields: [from_link_id],references: [id])
 }
 
 enum Status {
@@ -313,14 +315,25 @@ model LinkTrack {
   last_click     DateTime?
   no_of_click    Int @default(0)
   link           String?
-  utm_source     String? 
-  utm_medium     String?
+  utm_source     String?  
+  utm_medium     String?  
   utm_campaign  String?
-
+  utm_id        String?  
+  checkout   Checkout?
+  Order    Order?
+  type     LinkType @default(OTHER)
+  order_generated Boolean @default(false)
+  is_test_link Boolean @default(false)
 
 
 }
 
+enum LinkType {
+  CAMPAIGN
+  BROADCAST
+  OTHER
+  
+}
 
 model Chat {
   id                  String   @id @default(cuid())
@@ -701,6 +714,8 @@ model Checkout {
   Order                Order?
   businessId           String?
   business             Business?            @relation(fields: [businessId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  link_track_id        String?  @unique
+  link_track          LinkTrack?  @relation(fields: [link_track_id],references: [id])
 }
 
 model CheckoutOnCampaign {

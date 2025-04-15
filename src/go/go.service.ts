@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { CreateGoDto } from './dto/create-go.dto';
 import { UpdateGoDto } from './dto/update-go.dto';
 import { DatabaseService } from 'src/database/database.service';
+import { Response } from 'express';
 
 @Injectable()
 export class GoService {
@@ -14,47 +15,70 @@ export class GoService {
     return `This action returns all go`;
   }
 
-  async findOne(url: string) {
+  async findOne(id: string,res:Response) {
     try {
       // Ensure the URL includes a protocol; if not, assume "https://"
-      let formattedUrl = url;
-      if (!/^https?:\/\//i.test(url)) {
-        formattedUrl = `https://${url}`;
+    const findlink = await this.databaseService.linkTrack.findUnique({
+      where: {
+        id: id,
+      },
+ 
+    })
+
+    if (!findlink) {
+      return {};
+    }
+
+    let data;
+    if(findlink.no_of_click == 0){
+      data = {
+        no_of_click: findlink.no_of_click + 1,
+        first_click: new Date(),
+        last_click:  new Date()
       }
+    }else{
+      data = {
+        no_of_click: findlink.no_of_click + 1,
+        last_click:  new Date()
+      }
+    }
+
+    this.databaseService.linkTrack.update({
+      where: {
+        id: id,
+      },
+      data: {
+        ...data
+      },
+    })
+
+
+    const link = findlink.link;
+    const url = new URL(link);
+    
+    // Required UTM parameters
+    url.searchParams.set('utm_source', findlink.utm_source);
+    url.searchParams.set('utm_medium', findlink.utm_medium);
+    
+    // Optional UTM parameter
+    if (findlink.utm_campaign) {
+      url.searchParams.set('utm_campaign', findlink.utm_campaign);
+    }
+    
+    const finalUrl = url.toString();
+    
+
+    return res.redirect(finalUrl);
+    
       
-      // Create a URL object to parse the URL
-      const urlObject = new URL(formattedUrl);
-      const searchParams = urlObject.searchParams;
-      
-      // Extract the desired UTM parameters (or null if not present)
-      const utmParams = {
-        utm_params: searchParams.get('utm_params'),
-        utm_source: searchParams.get('utm_source'),
-        utm_campaign: searchParams.get('utm_campaign'),
-      };
-      
-      // Check if at least one UTM parameter exists
-      // const hasUtmParams = Object.values(utmParams).some(value => value !== null);
-      // if (hasUtmParams) {
-      //    await this.databaseService.broadcast.updateMany({
-      //     where: {
-      //       utm_params: utmParams.utm_params,
-      //       utm_source: utmParams.utm_source,
-      //       utm_campaign: utmParams.utm_campaign,
-      //     },
-      //     data: {
-      //       links_visit: { increment: 1 },
-      //     },
-      //   });
-        
-      // }
-      
-      return utmParams;
+    
     } catch (error) {
       console.error('Error processing URL:', error);
       return {};
     }
   }
+
+  
 
   update(id: number, updateGoDto: UpdateGoDto) {
     return `This action updates a #${id} go`;

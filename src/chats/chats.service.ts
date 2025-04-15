@@ -111,6 +111,7 @@ export class ChatsService {
       }
   
       let trackurl:string;
+      let trackId:string;
       // Process body
       console.log('--- Processing Body Parameters ---');
       const bodyParameters = body.map((param) => {
@@ -132,6 +133,7 @@ export class ChatsService {
         console.log(`Button [${index}]:`, button);
       
         if (button.type === 'URL' && button.isEditable) {
+          
           if (!linkTrackenabled) {
             components.push({
               type: 'button',
@@ -144,10 +146,13 @@ export class ChatsService {
               data:{
                 link: button.value,
                 buisness_id: buisness.id,
+                utm_source:"roi_magnet",
+                utm_medium:"whatsapp",
 
               }
             });
-         trackurl = `go/${url.id}`
+            trackId=url.id
+         trackurl = `go/${trackId}`
             components.push({
               type: 'button',
               sub_type: 'url',
@@ -280,6 +285,17 @@ export class ChatsService {
           senderId: user.id,
         },
       });
+
+      if(linkTrackenabled && trackId){
+       await this.databaseService.linkTrack.update({
+          where:{
+            id:trackId,
+          },
+          data:{
+            chat_id:addTodb.id
+          }
+        })
+      }
   
       console.log('✅ Chat saved to DB:', addTodb);
       return addTodb;

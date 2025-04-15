@@ -1,0 +1,321 @@
+createfullfillment {
+  "id": 5524447134018,
+  "order_id": 6220554010946,
+  "status": "success",
+  "created_at": "2025-04-15T14:56:43+05:30",
+  "service": "manual",
+  "updated_at": "2025-04-15T14:56:44+05:30",
+  "tracking_company": "India Post-Speed Post Air Prepaid",
+  "shipment_status": "confirmed",
+  "location_id": 73382199618,
+  "origin_address": null,
+  "email": "ankijitroy15@gmail.com",
+  "destination": {
+    "first_name": "Test",
+    "address1": "Tinsukia",
+    "phone": "+919435692125",
+    "city": "Tinsukia",
+    "zip": "786125",
+    "province": "Assam",
+    "country": "India",
+    "last_name": "User",
+    "address2": null,
+    "company": null,
+    "latitude": 27.4991457,
+    "longitude": 95.36778439999999,
+    "name": "Test User",
+    "country_code": "IN",
+    "province_code": "AS"
+  },
+  "line_items": [
+    {
+      "id": 15705182470466,
+      "variant_id": 44085237645634,
+      "title": "Women's Cotton Regular Kurta",
+      "quantity": 1,
+      "sku": "1234",
+      "variant_title": "M",
+      "vendor": "roi-magnet-fashion",
+      "fulfillment_service": "manual",
+      "product_id": 8017922097474,
+      "requires_shipping": true,
+      "taxable": true,
+      "gift_card": false,
+      "name": "Women's Cotton Regular Kurta - M",
+      "variant_inventory_management": "shopify",
+      "properties": [],
+      "product_exists": true,
+      "fulfillable_quantity": 0,
+      "grams": 0,
+      "price": "679.00",
+      "total_discount": "0.00",
+      "fulfillment_status": "fulfilled",
+      "price_set": {
+        "shop_money": {
+          "amount": "679.00",
+          "currency_code": "INR"
+        },
+        "presentment_money": {
+          "amount": "679.00",
+          "currency_code": "INR"
+        }
+      },
+      "total_discount_set": {
+        "shop_money": {
+          "amount": "0.00",
+          "currency_code": "INR"
+        },
+        "presentment_money": {
+          "amount": "0.00",
+          "currency_code": "INR"
+        }
+      },
+      "discount_allocations": [],
+      "duties": [],
+      "admin_graphql_api_id": "gid://shopify/LineItem/15705182470466",
+      "tax_lines": [
+        {
+          "title": "IGST",
+          "price": "122.22",
+          "rate": 0.18,
+          "channel_liable": false,
+          "price_set": {
+            "shop_money": {
+              "amount": "122.22",
+              "currency_code": "INR"
+            },
+            "presentment_money": {
+              "amount": "122.22",
+              "currency_code": "INR"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "tracking_number": "JH020054039IN",
+  "tracking_numbers": [
+    "JH020054039IN"
+  ],
+  "tracking_url": "https://shiprocket.co/tracking/JH020054039IN",
+  "tracking_urls": [
+    "https://shiprocket.co/tracking/JH020054039IN"
+  ],
+  "receipt": {},
+  "name": "#1263.1",
+  "admin_graphql_api_id": "gid://shopify/Fulfillment/5524447134018"
+}
+updatefullfillment {
+  "id": 5524447134018,
+  "order_id": 6220554010946,
+  "status": "success",
+  "created_at": "2025-04-15T14:56:43+05:30",
+  "service": "manual",
+  "updated_at": "2025-04-15T14:56:44+05:30",
+  "tracking_company": "India Post-Speed Post Air Prepaid",
+  "shipment_status": "confirmed",
+  "location_id": 73382199618,
+  "origin_address": null,
+  "email": "ankijitroy15@gmail.com",
+  "destination": {
+    "first_name": "Test",
+    "address1": "Tinsukia",
+    "phone": "+919435692125",
+    "city": "Tinsukia",
+    "zip": "786125",
+    "province": "Assam",
+    "country": "India",
+    "last_name": "User",
+    "address2": null,
+    "company": null,
+    "latitude": 27.4991457,
+    "longitude": 95.36778439999999,
+    "name": "Test User",
+    "country_code": "IN",
+    "province_code": "AS"
+  },
+  "line_items": [
+    {
+      "id": 15705182470466,
+      "variant_id": 44085237645634,
+      "title": "Women's Cotton Regular Kurta",
+      "quantity": 1,
+      "sku": "1234",
+      "variant_title": "M",
+      "vendor": "roi-magnet-fashion",
+      "fulfillment_service": "manual",
+      "product_id": 8017922097474,
+      "requires_shipping": true,
+      "taxable": true,
+      "gift_card": false,
+      "name": "Women's Cotton Regular Kurta - M",
+      "variant_inventory_management": "shopify",
+      "properties": [],
+      "product_exists": true,
+      "fulfillable_quantity": 0,
+      "grams": 0,
+      "price": "679.00",
+      "total_discount": "0.00",
+      "fulfillment_status": "fulfilled",
+      "price_set": {
+        "shop_money": {
+          "amount": "679.00",
+          "currency_code": "INR"
+        },
+        "presentment_money": {
+          "amount": "679.00",
+          "currency_code": "INR"
+        }
+      },
+      "total_discount_set": {
+        "shop_money": {
+          "amount": "0.00",
+          "currency_code": "INR"
+        },
+        "presentment_money": {
+          "amount": "0.00",
+          "currency_code": "INR"
+        }
+      },
+      "discount_allocations": [],
+      "duties": [],
+      "admin_graphql_api_id": "gid://shopify/LineItem/15705182470466",
+      "tax_lines": [
+        {
+          "title": "IGST",
+          "price": "122.22",
+          "rate": 0.18,
+          "channel_liable": false,
+          "price_set": {
+            "shop_money": {
+              "amount": "122.22",
+              "currency_code": "INR"
+            },
+            "presentment_money": {
+              "amount": "122.22",
+              "currency_code": "INR"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "tracking_number": "JH020054039IN",
+  "tracking_numbers": [
+    "JH020054039IN"
+  ],
+  "tracking_url": "https://shiprocket.co/tracking/JH020054039IN",
+  "tracking_urls": [
+    "https://shiprocket.co/tracking/JH020054039IN"
+  ],
+  "receipt": {},
+  "name": "#1263.1",
+  "admin_graphql_api_id": "gid://shopify/Fulfillment/5524447134018"
+}
+updatefullfillment {
+  "id": 5524447134018,
+  "order_id": 6220554010946,
+  "status": "cancelled",
+  "created_at": "2025-04-15T14:56:43+05:30",
+  "service": "manual",
+  "updated_at": "2025-04-15T14:59:30+05:30",
+  "tracking_company": "India Post-Speed Post Air Prepaid",
+  "shipment_status": "confirmed",
+  "location_id": 73382199618,
+  "origin_address": null,
+  "email": "ankijitroy15@gmail.com",
+  "destination": {
+    "first_name": "Test",
+    "address1": "Tinsukia",
+    "phone": "+919435692125",
+    "city": "Tinsukia",
+    "zip": "786125",
+    "province": "Assam",
+    "country": "India",
+    "last_name": "User",
+    "address2": null,
+    "company": null,
+    "latitude": 27.4991457,
+    "longitude": 95.36778439999999,
+    "name": "Test User",
+    "country_code": "IN",
+    "province_code": "AS"
+  },
+  "line_items": [
+    {
+      "id": 15705182470466,
+      "variant_id": 44085237645634,
+      "title": "Women's Cotton Regular Kurta",
+      "quantity": 1,
+      "sku": "1234",
+      "variant_title": "M",
+      "vendor": "roi-magnet-fashion",
+      "fulfillment_service": "manual",
+      "product_id": 8017922097474,
+      "requires_shipping": true,
+      "taxable": true,
+      "gift_card": false,
+      "name": "Women's Cotton Regular Kurta - M",
+      "variant_inventory_management": "shopify",
+      "properties": [],
+      "product_exists": true,
+      "fulfillable_quantity": 1,
+      "grams": 0,
+      "price": "679.00",
+      "total_discount": "0.00",
+      "fulfillment_status": null,
+      "price_set": {
+        "shop_money": {
+          "amount": "679.00",
+          "currency_code": "INR"
+        },
+        "presentment_money": {
+          "amount": "679.00",
+          "currency_code": "INR"
+        }
+      },
+      "total_discount_set": {
+        "shop_money": {
+          "amount": "0.00",
+          "currency_code": "INR"
+        },
+        "presentment_money": {
+          "amount": "0.00",
+          "currency_code": "INR"
+        }
+      },
+      "discount_allocations": [],
+      "duties": [],
+      "admin_graphql_api_id": "gid://shopify/LineItem/15705182470466",
+      "tax_lines": [
+        {
+          "title": "IGST",
+          "price": "122.22",
+          "rate": 0.18,
+          "channel_liable": false,
+          "price_set": {
+            "shop_money": {
+              "amount": "122.22",
+              "currency_code": "INR"
+            },
+            "presentment_money": {
+              "amount": "122.22",
+              "currency_code": "INR"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "tracking_number": "JH020054039IN",
+  "tracking_numbers": [
+    "JH020054039IN"
+  ],
+  "tracking_url": "https://shiprocket.co/tracking/JH020054039IN",
+  "tracking_urls": [
+    "https://shiprocket.co/tracking/JH020054039IN"
+  ],
+  "receipt": {},
+  "name": "#1263.1",
+  "admin_graphql_api_id": "gid://shopify/Fulfillment/5524447134018"
+}

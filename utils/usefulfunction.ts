@@ -209,3 +209,27 @@ export function   isTemplateButtonRedirectSafe(template: any): boolean {
 
   return isSafe;
 }
+export const generateLinkWithUTM = (utmParameters: any, button: { value: string }) => {
+  let link = button.value;  // Start with the button value, like 'facebook'
+
+  // Only append utm_campaign if enabled
+  if (utmParameters.utm_campaign.enabled) {
+    link += `?utm_campaign=${utmParameters.utm_campaign.value}`;
+  }
+
+  // Only append utm_source if enabled
+  if (utmParameters.utm_source.enabled) {
+    link += link.includes('?') 
+      ? `&utm_source=${utmParameters.utm_source.value}` 
+      : `?utm_source=${utmParameters.utm_source.value}`;
+  }
+
+  // Only append utm_medium if enabled
+  if (utmParameters.utm_medium.enabled) {
+    link += link.includes('?') 
+      ? `&utm_medium=${utmParameters.utm_medium.value}` 
+      : `?utm_medium=${utmParameters.utm_medium.value}`;
+  }
+
+  return link;
+};

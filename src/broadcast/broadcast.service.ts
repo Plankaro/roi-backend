@@ -9,7 +9,9 @@ import { delay, Queue } from 'bullmq';
 import { DatabaseService } from 'src/database/database.service';
 import {
   calculateDelay,
+  generateLinkWithUTM,
   getWhatsappConfig,
+  isTemplateButtonRedirectSafe,
   mergeDateTime,
   sanitizePhoneNumber,
 } from 'utils/usefulfunction';
@@ -22,7 +24,8 @@ import { WhatsappService } from 'src/whatsapp/whatsapp.service';
 export class BroadcastService {
   constructor(
     @InjectQueue('broadcastQueue') private readonly broadcastQueue: Queue,
-    @InjectQueue('broadcastRetryQueue') private readonly broadcastRetryQueue: Queue,
+    @InjectQueue('broadcastRetryQueue')
+    private readonly broadcastRetryQueue: Queue,
     private readonly databaseService: DatabaseService,
     private readonly whatsappService: WhatsappService,
   ) {}
@@ -37,10 +40,11 @@ export class BroadcastService {
       advanceFilters,
       onlimitexced,
       schedule,
-      template,
-     
+      template_name,
+      template_language,
     } = createBroadcastDto;
     const user = req.user;
+
     const broadcastData: any = {
       name,
       type,
@@ -62,14 +66,13 @@ export class BroadcastService {
         advanceFilters.skipInactiveContacts.enabled,
       limit_marketing_message_enabled:
         advanceFilters.limitMarketingMessages.enabled,
-      template_name: template.name,
-      template_language: template.language,
+      template_name: template_name,
+      template_language: template_language,
       onlimit_exced: onlimitexced,
       price: `5000`,
       createdBy: user.id,
       createdForId: user.business.id,
-      total_contact:contact.total_count
-      ,
+      total_contact: contact.total_count,
     };
 
     if (contact.type === 'shopify') {
@@ -125,8 +128,17 @@ export class BroadcastService {
   async sendTestMessage(testmessageDto: any, req: any) {
     const user = req.user;
     const config = getWhatsappConfig(user.business);
+    console.log(user);
 
-    const { template, templateForm, testphoneno } = testmessageDto;
+    const { template_name, templateForm, testphoneno, utmParameters } =
+      testmessageDto;
+
+    const response = await this.whatsappService.findSpecificTemplate(
+      config,
+      template_name,
+    );
+    const template = response?.data?.[0];
+    const islinkTrackEnabled = isTemplateButtonRedirectSafe(template);
 
     const { header, buttons, body } = templateForm as any;
     let components = [];
@@ -186,58 +198,68 @@ export class BroadcastService {
       return template.parameter_format === 'NAMED'
         ? {
             type: 'text',
-            parameter_name: param.parameter_name.replace(/{{|}}/g, '') ,
+            parameter_name: param.parameter_name.replace(/{{|}}/g, ''),
             text: value,
           }
         : { type: 'text', text: value };
     });
 
     components.push({ type: 'body', parameters: bodyParameters });
-      buttons.forEach((button, index) => {
-          if (button.type === 'URL' && button.isEditable === true) {
-            components.push({
-              type: 'button',
-              sub_type: 'url',
-              index: index,
-              parameters: [{ type: 'text', text: button.value }],
-            });
-          } else if (button.type === 'COPY_CODE') {
-            components.push({
-              type: 'button',
-              sub_type: 'COPY_CODE',
-              index: button.index,
-              parameters: [
-                {
-                  type: 'coupon_code', // Must be exactly "coupon_code" for copy_code buttons
-                  coupon_code: button.value, // The actual coupon code text you want to be copied
-                },
-              ],
-            });
-          }
-        });
-        buttons.forEach((button, index) => {
-          if (button.type === 'URL' && button.isEditable === true) {
-            components.push({
-              type: 'button',
-              sub_type: 'url',
-              index: index,
-              parameters: [{ type: 'text', text: button.value }],
-            });
-          } else if (button.type === 'COPY_CODE') {
-            components.push({
-              type: 'button',
-              sub_type: 'COPY_CODE',
-              index: button.index,
-              parameters: [
-                {
-                  type: 'coupon_code', // Must be exactly "coupon_code" for copy_code buttons
-                  coupon_code: button.value, // The actual coupon code text you want to be copied
-                },
-              ],
-            });
-          }
-        });
 
+    //
+    let trackurl: string;
+    for (const [index, button] of buttons.entries()) {
+      console.log(`Button [${index}]:`, button);
+
+      if (button.type === 'URL' && button.isEditable) {
+        if (!islinkTrackEnabled) {
+          const finalLink = generateLinkWithUTM(utmParameters, button);
+          components.push({
+            type: 'button',
+            sub_type: 'url',
+            index,
+            parameters: [{ type: 'text', text: finalLink }],
+          });
+        } else {
+          const url = await this.databaseService.linkTrack.create({
+            data: {
+              link: button.value,
+              buisness_id: user?.buisness?.id,
+              is_test_link: true,
+              ...(utmParameters.utm_campaign.enabled && {
+                utm_campaign: utmParameters.utm_campaign.value,
+              }),
+              ...(utmParameters.utm_source.enabled && {
+                utm_source: utmParameters.utm_source.value,
+              }),
+              ...(utmParameters.utm_medium.enabled && {
+                utm_medium: utmParameters.utm_medium.value,
+              }),
+            },
+          });
+          console.log(url);
+          trackurl = `go/${url.id}`;
+          components.push({
+            type: 'button',
+            sub_type: 'url',
+            index,
+            parameters: [{ type: 'text', text: trackurl }], // maybe use url instead of button.value?
+          });
+        }
+      } else if (button.type === 'COPY_CODE') {
+        components.push({
+          type: 'button',
+          sub_type: 'COPY_CODE',
+          index: button.index,
+          parameters: [
+            {
+              type: 'coupon_code',
+              coupon_code: button.value,
+            },
+          ],
+        });
+      }
+    }
 
     const message: any = await this.whatsappService.sendTemplateMessage(
       {
@@ -303,8 +325,6 @@ export class BroadcastService {
               },
             }),
           ]);
-
-          
 
           return {
             ...broadcast,
@@ -414,10 +434,9 @@ export class BroadcastService {
 
       const Templates = await this.whatsappService.findSpecificTemplate(
         config,
-        broadcast.template_name
+        broadcast.template_name,
       );
       console.log(Templates);
- 
 
       // Transform the groupBy results to have a 'count' property
       const transformedSkippedReasonGroups = skippedReasonGroups.map(
@@ -502,7 +521,6 @@ export class BroadcastService {
 
       const createretry = await this.databaseService.retry.create({
         data: {
-          
           broadcastId: broadcast.id,
         },
       });

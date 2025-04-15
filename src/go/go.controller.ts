@@ -17,11 +17,10 @@ export class GoController {
     return this.goService.findAll();
   }
 
-  @Get(':url')
-   findOne(@Param('url') url: string,@Res() res: Response) {
-     console.log(url)
-     this.goService.findOne(url);
-     return res.redirect(url.startsWith('http') ? url : `https://${url}`);
+  @Get(':id')
+   findOne(@Param('id') id: string, @Res() res: Response) {
+    
+     return this.goService.findOne(id,res);
  
    }
 
