@@ -35,6 +35,7 @@ import { RazorpayModule } from './razorpay/razorpay.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 
 import { BotModule } from './bot/bot.module';
+import { TagsModule } from './tags/tags.module';
 
 
 
@@ -86,6 +87,8 @@ import { BotModule } from './bot/bot.module';
     AnalyticsModule,
   
     BotModule,
+  
+    TagsModule,
   
    
   ],

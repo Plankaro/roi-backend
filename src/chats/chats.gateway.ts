@@ -37,7 +37,7 @@ export class ChatsGateway {
   }
 
   // Send messages to clients subscribed to the receiver's phone number
-  sendMessageToSubscribedClients(phoneNumber: string, event: "prospect" | "messages", data: any) {
+  sendMessageToSubscribedClients(phoneNumber: string, event: "prospect" | "messages" | "notification", data: any) {
     console.log("sending",event,phoneNumber)
     this.server.to(phoneNumber).emit(event, data);
   }

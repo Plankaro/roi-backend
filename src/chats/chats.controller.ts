@@ -5,11 +5,13 @@ import { SendTemplateMessageDto } from './dto/template-chat';
 import { Public } from 'src/auth/decorator/public.decorator';
 import { MediaDto } from './dto/media-chat-dto';
 import { Request } from 'express';
+import { WhatsappService } from 'src/whatsapp/whatsapp.service';
+import { getWhatsappConfig } from 'utils/usefulfunction';
 
 
 @Controller('chats')
 export class ChatsController {
-  constructor(private readonly chatsService: ChatsService, ) {}
+  constructor(private readonly chatsService: ChatsService,private readonly whatsappService: WhatsappService) {}
 
   @Public()
   @Get('/webhook')
@@ -28,7 +30,9 @@ export class ChatsController {
     }
   }
   @Post('/template')
-  create(@Body() sendTemplateMessageDto: any,@Req() req: Request ) {
+  async create(@Body() sendTemplateMessageDto: any,@Req() req: any ) {
+
+
     return this.chatsService.sendTemplatemessage(sendTemplateMessageDto,req);
   }
 
@@ -80,7 +84,7 @@ export class ChatsController {
   }
 
   @Patch('/')
-  markMessageAsRead(@Query('prospect_id') prospectId: string,@Req() req: Request,@Body() ids: string[]) {
+  markMessageAsRead(@Query('prospect_id') prospectId: string,@Req() req: Request,) {
     return this.chatsService.markMessageAsRead(prospectId,req);
   }
 

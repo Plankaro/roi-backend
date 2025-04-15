@@ -15,6 +15,7 @@ import { Prospect } from 'src/prospects/entities/prospect.entity';
 import { create } from 'domain';
 import { discount_type } from '@prisma/client';
 import { BotService } from 'src/bot/bot.service';
+import { ChatsGateway } from '../chats.gateway';
 
 @Injectable()
 @Processor('bottransferQueue')
@@ -24,8 +25,8 @@ export class BottransferQueue extends WorkerHost {
     private readonly whatsappService: WhatsappService,
     private readonly gemniService: GemniService,
     private readonly shopifyService: ShopifyService,
-    private readonly botService: BotService
-
+    private readonly botService: BotService,
+    private readonly chatsGateway: ChatsGateway,
   ) {
     super();
   }
@@ -33,13 +34,6 @@ export class BottransferQueue extends WorkerHost {
   async process(job: Job<any>): Promise<void> {
     // Destructure job data (job.data is usually an object)
     const { chatMessageId, gemniResponse, isFirstMessage } = job.data;
-    console.log('Processing job for Chat Message ID:', chatMessageId);
-    console.log(
-      'Gemni Response:',
-      gemniResponse,
-      'isFirstMessage:',
-      isFirstMessage,
-    );
 
     const category = gemniResponse?.category;
     const chatMessage = await this.databaseService.chat.findUnique({
@@ -55,15 +49,12 @@ export class BottransferQueue extends WorkerHost {
 
     const bots = await this.botService.findAll(chatMessage.Prospect);
 
-
-
     // Customize welcome message
 
     // Process subsequent messages based on the bot response category
     switch (category) {
-     
       case 'welcome_bot':
-        if(!bots?.WELCOME || bots?.WELCOME?.is_active === false) return
+        if (!bots?.WELCOME || bots?.WELCOME?.is_active === false) return;
         const welcomeMessage = `
         Hey *${chatMessage.Prospect.name || 'there'}*! 👋 Welcome to our store — so happy to have you here!
         
@@ -116,6 +107,11 @@ export class BottransferQueue extends WorkerHost {
             },
           });
           console.log('Bot response record created (welcome):', botResponse);
+          await this.chatsGateway.sendMessageToSubscribedClients(
+            chatMessage.Prospect.business.id,
+            'messages',
+            botResponse,
+          );
         } catch (error) {
           console.error('Error creating bot response record (welcome):', error);
         }
@@ -148,8 +144,11 @@ export class BottransferQueue extends WorkerHost {
         //     return;
         //   }
         // }
-        const isDiscountBotEnabled = bots?.DISCOUNT
-        if (!isDiscountBotEnabled || isDiscountBotEnabled?.is_active === false) {
+        const isDiscountBotEnabled = bots?.DISCOUNT;
+        if (
+          !isDiscountBotEnabled ||
+          isDiscountBotEnabled?.is_active === false
+        ) {
           return;
         }
 
@@ -187,7 +186,7 @@ export class BottransferQueue extends WorkerHost {
             message,
             whaatsappConfig,
           );
-          await this.databaseService.chat.create({
+          const botResponse = await this.databaseService.chat.create({
             data: {
               prospectId: chatMessage.Prospect.id,
               chatId: sendMessage?.messages?.[0]?.id ?? '',
@@ -200,6 +199,11 @@ export class BottransferQueue extends WorkerHost {
               botName: 'discount-bot',
             },
           });
+          await this.chatsGateway.sendMessageToSubscribedClients(
+            chatMessage.Prospect.business.id,
+            'messages',
+            botResponse,
+          );
           return;
         }
 
@@ -230,7 +234,7 @@ export class BottransferQueue extends WorkerHost {
             message,
             whaatsappConfig,
           );
-          await this.databaseService.chat.create({
+          const botResponse = await this.databaseService.chat.create({
             data: {
               prospectId: chatMessage.Prospect.id,
               chatId: sendMessage?.messages?.[0]?.id ?? '',
@@ -243,6 +247,11 @@ export class BottransferQueue extends WorkerHost {
               botName: 'discount-bot',
             },
           });
+          await this.chatsGateway.sendMessageToSubscribedClients(
+            chatMessage.Prospect.business.id,
+            'messages',
+            botResponse,
+          );
           return;
         }
 
@@ -265,7 +274,7 @@ This offer is valid for the next ${isDiscountBotEnabled.discount_expiry} days, s
           whaatsappConfig,
         );
         console.log('Discount message sent, WhatsApp response:', sendMessage);
-        await this.databaseService.chat.create({
+        const botResponse = await this.databaseService.chat.create({
           data: {
             prospectId: chatMessage.Prospect.id,
             chatId: sendMessage?.messages?.[0]?.id ?? '',
@@ -278,6 +287,11 @@ This offer is valid for the next ${isDiscountBotEnabled.discount_expiry} days, s
             botName: 'discount-bot',
           },
         });
+        await this.chatsGateway.sendMessageToSubscribedClients(
+          chatMessage.Prospect.business.id,
+          'messages',
+          botResponse,
+        );
         const discountRecord = await this.databaseService.discount.create({
           data: {
             title: 'Percentage Discount using bot',
@@ -292,10 +306,13 @@ This offer is valid for the next ${isDiscountBotEnabled.discount_expiry} days, s
         break;
 
       case 'product_browsing_bot':
-        if(!bots.PRODUCT_BROWSING||bots.PRODUCT_BROWSING.is_active==false){
-          return
+        if (
+          !bots.PRODUCT_BROWSING ||
+          bots.PRODUCT_BROWSING.is_active == false
+        ) {
+          return;
         }
-        
+
         const getAllProducts = await this.getAllCollections(shopifyConfig);
         console.log('All products:', getAllProducts);
         const baseUrl = chatMessage.Prospect.business.shopify_domain;
@@ -318,7 +335,7 @@ This offer is valid for the next ${isDiscountBotEnabled.discount_expiry} days, s
           'Product message sent, WhatsApp response:',
           messageSendResponse,
         );
-        await this.databaseService.chat.create({
+        const response = await this.databaseService.chat.create({
           data: {
             prospectId: chatMessage.Prospect.id,
             chatId: messageSendResponse?.messages?.[0]?.id ?? '',
@@ -331,13 +348,17 @@ This offer is valid for the next ${isDiscountBotEnabled.discount_expiry} days, s
             botName: 'product-browsing-bot',
           },
         });
-
+        await this.chatsGateway.sendMessageToSubscribedClients(
+          chatMessage.Prospect.business.id,
+          'messages',
+          response,
+        );
         // Add product browsing logic here
         break;
 
       case 'order_tracking_bot':
-        if(!bots.ORDER_TRACK||bots.ORDER_TRACK.is_active==false){
-          return
+        if (!bots.ORDER_TRACK || bots.ORDER_TRACK.is_active == false) {
+          return;
         }
         console.log('Handling order tracking request');
         if (gemniResponse) {
@@ -373,7 +394,7 @@ This offer is valid for the next ${isDiscountBotEnabled.discount_expiry} days, s
             message,
             whaatsappConfig,
           );
-          await this.databaseService.chat.create({
+          const botResponse = await this.databaseService.chat.create({
             data: {
               prospectId: chatMessage.Prospect.id,
               chatId: messageSendResponse?.messages?.[0]?.id ?? '',
@@ -386,14 +407,19 @@ This offer is valid for the next ${isDiscountBotEnabled.discount_expiry} days, s
               botName: 'order_tracking_bot',
             },
           });
+          await this.chatsGateway.sendMessageToSubscribedClients(
+            chatMessage.Prospect.business.id,
+            'messages',
+            botResponse,
+          );
         } else {
           console.log('No order ID provided for tracking.');
         }
         break;
 
       case 'order_cancelling_bot':
-        if(!bots.ORDER_CANCEL||bots.ORDER_CANCEL.is_active==false){
-          return
+        if (!bots.ORDER_CANCEL || bots.ORDER_CANCEL.is_active == false) {
+          return;
         }
         // Add cancellation logic here
         if (!gemniResponse.orderId) {
@@ -429,7 +455,7 @@ This offer is valid for the next ${isDiscountBotEnabled.discount_expiry} days, s
             whaatsappConfig,
           );
 
-          await this.databaseService.chat.create({
+          const botResponse = await this.databaseService.chat.create({
             data: {
               prospectId: chatMessage.Prospect.id,
               chatId: cancelOrderMessage?.messages?.[0]?.id ?? '',
@@ -442,6 +468,11 @@ This offer is valid for the next ${isDiscountBotEnabled.discount_expiry} days, s
               botName: 'order_cancelling_bot',
             },
           });
+          await this.chatsGateway.sendMessageToSubscribedClients(
+            chatMessage.Prospect.business.id,
+            'messages',
+            botResponse,
+          );
           return;
         }
         // Add cancellation logic here
@@ -460,7 +491,7 @@ This offer is valid for the next ${isDiscountBotEnabled.discount_expiry} days, s
           whaatsappConfig,
         );
 
-        await this.databaseService.chat.create({
+        const chatResponse = await this.databaseService.chat.create({
           data: {
             prospectId: chatMessage.Prospect.id,
             chatId: cancelOrderMessage?.messages?.[0]?.id ?? '',
@@ -473,22 +504,34 @@ This offer is valid for the next ${isDiscountBotEnabled.discount_expiry} days, s
             botName: 'order_cancelling_bot',
           },
         });
+        await this.chatsGateway.sendMessageToSubscribedClients(
+          chatMessage.Prospect.business.id,
+          'messages',
+          chatResponse,
+        );
 
         break;
 
       case 'shipping_charges_bot':
-        if(!bots.SHIPPING_CHARGES||bots.SHIPPING_CHARGES.is_active==false){
-          return
+        if (
+          !bots.SHIPPING_CHARGES ||
+          bots.SHIPPING_CHARGES.is_active == false
+        ) {
+          return;
         }
-        
-        const shippingmessage = this.generateShippingMessage(bots.SHIPPING_CHARGES.shipping_standard_cost,bots.SHIPPING_CHARGES.shipping_threshold,bots.SHIPPING_CHARGES.international_shipping_cost);
+
+        const shippingmessage = this.generateShippingMessage(
+          bots.SHIPPING_CHARGES.shipping_standard_cost,
+          bots.SHIPPING_CHARGES.shipping_threshold,
+          bots.SHIPPING_CHARGES.international_shipping_cost,
+        );
         const shippingmessageSendResponse =
           await this.whatsappService.sendMessage(
             sanitizePhoneNumber(chatMessage.Prospect.phoneNo),
             shippingmessage,
             whaatsappConfig,
           );
-        await this.databaseService.chat.create({
+        const shippingChatResponse = await this.databaseService.chat.create({
           data: {
             prospectId: chatMessage.Prospect.id,
             chatId: shippingmessageSendResponse?.messages?.[0]?.id ?? '',
@@ -502,14 +545,18 @@ This offer is valid for the next ${isDiscountBotEnabled.discount_expiry} days, s
             botName: 'shipping_charges_bot',
           },
         });
-
+        await this.chatsGateway.sendMessageToSubscribedClients(
+          chatMessage.Prospect.business.id,
+          'messages',
+          shippingChatResponse,
+        );
         break;
 
       // Add shipping charges logic here
 
       case 'repeat_order_bot':
-        if(!bots.REPEAT_ORDER||bots.REPEAT_ORDER.is_active==false){
-          return
+        if (!bots.REPEAT_ORDER || bots.REPEAT_ORDER.is_active == false) {
+          return;
         }
         if (gemniResponse.orderId) {
           const placeOrder = await this.repeatOrder(
@@ -524,7 +571,33 @@ This offer is valid for the next ${isDiscountBotEnabled.discount_expiry} days, s
           shopifyConfig,
         );
         console.log(repeatOrder);
+
         break;
+      
+      case 'contacting_support_bot':
+        const users = await this.databaseService.user.findMany({
+          where:{
+            businessId:chatMessage.Prospect.business.id,
+          }
+        })
+        users.forEach(async (user) => {
+          const notification = await this.databaseService.notification.create({
+            data: {
+              user:{connect:{ id: user.id }},
+              Buisness:{connect:{ id: chatMessage.Prospect.business.id }},
+              text:`Customer ${chatMessage.Prospect.phoneNo} is in need of help. Please reach out to them as soon as possible.`,
+              status:'DELIVERED',
+              type:"CUSTOMERSUPPORT"
+
+            },
+
+          })
+          this.chatsGateway.sendMessageToSubscribedClients(
+            chatMessage.Prospect.business.id,
+            'notification',
+            notification
+          )
+        })
 
       case 'None':
         console.log('No valid category matched.');
@@ -632,9 +705,7 @@ This offer is valid for the next ${isDiscountBotEnabled.discount_expiry} days, s
     }
   }
 
-  async getAllCollections(
-    config: any,
-  ): Promise<{
+  async getAllCollections(config: any): Promise<{
     collections: Array<{
       id: string;
       title: string;
@@ -654,12 +725,19 @@ This offer is valid for the next ${isDiscountBotEnabled.discount_expiry} days, s
         }
       }
     `;
-  
+
     try {
       console.log('Executing Shopify GraphQL query for collections');
-      const response = await this.shopifyService.executeGraphQL(query, {}, config);
-      console.log('Raw Shopify collections response:', JSON.stringify(response, null, 2));
-  
+      const response = await this.shopifyService.executeGraphQL(
+        query,
+        {},
+        config,
+      );
+      console.log(
+        'Raw Shopify collections response:',
+        JSON.stringify(response, null, 2),
+      );
+
       // Extract and clean the collections data
       const collectionsNodes = response?.data?.collections?.nodes || [];
       const collections = collectionsNodes.map((node: any) => ({
@@ -668,16 +746,19 @@ This offer is valid for the next ${isDiscountBotEnabled.discount_expiry} days, s
         handle: node.handle,
         description: node.description,
       }));
-  
+
       const cleanData = { collections };
-      console.log('Clean collections data:', JSON.stringify(cleanData, null, 2));
+      console.log(
+        'Clean collections data:',
+        JSON.stringify(cleanData, null, 2),
+      );
       return cleanData;
     } catch (error) {
       console.error('Error in getAllCollections:', error);
       throw error;
     }
   }
-  
+
   async getAllOrdersByCustomer(
     contact: string,
     config: any,
@@ -1156,46 +1237,44 @@ This offer is valid for the next ${isDiscountBotEnabled.discount_expiry} days, s
         message: "We couldn't create the repeat order. Please contact support.",
       };
     }
-
   }
   generateShippingMessage(
     shipping_standard_cost: string,
     shipping_threshold: string,
-    international_shipping_cost: string
+    international_shipping_cost: string,
   ): string {
     let message = `*Shipping Charges Information:*\n\n`;
     message += `Hi there!\n`;
     message += `We offer competitive shipping rates to get your order delivered quickly:\n`;
-  
+
     // If both standard shipping cost and threshold are 0, combine the messages.
-    if (shipping_standard_cost === "0" && shipping_threshold === "0") {
+    if (shipping_standard_cost === '0' && shipping_threshold === '0') {
       message += `• Enjoy FREE shipping on all orders (3-5 business days)\n`;
     } else {
       // Standard Shipping Message
-      if (shipping_standard_cost === "0") {
+      if (shipping_standard_cost === '0') {
         message += `• Standard Shipping: FREE (3-5 business days)\n`;
       } else {
         message += `• Standard Shipping: Rs. ${shipping_standard_cost} (3-5 business days)\n`;
       }
-  
+
       // Shipping Threshold Message
-      if (shipping_threshold === "0") {
+      if (shipping_threshold === '0') {
         message += `Plus, enjoy FREE shipping on all orders!\n`;
       } else {
         message += `Plus, enjoy FREE shipping on orders over Rs. ${shipping_threshold}!\n`;
       }
     }
-  
+
     // International Shipping (only include if cost is not "0")
-    if (international_shipping_cost !== "0") {
+    if (international_shipping_cost !== '0') {
       message += `• International Shipping: Rs. ${international_shipping_cost}\n`;
     }
-  
+
     message += `\nFor more details, visit our website:\n`;
     message += `https://roi-magnet-fashion.myshopify.com/\n\n`;
     message += `Thank you for choosing us!`;
-  
+
     return message;
   }
-  
 }

@@ -21,7 +21,7 @@ export class EventsService {
   ) {}
   async manipulateOrder(orderData: any, domain: string) {
    
-console.log("order triggered",JSON.stringify(orderData,null,2))
+
   
     await this.createOrderQueue.add(
       'createOrder',

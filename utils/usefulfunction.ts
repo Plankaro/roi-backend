@@ -177,3 +177,35 @@ export function getFutureTimestamp(expression: Expression): number {
 export function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
+
+export function   isTemplateButtonRedirectSafe(template: any): boolean {
+  const BACKEND_URL = process.env.BACKEND_URL?.replace(/^https?:\/\//, '').toLowerCase();
+
+  if (!BACKEND_URL) {
+    console.warn('⚠️ BACKEND_URL is not defined in environment variables.');
+    return false;
+  }
+
+  const buttonComponent = template?.components?.find(
+    (component) => component.type === 'BUTTONS'
+  );
+
+  if (!buttonComponent || !Array.isArray(buttonComponent.buttons)) {
+    console.warn('⚠️ No BUTTONS component found in template.');
+    return false;
+  }
+
+  const matchingUrlButton = buttonComponent.buttons.find((button) => {
+    if (button.type === 'URL' && button.url) {
+      const normalizedUrl = button.url.replace(/^https?:\/\//, '').toLowerCase();
+      console.log('🔍 Checking button URL:', normalizedUrl);
+      return normalizedUrl.startsWith(BACKEND_URL);
+    }
+    return false;
+  });
+
+  const isSafe = !!matchingUrlButton;
+  console.log(`🔐 URL Button is ${isSafe ? 'safe ✅' : 'not safe ❌'} for redirect.`);
+
+  return isSafe;
+}

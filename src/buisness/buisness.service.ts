@@ -76,4 +76,17 @@ export class BuisnessService {
   remove(id: number) {
     return `This action removes a #${id} buisness`;
   }
+  async getNotifications(user_id: string) {
+    try {
+      const notifications = await this.databaseService.notification.findMany({
+      where:{
+        user_id: user_id
+      }
+      });
+      return notifications;
+    } catch (error) {
+      throw new InternalServerErrorException(error);
+    }
+  }
+
 }

@@ -35,8 +35,14 @@ export class AuthService {
         where: {
           email: LoginDto.email,
         },
+        
         include: {
-          business: true,
+          business: {
+           select:{
+            id:true,
+            businessName:true
+           }
+          },
         },
       });
       console.log(user);
@@ -67,6 +73,7 @@ export class AuthService {
           email: user.email,
           role: user.role,
           buisness: user.business,
+          image: user.image,
         },
       };
     } catch (error) {

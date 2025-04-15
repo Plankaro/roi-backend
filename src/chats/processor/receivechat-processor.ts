@@ -95,11 +95,12 @@ export class ReceiveChatsQueue extends WorkerHost {
                       orderBy: { createdAt: 'desc' },
                       take: 1,
                     },
+                    business: true,
                   },
                 });
 
                 this.chatsGateway.sendMessageToSubscribedClients(
-                  businessPhoneNumber,
+                  prospect.business.id,
                   'prospect',
                   prospect,
                 );
@@ -132,6 +133,13 @@ export class ReceiveChatsQueue extends WorkerHost {
                     Status: 'delivered',
                     type: 'personal',
                   },
+                  include:{
+                    Prospect:{
+                      include: {
+                        business:true
+                      }
+                    }
+                  }
                 });
 
                 const gemniResponse =
@@ -152,9 +160,10 @@ export class ReceiveChatsQueue extends WorkerHost {
 
                 console.log(`Chat saved to DB: ${JSON.stringify(chatMessage)}`);
                 processedResults.push(chatMessage);
+                console.log(chatMessage.Prospect.business.id)
 
                 this.chatsGateway.sendMessageToSubscribedClients(
-                  businessPhoneNumber,
+                  chatMessage.Prospect.business.id,
                   'messages',
                   chatMessage,
                 );
@@ -185,6 +194,13 @@ export class ReceiveChatsQueue extends WorkerHost {
                     Status: status.status,
                     failedReason: status.errors?.[0]?.message ?? null,
                   },
+                  include: {
+                    Prospect: {
+                      include: {
+                        business: true,
+                      },
+                    }
+                  }
                 });
                 if (
                   updatedChat.isForBroadcast === true &&
@@ -200,7 +216,7 @@ export class ReceiveChatsQueue extends WorkerHost {
                 processedResults.push(updatedChat);
 
                 this.chatsGateway.sendMessageToSubscribedClients(
-                  businessPhoneNumber,
+                  updatedChat.Prospect.business.id,
                   'messages',
                   updatedChat,
                 );

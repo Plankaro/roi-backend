@@ -38,7 +38,7 @@ export class BotService {
       {} as Record<BotType, Bots | null>,
     );
 
-    console.log(groupedByType);
+   
     return groupedByType;
   }
 
@@ -68,7 +68,7 @@ export class BotService {
           type: updateBotDto.type,
         },
       });
-      console.log(bot);
+
       return bot;
     } catch (error) {
       console.log(error);

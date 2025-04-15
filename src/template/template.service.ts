@@ -84,11 +84,12 @@ export class TemplateService {
         const buttons = [];
         CreateTemplateDto.buttons.map((button) => {
           if (button.type === 'link') {
+            
             buttons.push({
               type: 'URL',
               text: button.text,
-              url: button.value.replace(/\/?$/, '/') + '{{1}}',
-              example: [button.value.replace(/\/?$/, '/') + '767687686'],
+              url: process.env.BACKEND_URL.replace(/\/?$/, '/') + '{{1}}',
+              example: [process.env.BACKEND_URL.replace(/\/?$/, '/') + '767687686'],
             });
           } else if (button.type === 'call') {
             buttons.push({

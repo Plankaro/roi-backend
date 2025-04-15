@@ -53,6 +53,7 @@ export class CreateOrderCampaign extends WorkerHost {
        const razorpayConfig = getRazorpayConfig(campaign.Business);
 
        const orderById = await this.getOrderById(order.shopify_id, shopifyConfig);
+       console.log("order",JSON.stringify(orderById, null, 2));
 
        
    
@@ -616,127 +617,165 @@ export class CreateOrderCampaign extends WorkerHost {
    
      try {
       const query = `
-  query getOrder($id: ID!) {
-    order(id: $id) {
-      id
-      name
-      email
-      phone
-      createdAt
-      processedAt
-      fulfillments(first: 250) {
-        deliveredAt
-        displayStatus
-        trackingInfo {
-          url
-          number
-          company
-        }
-        updatedAt
-      }
-      statusPageUrl
-       totalDiscounts
-      totalPrice
-      displayFinancialStatus
-      displayFulfillmentStatus
-       paymentGatewayNames
-      discountCode
-      discountCodes
-      cancelReason
-      tags
-      cancelledAt
-      totalPriceSet {
-        shopMoney {
-          amount
-          currencyCode
-        }
-      }
-      subtotalPriceSet {
-        shopMoney {
-          amount
-          currencyCode
-        }
-      }
-      totalTaxSet {
-        shopMoney {
-          amount
-          currencyCode
-        }
-      }
-      customer {
-        id
-        firstName
-        lastName
-        displayName
-        email
-        numberOfOrders
-        phone
-        amountSpent {
-          amount
-          currencyCode
-        }
-        emailMarketingConsent {
-          marketingState
-          marketingOptInLevel
-          consentUpdatedAt
-        }
-        addresses {
-          address1
-          address2
-          city
-          country
-          zip
-        }
-        tags
-      }
-      lineItems(first: 250) {
-        edges {
-          node {
-            title
-            image {
+      query getOrder($id: ID!) {
+        order(id: $id) {
+          id
+          name
+          email
+          phone
+          landingPageUrl
+          createdAt
+          processedAt
+          fulfillments(first: 250) {
+            deliveredAt
+            displayStatus
+            trackingInfo {
               url
+              number
+              company
             }
-            product {
-              tags
-              title
-              images(first: 250) {
-                edges {
-                  node {
-                    id
-                    altText
+            updatedAt
+          }
+          statusPageUrl
+          customerJourney {
+              firstVisit {
+                landingPage
+                referralCode
+                referralInfoHtml
+                referrerUrl
+                source
+                sourceType
+                utmParameters {
+                  campaign
+                  content
+                  medium
+                  source
+                  term
+                }
+                occurredAt
+              }
+              lastVisit {
+                id
+                landingPage
+                referralCode
+                referralInfoHtml
+                referrerUrl
+                source
+                sourceType
+                utmParameters {
+                  campaign
+                  content
+                  term
+                  medium
+                  source
+                }
+                occurredAt
+              }
+            }
+          totalDiscounts
+          totalPrice
+          displayFinancialStatus
+          displayFulfillmentStatus
+          paymentGatewayNames
+          discountCode
+          discountCodes
+          cancelReason
+          tags
+          cancelledAt
+          totalPriceSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+          subtotalPriceSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+          totalTaxSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+          customer {
+            id
+            firstName
+            lastName
+            
+            displayName
+            email
+            numberOfOrders
+            phone
+            amountSpent {
+              amount
+              currencyCode
+            }
+            emailMarketingConsent {
+              marketingState
+              marketingOptInLevel
+              consentUpdatedAt
+            }
+            addresses {
+              address1
+              address2
+              city
+              country
+              zip
+            }
+            tags
+          }
+          lineItems(first: 250) {
+            edges {
+              node {
+                title
+                image {
+                  url
+                }
+                product {
+                  tags
+                  title
+                  images(first: 250) {
+                    edges {
+                      node {
+                        id
+                        altText
+                        url
+                      }
+                    }
+                  }
+                }
+                quantity
+                variant {
+                  id
+                  title
+                  image {
                     url
                   }
                 }
               }
             }
-            quantity
-            variant {
-              id
-              title
-              image {
-                url
-              }
-            }
+          }
+          shippingAddress {
+            address1
+            address2
+            city
+            country
+            zip
+          }
+          billingAddress {
+            address1
+            city
+            province
+            zip
+            country
           }
         }
       }
-      shippingAddress {
-        address1
-        address2
-        city
-        country
-        zip
-      }
-      billingAddress {
-        address1
-        city
-        province
-        zip
-        country
-      }
-    }
-  }
-`;
+    `;
+    
 
    
        const variables = { id: `gid://shopify/Order/${orderId}` };
@@ -758,9 +797,10 @@ export class CreateOrderCampaign extends WorkerHost {
          return
        }
    
+       console.log('Order data:', JSON.stringify(response?.order, null, 2));
        // Clean the order data by flattening any "edges" wrappers using lodash.
        const cleanedOrder = this.cleanOrderData(response?.order);
-       console.log('Cleaned order data:', JSON.stringify(cleanedOrder, null, 2));
+      //  console.log('Cleaned order data:', JSON.stringify(cleanedOrder, null, 2));
    
        return cleanedOrder;
      } catch (error) {

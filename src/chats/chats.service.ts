@@ -14,6 +14,7 @@ import {
   escapeRegExp,
   getFirstAndLastName,
   getWhatsappConfig,
+  isTemplateButtonRedirectSafe,
   sanitizePhoneNumber,
 } from 'utils/usefulfunction';
 import { ShopifyService } from 'src/shopify/shopify.service';
@@ -22,6 +23,7 @@ import { Buisness } from 'src/buisness/entities/buisness.entity';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { console } from 'inspector';
+import { connect } from 'http2';
 @Injectable()
 export class ChatsService {
   constructor(
@@ -58,6 +60,7 @@ export class ChatsService {
       );
   
       const template = response?.data?.[0];
+      const linkTrackenabled = isTemplateButtonRedirectSafe(template);
       console.log('--- Template Response ---');
       console.log(JSON.stringify(template, null, 2));
   
@@ -67,6 +70,9 @@ export class ChatsService {
       }
   
       const { header, body, buttons } = templateForm;
+
+      console.log(JSON.stringify(templateForm, null, 2))
+
   
       // Process header
       if (header && header.isEditable) {
@@ -104,6 +110,7 @@ export class ChatsService {
         }
       }
   
+      let trackurl:string;
       // Process body
       console.log('--- Processing Body Parameters ---');
       const bodyParameters = body.map((param) => {
@@ -121,15 +128,33 @@ export class ChatsService {
   
       // Process buttons into components
       console.log('--- Processing Buttons into Components ---');
-      buttons.forEach((button, index) => {
+      for (const [index, button] of buttons.entries()) {
         console.log(`Button [${index}]:`, button);
+      
         if (button.type === 'URL' && button.isEditable) {
-          components.push({
-            type: 'button',
-            sub_type: 'url',
-            index: index,
-            parameters: [{ type: 'text', text: button.value }],
-          });
+          if (!linkTrackenabled) {
+            components.push({
+              type: 'button',
+              sub_type: 'url',
+              index,
+              parameters: [{ type: 'text', text: button.value }],
+            });
+          } else {
+            const url = await this.databaseService.linkTrack.create({
+              data:{
+                link: button.value,
+                buisness_id: buisness.id,
+
+              }
+            });
+         trackurl = `go/${url.id}`
+            components.push({
+              type: 'button',
+              sub_type: 'url',
+              index,
+              parameters: [{ type: 'text', text: trackurl }], // maybe use url instead of button.value?
+            });
+          }
         } else if (button.type === 'COPY_CODE') {
           components.push({
             type: 'button',
@@ -143,7 +168,8 @@ export class ChatsService {
             ],
           });
         }
-      });
+      }
+      
   
       const params = {
         recipientNo: recipientNo,
@@ -219,7 +245,7 @@ export class ChatsService {
             if (templateUrlButton && templateUrlButton.url) {
               console.log('Original template URL:', templateUrlButton.url);
               const placeholder = '{{1}}';
-              const finalUrl = templateUrlButton.url.split(placeholder).join(button.value);
+              const finalUrl = templateUrlButton.url.split(placeholder).join(linkTrackenabled? trackurl : button.value);
               console.log('✅ Final URL:', finalUrl);
               return {
                 ...button,
@@ -367,15 +393,21 @@ export class ChatsService {
       const Templates = await this.whatsappService.getTemplates(config);
       console.log(Templates.data);
       console.log(typeof Templates.data);
-      const approvedTemplates = Templates?.data?.filter(
+      const approvedTemplatesWithTracking = Templates?.data
+      ?.filter(
         (template) =>
           template.status === 'APPROVED' &&
           !template.components?.some(
             (component) => component.type === 'CAROUSEL',
-          ),
-      );
+          )
+      )
+      .map((template) => ({
+        ...template,
+        trackingEnabled: isTemplateButtonRedirectSafe(template),
+      }));
+    
 
-      return approvedTemplates;
+      return approvedTemplatesWithTracking;
     } catch (error) {
       console.log(error);
       throw new InternalServerErrorException('Failed to fetch templates');
@@ -490,15 +522,9 @@ export class ChatsService {
         },
       });
   
+      
       // Step 3: Concurrently mark each message as read on WhatsApp
-      await Promise.all(
-        chats.map((chat) =>
-          this.whatsappService.markstatusasread(chat.chatId, config).catch((err) => {
-            console.error(`Failed to mark chat ${chat.id} as read`, err);
-            // Optionally: return some error info or null
-          })
-        )
-      );
+      
   
       return 'success';
     } catch (error) {
@@ -506,5 +532,8 @@ export class ChatsService {
       throw new Error('Failed to mark messages as read');
     }
   }
+
+
+    
   
 }

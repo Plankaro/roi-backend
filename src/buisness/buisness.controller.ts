@@ -29,4 +29,8 @@ export class BuisnessController {
   remove(@Param('id') id: string) {
     return this.buisnessService.remove(+id);
   }
+  @Get('notifications/:id')
+  getNotifications(@Param('id') id: string) {
+    return this.buisnessService.getNotifications(id);
+  }
 }

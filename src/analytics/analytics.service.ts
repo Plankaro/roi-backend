@@ -63,6 +63,8 @@ export class AnalyticsService {
       startDate, // ✅ PASS AS DATE OBJECT
       effectiveEndDate // ✅ PASS AS DATE OBJECT
     );
+
+  
   
     const result = groupedOrders.map((row: any) => ({
       order_date: row.order_date,
@@ -80,6 +82,7 @@ async getEngagementAnalytics(req, query) {
 
   // Get Shopify config for the business
   const config = getShopifyConfig(req.user.business);
+  const order = await this.getAllOrdersWithCustomerJourney(config)
 
   // Define Shopify GraphQL query to fetch customer count
   const shopifyQuery = `
@@ -212,100 +215,197 @@ async getEngagementAnalytics(req, query) {
   }
 }
 
+
+
 async getChatAnalytics(req, query) {
-  const businessId = req.user.business.id;
-  const business = req.user;
-  const startDate = new Date(query.startDate);
-  const endDate = new Date(query.endDate);
-  const threeDaysBeforeEnd = subDays(endDate, 3);
-
-  const [
-    totalMessages,
-    automatedMessages,
-    totalEngagements,
-    abandonedEngagements,
-    messagesByAgentsRaw,
-  ] = await Promise.all([
-    // Total messages within time range
-    this.databaseService.chat.count({
-      where: {
-        Prospect: { business: { id: businessId } },
-        createdAt: { gte: startDate, lte: endDate },
-      },
-    }),
-
-    // Automated messages
-    this.databaseService.chat.count({
-      where: {
-        isAutomated: true,
-        Prospect: { business: { id: businessId } },
-        createdAt: { gte: startDate, lte: endDate },
-      },
-    }),
-
-    // Prospects with any chat
-    this.databaseService.prospect.count({
-      where: {
-        business: { id: businessId },
-        created_at: { gte: startDate, lte: endDate },
-        chats: { some: {} },
-      },
-    }),
-
-    // Abandoned engagements (last message sent more than 3 days before endDate)
-    this.databaseService.prospect.findMany({
-      where: {
-        business: { id: businessId },
-        created_at: { gte: startDate, lte: endDate },
-        chats: { some: {} },
-      },
-      include: {
-        chats: {
-          where: {
-            senderPhoneNo: business.whatsapp_mobile,
-            createdAt: { lte: threeDaysBeforeEnd },
-          },
-          orderBy: { createdAt: 'desc' },
-          take: 1,
+  try {
+    const businessId = req.user.business.id;
+    const startDate = new Date(query.startDate);
+    const endDate = new Date(query.endDate);
+    const threeDaysBeforeEnd = subDays(endDate, 3);
+  
+    const [
+      totalMessages,
+      automatedMessages,
+      totalEngagements,
+      abandonedEngagements,
+      messagesByAgentsRaw,
+    ] = await Promise.all([
+      this.databaseService.chat.count({
+        where: {
+          Prospect: { business: { id: businessId } },
+          createdAt: { gte: startDate, lte: endDate },
         },
+      }),
+      this.databaseService.chat.count({
+        where: {
+          isAutomated: true,
+          Prospect: { business: { id: businessId } },
+          createdAt: { gte: startDate, lte: endDate },
+        },
+      }),
+      this.databaseService.prospect.count({
+        where: {
+          business: { id: businessId },
+          created_at: { gte: startDate, lte: endDate },
+        },
+      }),
+      this.databaseService.prospect.findMany({
+        where: {
+          business: { id: businessId },
+          created_at: { gte: startDate, lte: endDate },
+          chats: { some: {} },
+        },
+        include: {
+          chats: {
+            where: {
+              senderPhoneNo: req.user.business.whatsapp_mobile,
+              createdAt: { lte: threeDaysBeforeEnd },
+
+            },
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+          },
+        },
+      }),
+      this.databaseService.$queryRawUnsafe<
+        { senderId: string; senderName: string; messageCount: bigint }[]
+      >(
+        `
+        SELECT 
+          u.id AS "senderId", 
+          u."name" AS "senderName", 
+          COUNT(c.id) AS "messageCount"
+        FROM "User" u
+        LEFT JOIN "Chat" c 
+          ON c."senderId" = u.id 
+          AND c."createdAt" BETWEEN $1 AND $2
+        GROUP BY u.id, u."name"
+        ORDER BY "messageCount" DESC
+        `,
+        startDate,
+        endDate
+      ),
+    ]);
+  
+    // Fetch all relevant chat messages
+    const chatCount = await this.databaseService.chat.findMany({
+      where: {
+        senderId: { not: null },
+        Prospect: {
+          business: { id: businessId },
+        },
+        isAutomated:{not:true},
+        createdAt: { gte: startDate, lte: endDate }, // respect date filter
       },
-    }),
-
-    // Messages by agents – using LEFT JOIN to include users with zero messages
-    this.databaseService.$queryRawUnsafe<
-      { senderId: string; senderName: string; messageCount: bigint }[]
-    >(
-      `
-      SELECT 
-        u.id AS "senderId", 
-        u."name" AS "senderName", 
-        COUNT(c.id) AS "messageCount"
-      FROM "User" u
-      LEFT JOIN "Chat" c 
-        ON c."senderId" = u.id 
-        AND c."createdAt" BETWEEN $1 AND $2
-      GROUP BY u.id, u."name"
-      ORDER BY "messageCount" DESC
-      `,
-      startDate,
-      endDate
-    ),
-  ]);
-
-  // Convert BigInt messageCount to a regular number
-  const messagesByAgents = messagesByAgentsRaw.map(agent => ({
-    ...agent,
-    messageCount: Number(agent.messageCount),
-  }));
-
-  return {
-    totalMessages,
-    automatedMessages,
-    totalEngagements,
-    abandonedEngagements,
-    messagesByAgents,
-  };
+      select: {
+        template_used: true,
+        body_text: true,
+      },
+    });
+  
+    // Total message time calculation
+    const totalMessageTime = chatCount.reduce((total, chat) => {
+      if (chat.template_used) {
+        return total + 1;
+      }
+  
+      const bodyLength = chat.body_text?.length || 0;
+      const timeForBody = Math.ceil(bodyLength / 100);
+      return total + timeForBody;
+    }, 0);
+    console.log(totalMessageTime);
+  
+    const messagesByAgents = messagesByAgentsRaw.map(agent => ({
+      ...agent,
+      messageCount: Number(agent.messageCount),
+    }));
+  
+    return {
+      totalMessages,
+      automatedMessages,
+      totalEngagements,
+      abandonedEngagements,
+      messagesByAgents,
+      totalMessageTime, // ⏱️ add this to your analytics
+    };
+  } catch (error) {
+    console.error(error);
+  }
 }
+
+
+async getAllOrdersWithCustomerJourney(config: any) {
+  try {
+    const query = `
+      query getAllOrders {
+        orders(first: 30) {
+          edges {
+            node {
+              id
+              name
+              customerJourney {
+                firstVisit {
+                  landingPage
+                  referralCode
+                  referralInfoHtml
+                  referrerUrl
+                  source
+                  sourceType
+                  utmParameters {
+                    campaign
+                    content
+                    medium
+                    source
+                    term
+                  }
+                  occurredAt
+                }
+                lastVisit {
+                  id
+                  landingPage
+                  referralCode
+                  referralInfoHtml
+                  referrerUrl
+                  source
+                  sourceType
+                  utmParameters {
+                    campaign
+                    content
+                    term
+                    medium
+                    source
+                  }
+                  occurredAt
+                }
+              }
+            }
+          }
+        }
+      }
+    `;
+
+    const { data: response, errors } = await this.shopifyService.executeGraphQL(
+      query,
+      {},
+      config,
+    );
+    console.log(JSON.stringify(response, null, 2));
+
+    if (errors) {
+      console.error('GraphQL errors:', errors);
+      throw new Error('GraphQL query failed');
+    }
+
+    const orders = response.orders.edges.map((edge: any) => edge.node);
+
+    return orders;
+  } catch (error) {
+    console.error('Error in getAllOrdersWithCustomerJourney:', error);
+    throw error;
+  }
+}
+
 
 
 

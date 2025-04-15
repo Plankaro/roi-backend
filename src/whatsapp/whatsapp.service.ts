@@ -23,6 +23,7 @@ export class WhatsappService {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${apiToken}`,
       },
+      
     });
   }
 

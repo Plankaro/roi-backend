@@ -41,6 +41,8 @@ model User {
   Chat Chat[]
 
   Tag Tag[]
+
+  notification notification[]
 }
 
 enum Acess {
@@ -95,7 +97,6 @@ model Business {
   razorpay_id          String?
   razorpay_secret      String?
 
-
   Broadcast     Broadcast[]
   Template      Template[]
   FlashResponse FlashResponse[]
@@ -112,21 +113,23 @@ model Business {
   PaymentLink PaymentLink[]
 
   Bots Bots[]
+
+  LinkTrack LinkTrack[]
+
+  notification notification[]
 }
 
 model Tag {
-  id         String    @id @default(cuid())
-  tagName     String
+  id         String   @id @default(cuid())
+  tagName    String
   businessId String
   business   Business @relation(fields: [businessId], references: [id])
-  created_at  DateTime @default(now())
-  userId String
+  created_at DateTime @default(now())
+  userId     String
   user       User     @relation(fields: [userId], references: [id])
 
   ProspectTag ProspectTag[]
 }
-
-
 
 model Prospect {
   id          String    @id @default(cuid())
@@ -135,7 +138,7 @@ model Prospect {
   email       String?
   image       String?
   last_Online DateTime?
-  phoneNo     String    
+  phoneNo     String
   lead        Lead      @default(LEAD)
 
   assignedToId String?
@@ -150,10 +153,37 @@ model Prospect {
   updated_at DateTime  @updatedAt
 
   // Many-to-Many Relationship with Broadcast via BroadcastContact
-  discount discount[]
+  discount    discount[]
+  ProspectTag ProspectTag[]
 
   @@unique([buisnessNo, phoneNo])
-  ProspectTag ProspectTag[]
+  
+  LinkTrack LinkTrack[]
+}
+
+
+model notification {
+    id         String   @id @default(cuid())
+    user_id    String
+    user       User @relation(fields: [user_id],references: [id],onDelete: Cascade )
+    buisness_id String
+    Buisness   Business @relation(fields: [buisness_id],references: [id],onDelete: Cascade)
+    text       String
+    type      NotificationType
+    status   NotificationStatus
+    created_at DateTime @default(now())
+    update_at  DateTime @default(now())
+
+}
+
+enum NotificationStatus {
+  READ
+  DELIVERED
+}
+
+enum NotificationType {
+  ASSIGNED
+  CUSTOMERSUPPORT
 }
 
 model ProspectTag {
@@ -162,8 +192,8 @@ model ProspectTag {
   tagId      String
   created_at DateTime @default(now())
 
-  prospect   Prospect @relation(fields: [prospectId], references: [id])
-  tag        Tag      @relation(fields: [tagId], references: [id])
+  prospect Prospect @relation(fields: [prospectId], references: [id])
+  tag      Tag      @relation(fields: [tagId], references: [id])
 
   @@unique([prospectId, tagId]) // Optional: prevents duplicate tag-prospect links
 }
@@ -249,27 +279,47 @@ enum BotType {
   ORDER_TRACK
 }
 
-
-
 model Bots {
-  id                                  String   @id @default(cuid())
-  type                                BotType
-  discount_type                       discount_type @default(PERCENTAGE)
-  buisness_id                         String
-  Buisness                            Business @relation(fields: [buisness_id], references: [id])
-  discount_amount                     String   @default("10")
-  discount_expiry                     String   @default("7")
-  discount_minimum                    String   @default("200")
-  no_of_days_before_asking_discount   String   @default("7")
-  is_active                           Boolean  @default(true)
-  shipping_standard_cost              String   @default("150")
-  shipping_threshold                  String   @default("200")
-  international_shipping_cost         String   @default("200")
+  id                                String        @id @default(cuid())
+  type                              BotType
+  discount_type                     discount_type @default(PERCENTAGE)
+  buisness_id                       String
+  Buisness                          Business      @relation(fields: [buisness_id], references: [id])
+  discount_amount                   String        @default("10")
+  discount_expiry                   String        @default("7")
+  discount_minimum                  String        @default("200")
+  no_of_days_before_asking_discount String        @default("7")
+  is_active                         Boolean       @default(true)
+  shipping_standard_cost            String        @default("150")
+  shipping_threshold                String        @default("200")
+  international_shipping_cost       String        @default("200")
 
   @@unique([buisness_id, type]) // ✅ Enforces unique (buisness_id, type) pair
 }
 
+model LinkTrack {
+  id           String     @id @default(cuid())
+  campaign_id  String?
+  broadcast_id String?
+  buisness     Business? @relation(fields: [buisness_id],references: [id])
+  buisness_id  String?
+  campaign     Campaign?  @relation(fields: [campaign_id], references: [id])
+  broadcast    Broadcast? @relation(fields: [broadcast_id], references: [id])
+  chat_id       String?
+  chat         Chat?  @relation(fields: [chat_id],references: [id])
+  prospect_id    String?
+  prospect      Prospect? @relation(fields: [prospect_id],references: [id])
+  first_click    DateTime?
+  last_click     DateTime?
+  no_of_click    Int @default(0)
+  link           String?
+  utm_source     String? 
+  utm_medium     String?
+  utm_campaign  String?
 
+
+
+}
 
 
 model Chat {
@@ -281,8 +331,8 @@ model Chat {
   template_used       Boolean  @default(false)
   template_name       String?
   template_components Json?
-  senderId           String?
-  sender             User?     @relation(fields: [senderId], references: [id])
+  senderId            String?
+  sender              User?    @relation(fields: [senderId], references: [id])
 
   header_type  HeaderType?
   header_value String?
@@ -321,6 +371,10 @@ model Chat {
   type String
 
   Contacts Contacts[]
+
+
+
+  LinkTrack LinkTrack[]
 }
 
 model StarredCustomers {
@@ -404,6 +458,10 @@ model Broadcast {
   skip_inactive_contacts_days           Int?
   reply_count                           Int             @default(0)
   unique_interactions                   Int             @default(0)
+
+ 
+
+  LinkTrack LinkTrack[]
 }
 
 enum broadcastStatus {
@@ -546,13 +604,15 @@ model Campaign {
   Business                        Business?             @relation(fields: [businessId], references: [id])
   businessId                      String?
   Chat                            Chat[]
-  createdAt                        DateTime             @default(now())
-  
-
+  createdAt                       DateTime              @default(now())
 
   OrderCampaign OrderCampaign[]
 
   PaymentLink PaymentLink[]
+
+  
+
+  LinkTrack LinkTrack[]
 }
 
 model Filter {
@@ -679,8 +739,8 @@ model PaymentLink {
   created_at       DateTime  @default(now()) // Timestamp when the record is created
   updated_at       DateTime  @updatedAt
   campaign_id      String?
-  businessId           String?
-  business             Business?            @relation(fields: [businessId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  businessId       String?
+  business         Business? @relation(fields: [businessId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   campaign         Campaign? @relation(fields: [campaign_id], references: [id], onDelete: Cascade) // Timestamp when the record is last updated
 }
 
@@ -760,7 +820,7 @@ model discount {
   code       String
   usageLimit Int?
 
-  createdAt      DateTime @default(now())
+  createdAt   DateTime @default(now())
   prospect_id String
-  prospect       Prospect @relation(fields: [prospect_id], references: [id]) // Optional limit for the discount code
+  prospect    Prospect @relation(fields: [prospect_id], references: [id]) // Optional limit for the discount code
 }
