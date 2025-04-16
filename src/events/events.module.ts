@@ -16,6 +16,11 @@ import { cancelOrderCampaign } from './processors/cancel-order-campaign';
 import { orderTagsAddedCampaign } from './processors/order-tag-added-campaign';
 import { RazorpayModule } from 'src/razorpay/razorpay.module';
 import { UpdateOrderProcessor } from './processors/update-order-processor';
+import { FullfillmentEventProcessor } from './processors/fullfillment-event-processor';
+import { FullfillmentEventCampaign } from './processors/fullfillment-event-campaign';
+import { UpdateFullfillmentCampaignProcessor } from './processors/fullfillment-update-campaign';
+import { UpdateFullfillmentEventProcessor } from './processors/fullfillment-update-processor';
+
 
 @Module({
   imports: [
@@ -38,6 +43,7 @@ import { UpdateOrderProcessor } from './processors/update-order-processor';
       { name: 'createFulfillmentCampaign' },
       { name: 'createFullfillmentEventQueue' },
       { name: 'createFulfillmentEventCampaign' },
+
     ),
   ],
   controllers: [EventsController],
@@ -52,7 +58,11 @@ import { UpdateOrderProcessor } from './processors/update-order-processor';
     cancelOrderQueue,
     cancelOrderCampaign,
     orderTagsAddedCampaign,
-    UpdateOrderProcessor
+    UpdateOrderProcessor,
+    FullfillmentEventProcessor,
+    FullfillmentEventCampaign,
+    UpdateFullfillmentCampaignProcessor,
+    UpdateFullfillmentEventProcessor
     
     
     

@@ -16,7 +16,7 @@ export class EventsController {
     @Headers() headers: Record<string, string>,
   ) {
    
-    // await this.eventsService.manipulateCheckout(checkoutData, headers["x-shopify-shop-domain"]);
+    await this.eventsService.manipulateCheckout(checkoutData, headers["x-shopify-shop-domain"]);
 
     return { success: true };
   }
@@ -29,7 +29,7 @@ export class EventsController {
   ) {
     
    
-    // await this.eventsService.manipulateUpdatedCheckout(updateCheckout, headers["x-shopify-shop-domain"]);
+    await this.eventsService.manipulateUpdatedCheckout(updateCheckout, headers["x-shopify-shop-domain"]);
     return { success: true };
   }
 
@@ -43,8 +43,8 @@ async createOrder(
 
 
 
-    // // Pass the order data to your service for further processing
-    // await this.eventsService.manipulateOrder(orderData, headers["x-shopify-shop-domain"]);
+    // Pass the order data to your service for further processing
+    await this.eventsService.manipulateOrder(orderData, headers["x-shopify-shop-domain"]);
     return { success: true };
   }
 
@@ -67,7 +67,7 @@ async createOrder(
     @Body() orderData: any,
     @Headers() headers: Record<string, string>,
   ) {
-// console.log("cart",headers)
+    // console.log("orderData",JSON.stringify(orderData,null,2))
     // await this.eventsService.manipulateCancelOrder(orderData, headers["x-shopify-shop-domain"]);
 
     // return { success: true };
@@ -79,7 +79,7 @@ async createOrder(
     @Headers() headers: Record<string, string>,
   
   ) {
-    console.log("updatefullfillment",JSON.stringify(orderData,null,2))
+
    await this.eventsService.manipulateUpdatedFulfillment(orderData, headers["x-shopify-shop-domain"]);
     // Pass the order data to your service for further processing
 

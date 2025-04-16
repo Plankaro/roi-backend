@@ -22,6 +22,7 @@ import {
 import { Order } from 'src/orders/entities/order.entity';
 import { Campaign } from 'src/campaign/entities/campaign.entity';
 import { add } from 'date-fns';
+import { url } from 'inspector';
 
 @Processor('createCheckoutCampaign')
 @Injectable()
@@ -39,6 +40,7 @@ export class CreateCheckoutCampaign extends WorkerHost {
     
 
       const { checkoutId, campaignId } = job.data;
+      console.log(campaignId)
     
 
       const [checkout, campaign] = await this.databaseService.$transaction([
@@ -319,11 +321,13 @@ export class CreateCheckoutCampaign extends WorkerHost {
             },
           });
         if (abandoned_checkout) {
+
          
           return;
         }
       }
      
+
       await this.databaseService.checkoutOnCampaign.create({
         data: {
           checkoutId: checkout.id,
@@ -387,7 +391,7 @@ export class CreateCheckoutCampaign extends WorkerHost {
         } else if (header.type === 'IMAGE') {
           components.push({
             type: 'header',
-            parameters: [{ type: 'image', image: { link: header.value } }],
+            parameters: [{ type: 'image', image: { link: header.value==="ProductImage"?ProductList?.[0]?.images?.[0]??"":header.value } }],
           });
         } else if (header.type === 'VIDEO') {
           components.push({
@@ -445,17 +449,18 @@ export class CreateCheckoutCampaign extends WorkerHost {
           components.push({
             type: 'button',
             sub_type: 'COPY_CODE',
-            index: button.index,
+            index: index,
             parameters: [
               {
                 type: 'coupon_code', // Must be exactly "coupon_code" for copy_code buttons
-                coupon_code: '', // The actual coupon code text you want to be copied
+                coupon_code: button.value, // The actual coupon code text you want to be copied
               },
             ],
           });
         }
       });
-  
+      console.log(JSON.stringify(ProductList,null,2))
+  console.log(JSON.stringify(components,null,2))
 
       const messageResponse = await this.whatsappService.sendTemplateMessage(
         {
@@ -569,75 +574,7 @@ export class CreateCheckoutCampaign extends WorkerHost {
     }
   }
 
-  //   async getCheckOut(id: string, shopifyConfig: any) {
-  //     try {
-  //       const query = `
-  //         query GetAbandonedCheckout($abandonedCheckoutId: ID!) {
-  //  abandonmentByAbandonedCheckoutId(abandonedCheckoutId:$abandonedCheckoutId ) {
-  //     abandonedCheckoutPayload {
-  //       abandonedCheckoutUrl
-  //       completedAt
-  //       createdAt
-  //       customer {
-  //         createdAt
-  //         email
-  //         displayName
-  //         firstName
-  //         id
-  //         lastName
-  //       }
-  //       lineItems {
-  //         nodes {
-  //           image {
-  //             src
-  //           }
-  //           originalUnitPriceSet {
-  //             shopMoney {
-  //               amount
-  //               currencyCode
-  //             }
-  //             presentmentMoney {
-  //               amount
-  //               currencyCode
-  //             }
-  //           }
-  //           title
-  //           variantTitle
-  //         }
-  //       }
-  //     }
-  //   }
-  // }
 
-  //         `;
-
-  //       const test = `
-  //   query GetAbandonedCheckouts {
-  //     abandonedCheckouts(first: 250) {
-  //       nodes {
-  //         id
-  //         abandonedCheckoutUrl
-  //       }
-  //     }
-  //   }
-  // `;
-
-  //       const globalId = `gid://shopify/AbandonedCheckout/${id}`;
-  //       console.log(globalId);
-
-  //       const variables = { abandonedCheckoutId: globalId };
-
-  //       const result = await this.shopifyService.executeGraphQL(
-  //         test,
-  //         {},
-  //         shopifyConfig,
-  //       );
-  //       console.log(JSON.stringify(result, null, 2));
-  //       return result;
-  //     } catch (error) {
-  //       console.log(error);
-  //     }
-  //   }
 
   async getShopifyDiscount(
     type: discount_type,

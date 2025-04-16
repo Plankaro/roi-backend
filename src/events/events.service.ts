@@ -15,6 +15,9 @@ export class EventsService {
     private readonly updatedCheckoutQueue: Queue,
     @InjectQueue('updateOrderQueue') private readonly updateOrderQueue:Queue,
     @InjectQueue('cancelOrderQueue') private readonly cancelOrderQueue:Queue,
+    @InjectQueue('createFullfillmentQueue') private readonly createFullFillmentQueue:Queue,
+    @InjectQueue('createFullfillmentEventQueue') private readonly createFullfillmentEventQueue:Queue,
+
     private readonly databaseService: DatabaseService
 
     
@@ -66,10 +69,27 @@ export class EventsService {
   }
 
   async manipulateCreateFullFillment(createFullFillment: any, domain: string) {
+    await this.createFullFillmentQueue.add(
+      'createFullFillmentQueue',
+      { fullFillmentData: createFullFillment, domain },
+      {
+        delay: 0,
+        removeOnComplete: true,
+      },
+    )
+    return { success: true };
     
   }
   async manipulateUpdatedFulfillment(updatedFulfillment: any, domain: string) {
- 
+    await this.createFullfillmentEventQueue.add(
+      'createFullfillmentEventQueue',
+      { fullFillmentData: updatedFulfillment, domain },
+      {
+        delay: 0,
+        removeOnComplete: true,
+      },
+    )
+    return { success: true };
   }
 
   async manipulateUpdatedCheckout(updateCheckout: any, domain: string) {

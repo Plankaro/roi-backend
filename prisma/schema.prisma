@@ -235,7 +235,7 @@ model Order {
   // e.g., "paid"
   fulfillment_status String?
   landing_site       String?
-  fulfillments       Json? // Array of fullfillments
+  fulfillments       Fulfillment[]
 
   merchant_business_entity_id String?
 
@@ -618,6 +618,7 @@ model Campaign {
   businessId                      String?
   Chat                            Chat[]
   createdAt                       DateTime              @default(now())
+  reply_action                     String?
 
   OrderCampaign OrderCampaign[]
 
@@ -815,16 +816,35 @@ enum time_unit {
 }
 
 model Fulfillment {
-  id              String   @id @default(cuid()) // Local DB ID
-  shopifyId       String   @unique // Shopify Fulfillment ID
-  orderId         String // Shopify Order ID
-  trackingNumber  String? // Tracking number
-  trackingCompany String? // e.g., "Bluedart"
-  trackingUrl     String? // Link to track shipment
-  status          String // "pending", "success", etc.
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+   id               String    @id @default(cuid()) 
+  shopify_id          String     @unique
+  orderId             String
+ db_order_id        String? 
+  order            Order?    @relation(fields: [db_order_id], references: [id], onDelete: Cascade)
+  status              String
+  createdAt           DateTime   @map("created_at")
+  updatedAt           DateTime   @map("updated_at")
+  service             String
+  trackingCompany     String?
+  shipmentStatus      String?
+  locationId          BigInt?
+  originAddress       Json?
+  email               String?
+  trackingNumber      String?
+  trackingNumbers     String[]   @default([])
+  trackingUrl         String?
+  trackingUrls        String[]   @default([])
+  receipt             Json?
+  name                String
+  
+
+  // Destination is stored as nested JSON
+  destination         Json?
+
+  // All line items and nested data stored as JSON array
+  lineItems           Json
 }
+
 
 model discount {
   id         String        @id @default(cuid()) // Local DB ID
