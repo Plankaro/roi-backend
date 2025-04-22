@@ -14,6 +14,7 @@ import {
   getWhatsappConfig,
   noneTagPresent,
   sanitizePhoneNumber,
+  isTemplateButtonRedirectSafe
 } from 'utils/usefulfunction';
 import { ShopifyService } from 'src/shopify/shopify.service';
 import { WhatsappService } from 'src/whatsapp/whatsapp.service';
@@ -422,40 +423,74 @@ export class FullfillmentEventCampaign extends WorkerHost {
     
            
            // Process buttons
-           buttons.forEach((button, index) => {
-             if (button.type === 'URL' && button.isEditable === true) {
-               components.push({
-                 type: 'button',
-                 sub_type: 'url',
-                 index: index,
-                 parameters: [
-                   {
-                     type: 'text',
-                     text: button.fromsegment
-                       ? button.segmentname === 'cod_to_checkout_link' ? razorpaymentUrl : this.getOrderValue(
-                           orderById,
-                           button.segmentname,
-    
-                          
-                         )
-                       : button.value,
-                   },
-                 ],
-               });
-             } else if (button.type === 'COPY_CODE') {
-               components.push({
-                 type: 'button',
-                 sub_type: 'COPY_CODE',
-                 index: button.index,
-                 parameters: [
-                   {
-                     type: 'coupon_code', // Must be exactly "coupon_code" for copy_code buttons
-                     coupon_code: button.value, // The actual coupon code text you want to be copied
-                   },
-                 ],
-               });
-             }
-           });
+           const isLinkTrackEnabled: boolean =
+           isTemplateButtonRedirectSafe(template);
+   
+           let trackId;
+           let trackUrl;
+            for (const [index, button] of buttons.entries()) {
+              console.log(`Button [${index}]:`, button);
+            
+              if (button.type === 'URL' && button.isEditable === true) {
+                if (!isLinkTrackEnabled) {
+                  components.push({
+                    type: 'button',
+                    sub_type: 'url',
+                    index,
+                    parameters: [
+                      {
+                        type: 'text',
+                        text:  button.fromsegment
+                        ? button.segmentname === 'cod_to_checkout_link'
+                          ? razorpaymentUrl
+                          : this.getOrderValue(orderById, button.segmentname)
+                        : button.value,
+                      },
+                    ],
+                  });
+                } else {
+                  const url = await this.databaseService.linkTrack.create({
+                    data: {
+                      link:  button.fromsegment
+                      ? button.segmentname === 'cod_to_checkout_link'
+                        ? razorpaymentUrl
+                        : this.getOrderValue(orderById, button.segmentname)
+                      : button.value,
+                      buisness_id: campaign.businessId,
+                      utm_source: "roi_magnet",
+                      utm_medium: "whatsapp",
+                    },
+                  });
+            
+                   trackId = url.id;
+                trackUrl = `go/${trackId}`;
+            
+                  components.push({
+                    type: 'button',
+                    sub_type: 'url',
+                    index,
+                    parameters: [
+                      {
+                        type: 'text',
+                        text: trackUrl,
+                      },
+                    ],
+                  });
+                }
+              } else if (button.type === 'COPY_CODE') {
+                components.push({
+                  type: 'button',
+                  sub_type: 'COPY_CODE',
+                  index,
+                  parameters: [
+                    {
+                      type: 'coupon_code',
+                      coupon_code: button.value,
+                    },
+                  ],
+                });
+              }
+            }
            console.log(JSON.stringify(components))
           
      

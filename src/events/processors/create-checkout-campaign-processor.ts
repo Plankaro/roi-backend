@@ -7,6 +7,7 @@ import {
   getFromDate,
   getShopifyConfig,
   getWhatsappConfig,
+  isTemplateButtonRedirectSafe,
   sanitizePhoneNumber,
 } from 'utils/usefulfunction';
 import { ShopifyService } from 'src/shopify/shopify.service';
@@ -345,7 +346,11 @@ export class CreateCheckoutCampaign extends WorkerHost {
         campaign.template_name,
       );
       const template = response?.data?.[0];
-     // Ensure safe access
+
+      const isLinkTrackEnabled:boolean = isTemplateButtonRedirectSafe(
+        template,
+      )
+     
 
       const customerId = checkout.customer as any;
       let discount;
@@ -426,39 +431,72 @@ export class CreateCheckoutCampaign extends WorkerHost {
  
 
       // Process buttons
-      buttons.forEach((button, index) => {
+     let trackId;
+     let trackUrl;
+      for (const [index, button] of buttons.entries()) {
+        console.log(`Button [${index}]:`, button);
+      
         if (button.type === 'URL' && button.isEditable === true) {
-          components.push({
-            type: 'button',
-            sub_type: 'url',
-            index: index,
-            parameters: [
-              {
-                type: 'text',
-                text: button.fromsegment
-                  ? this.getCheckoutValue(
-                      checkout,
-                      button.segmentname,
-                      discount,
-                    )
-                  : button.value,
+          if (!isLinkTrackEnabled) {
+            components.push({
+              type: 'button',
+              sub_type: 'url',
+              index,
+              parameters: [
+                {
+                  type: 'text',
+                  text: button.fromsegment
+                    ? this.getCheckoutValue(checkout, button.segmentname, discount)
+                    : button.value,
+                },
+              ],
+            });
+          } else {
+            const url = await this.databaseService.linkTrack.create({
+              data: {
+                link: button.fromsegment
+                ? this.getCheckoutValue(
+                    checkout,
+                    button.segmentname,
+                    discount,
+                  )
+                : button.value,
+                buisness_id: campaign.businessId,
+                utm_source: "roi_magnet",
+                utm_medium: "whatsapp",
               },
-            ],
-          });
+            });
+      
+             trackId = url.id;
+          trackUrl = `go/${trackId}`;
+      
+            components.push({
+              type: 'button',
+              sub_type: 'url',
+              index,
+              parameters: [
+                {
+                  type: 'text',
+                  text: trackUrl,
+                },
+              ],
+            });
+          }
         } else if (button.type === 'COPY_CODE') {
           components.push({
             type: 'button',
             sub_type: 'COPY_CODE',
-            index: index,
+            index,
             parameters: [
               {
-                type: 'coupon_code', // Must be exactly "coupon_code" for copy_code buttons
-                coupon_code: button.value, // The actual coupon code text you want to be copied
+                type: 'coupon_code',
+                coupon_code: button.value,
               },
             ],
           });
         }
-      });
+      }
+      
       console.log(JSON.stringify(ProductList,null,2))
   console.log(JSON.stringify(components,null,2))
 
@@ -541,11 +579,36 @@ export class CreateCheckoutCampaign extends WorkerHost {
         }
       })
 
+        const updatedButtons = buttons.map((button) => {
+              if (button.type === 'URL' && button.isEditable === true) {
+                const findButtonfromtemplate = template.components.find(
+                  (component) => component.type === 'BUTTONS'
+                );
+                if (findButtonfromtemplate) {
+                  const templateUrlButton = findButtonfromtemplate.buttons.find(
+                    (btn) => btn.type === 'URL'
+                  );
+                  if (templateUrlButton && templateUrlButton.url) {
+                    console.log('Original template URL:', templateUrlButton.url);
+                    const placeholder = '{{1}}';
+                    const finalUrl = templateUrlButton.url.split(placeholder).join(isLinkTrackEnabled? trackUrl : button.value);
+                    console.log('✅ Final URL:', finalUrl);
+                    return {
+                      ...button,
+                      value: finalUrl,
+                    };
+                  }
+                }
+              }
+              return button;
+            });
+
       // Save chat record to the database
       // console.log('Creating chat record in DB for contact:', contact);
       const addTodb = await this.databaseService.chat.create({
         data: {
           prospectId: prospect.id,
+          chatId: messageResponse?.messages[0]?.id ?? '',
           template_used: true,
           template_name: campaign.template_name,
           senderPhoneNo: campaign.Business.whatsapp_mobile,
@@ -559,7 +622,7 @@ export class CreateCheckoutCampaign extends WorkerHost {
           body_text: bodyRawText,
           footer_included: footer ? true : false,
           footer_text: footer?.text || '',
-          Buttons: buttons,
+          Buttons: updatedButtons,
           type: template.type || 'text',
           template_components: components,
           isForCampaign: true,

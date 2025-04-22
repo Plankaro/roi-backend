@@ -5,6 +5,8 @@ import { sanitizePhoneNumber } from 'utils/usefulfunction';
 import { DatabaseService } from 'src/database/database.service';
 import { InjectQueue } from '@nestjs/bullmq';
 import { delay, Queue, tryCatch } from 'bullmq';
+import { getShopifyConfig } from 'utils/usefulfunction';
+import { ShopifyService } from 'src/shopify/shopify.service';
 @Injectable()
 export class EventsService {
   constructor(
@@ -17,6 +19,7 @@ export class EventsService {
     @InjectQueue('cancelOrderQueue') private readonly cancelOrderQueue:Queue,
     @InjectQueue('createFullfillmentQueue') private readonly createFullFillmentQueue:Queue,
     @InjectQueue('createFullfillmentEventQueue') private readonly createFullfillmentEventQueue:Queue,
+    private readonly shopifyService: ShopifyService,
 
     private readonly databaseService: DatabaseService
 
@@ -126,21 +129,88 @@ export class EventsService {
   }
 
   async manipulatePayment(paymentData: any) {
-    const payment = await this.databaseService.paymentLink.findUnique({
-      where: {
-        razorpay_link_id:paymentData.payload.payment_link.entity.id,
+    try {
+      console.log('Received payment data:', JSON.stringify(paymentData, null, 2));
+  
+      const razorpayLinkId = paymentData?.payload?.payment_link?.entity?.id;
+      if (!razorpayLinkId) {
+        console.error('Razorpay link ID not found in payload');
+        return;
       }
-    })
-    if (payment) {
+  
+      const payment = await this.databaseService.paymentLink.findUnique({
+        where: {
+          razorpay_link_id: razorpayLinkId,
+        },
+      });
+  
+      if (!payment) {
+        console.log('No payment record found for Razorpay link ID:', razorpayLinkId);
+        return;
+      }
+  
+      console.log('Payment record found, updating status...');
+  
       const updatedPayment = await this.databaseService.paymentLink.update({
         where: {
-          razorpay_link_id:paymentData.payload.payment_link.entity.id,
+          razorpay_link_id: razorpayLinkId,
         },
         data: {
           status: paymentData.payload.payment_link.entity.status,
         },
-      })
-      console.log('Payment updated successfully:', updatedPayment)
+        include: {
+          order: true,
+          business: true,
+        },
+      });
+  
+      console.log('Payment updated successfully. Shopify Order ID:', updatedPayment.order?.shopify_id);
+  
+      const order_id = updatedPayment.order?.shopify_id;
+  
+      if (!order_id) {
+        console.error('Order ID missing in updated payment.');
+        return;
+      }
+  
+      const query = `
+        mutation MyMutation($id: ID!) {
+          orderMarkAsPaid(input: { id: $id }) {
+            userErrors {
+              field
+              message
+            }
+            order {
+              canMarkAsPaid
+              displayFinancialStatus
+              displayFulfillmentStatus
+            }
+          }
+        }
+      `;
+  
+      const variables = {
+        id: `gid://shopify/Order/${order_id}`,
+      };
+  
+      const shopifyConfig = getShopifyConfig(updatedPayment.business);
+  
+      console.log('Calling Shopify GraphQL API with variables:', variables);
+  
+      const response = await this.shopifyService.executeGraphQL(query, variables, shopifyConfig);
+  
+      console.log('Shopify API Response:', JSON.stringify(response, null, 2));
+      const updateOrder = await this.databaseService.order.update({
+        where: {
+          id: updatedPayment.order?.id,
+        },
+        data: {
+          status: response.data.orderMarkAsPaid.order.displayFinancialStatus,
+      }})
+      console.log('Order updated successfully. Shopify Order ID:', updateOrder.shopify_id);
+    } catch (error) {
+      console.error('Error in manipulatePayment:', error);
     }
   }
+  
 }

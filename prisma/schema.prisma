@@ -86,16 +86,26 @@ model Business {
   employees    User[]     @relation("BusinessEmployees")
   prospects    Prospect[]
   tags         Tag[]
-
+  is_shopify_connected Boolean @default(false)
   shopify_Token        String?
   shopify_domain       String? @unique
+
+  is_whatsapp_connected Boolean @default(false)
   whatsapp_mobile_id   String?
   whatsapp_mobile      String? @unique
   whatsapp_token       String?
   whatsapp_buisness_id String?
   whatsapp_app_id      String?
+
+  is_razorpay_connected Boolean @default(false)
   razorpay_id          String?
   razorpay_secret      String?
+
+  is_google_analytics_connected Boolean @default(false)
+  is_meta_pixel   Boolean @default(false)
+  g_mesurement_id      String?
+  g_api_secret         String?
+  p_track_id           String?
 
   Broadcast     Broadcast[]
   Template      Template[]

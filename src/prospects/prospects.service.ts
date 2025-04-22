@@ -64,6 +64,7 @@ export class ProspectsService {
   async findAll(req: any, query: any) {
     console.log(req.user);
     console.log(query.broadcast);
+
   
     try {
       const buisnessNo = req.user.business.whatsapp_mobile;

@@ -18,6 +18,16 @@ import { ResetPasswordDto } from './dto/forget-password.dto';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import Redis from 'ioredis';
 import { SendgridService } from 'src/sendgrid/sendgrid.service';
+import { randomBytes } from 'crypto';
+import { Response } from 'express';
+import { createHmac } from 'crypto';
+import axios from 'axios';
+import { decrypt, encrypt } from 'utils/usefulfunction';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
+import { UpdateProfileDto } from './dto/update-user.dto';
+
+
 
 @Injectable()
 export class AuthService {
@@ -26,6 +36,8 @@ export class AuthService {
     private readonly jwtService: JwtService,
     @InjectRedis() private readonly redis: Redis,
     private readonly sendgridService: SendgridService,
+    @InjectQueue('webhookSubscribe') private readonly webhookSubscribe: Queue,
+    @InjectQueue('webhookUnsubscribe') private readonly webhookUnsubscribe:Queue,
   ) {}
 
   async login(LoginDto: LoginDto) {
@@ -35,13 +47,13 @@ export class AuthService {
         where: {
           email: LoginDto.email,
         },
-        
+
         include: {
           business: {
-           select:{
-            id:true,
-            businessName:true
-           }
+            select: {
+              id: true,
+              businessName: true,
+            },
           },
         },
       });
@@ -84,24 +96,83 @@ export class AuthService {
     }
   }
 
+  async getUser(req: any) {
+    try {
+      const user = req.user;
+      const userDetails = {
+        name:user.name,
+        email:user.email,
+        image:user.image , 
+        role:user.role,
+       
+
+      }
+      return userDetails;
+    } catch (error) {
+      throw new InternalServerErrorException(error);
+    }
+  }
+  async updateUser(UpdateProfileDto:UpdateProfileDto,req:any){
+    const user = req.user
+    try {
+      const userEdit = await this.databaseService.user.findUnique({
+        where: {
+          id: user.id,
+        },
+      });
+
+      if (!userEdit) {
+        throw new NotFoundException('User not found');
+      }
+      console.log(UpdateProfileDto)
+
+      const data = {}
+      if(UpdateProfileDto.name) data['name'] = UpdateProfileDto.name
+      if(UpdateProfileDto.image) data['image'] = UpdateProfileDto.image
+
+      if(UpdateProfileDto.newPassword){
+        const isMatch = await compare(UpdateProfileDto.currentPassword, userEdit.password);
+
+        if (!isMatch){
+          throw new UnauthorizedException('Invalid current password');
+        }
+
+        const hashedPassword = await hash(UpdateProfileDto.newPassword, 10);
+        data['password'] = hashedPassword
+      }
+
+      await this.databaseService.user.update({
+        where: {
+          id: user.id,
+        },
+        data,
+      });
+    
+
+
+  }catch(error){
+    throw new InternalServerErrorException(error);
+  }
+}
+
   async register(registerAuthDto: RegisterAuthDto) {
     try {
       if (registerAuthDto.password !== registerAuthDto.confirmPassword)
         throw new BadRequestException(
           'Password and confirm password does not match',
         );
-  
+
       const name = `${registerAuthDto.firstName} ${registerAuthDto.lastName}`;
       const hashedPassword = await hash(registerAuthDto.password, 10);
       console.log(registerAuthDto);
-  
+
       // Create the business in the database
       const buisness = await this.databaseService.business.create({
         data: {
           businessName: registerAuthDto.buisnessname,
         },
       });
-  
+
       // Create the user in the database and connect the business using its unique id
       const user = await this.databaseService.user.create({
         data: {
@@ -112,7 +183,7 @@ export class AuthService {
           business: { connect: { id: buisness.id } },
         } as Prisma.UserCreateInput,
       });
-  
+
       // Return the user details excluding the password
       return {
         id: user.id,
@@ -127,7 +198,7 @@ export class AuthService {
           'A user with this email or phone number already exists.',
         );
       }
-  
+
       // Log and rethrow unexpected errors
       console.error('Error during user registration:', error);
       throw new InternalServerErrorException(
@@ -135,11 +206,10 @@ export class AuthService {
       );
     }
   }
-  
 
   async getTokenLink(email: string) {
     try {
-      console.log(email)
+      console.log(email);
       const user = await this.databaseService.user.findUnique({
         where: {
           email: email,
@@ -268,38 +338,63 @@ export class AuthService {
 
   async RefreshToken(refresh_token: string) {
     try {
-      const token = refresh_token.replace(/^Bearer\s/, '');
+      console.log('[RefreshToken] Received refresh_token:', refresh_token);
+
+      const token = refresh_token.replace(/^Bearer\s/, '').trim();
+
+      const secret = process.env.REFRESH_TOKEN_JWT_SECRET;
+      if (!secret) {
+        console.error('[RefreshToken] Missing REFRESH_TOKEN_JWT_SECRET');
+        throw new InternalServerErrorException(
+          'Missing REFRESH_TOKEN_JWT_SECRET',
+        );
+      }
 
       const verifyToken = await this.jwtService.verifyAsync(token, {
-        secret: process.env.REFRESH_TOKEN_JWT_SECRET,
+        secret,
       });
+      console.log('[RefreshToken] Decoded token payload:', verifyToken);
 
       if (!verifyToken) {
+        console.error('[RefreshToken] Token verification failed');
         throw new UnauthorizedException('Invalid login');
       }
+
       const user = await this.databaseService.user.findUnique({
         where: {
           id: verifyToken.sub,
+    
+        
         },
       });
 
-      // if (!user || user.refreshToken !== refresh_token) {
-      //   throw new BadRequestException('Invalid login');
-      // }
+      console.log('[RefreshToken] Retrieved user:', user);
+
+      if (!user) {
+        console.error(
+          '[RefreshToken] User not found or refresh token mismatch',
+        );
+        throw new BadRequestException('Invalid login');
+      }
 
       const userTokens = await this.getTokens(user.id, user.email);
+      console.log('[RefreshToken] Generated new tokens:', userTokens);
+
       await this.databaseService.user.update({
         where: { id: user.id },
         data: {
           refreshToken: userTokens.refresh_token,
         },
       });
+      console.log('[RefreshToken] Updated user with new refresh token');
+
       return userTokens;
     } catch (error) {
-      console.log(error);
+      console.error('[RefreshToken] Error occurred:', error);
       throw new BadRequestException('Invalid login');
     }
   }
+
   remove(id: number) {
     return `This action removes a #${id} auth`;
   }
@@ -326,4 +421,197 @@ export class AuthService {
       refresh_token: rt,
     };
   }
+
+  async installShopify(shop: string, res: any, buisnessId: string) {
+    try {
+      const state = randomBytes(16).toString('hex');
+      if(!shop || !buisnessId) return
+ 
+      const installUrl = encodeURI(
+        `https://${shop}/admin/oauth/authorize` +
+          `?client_id=${process.env.SHOPIFY_CLIENT_ID}` +
+          `&scope=${process.env.SHOPIFY_SCOPES}` +
+          `&redirect_uri=${process.env.BACKEND_URL}/auth/shopify/callback` +
+          `&state=${state}`,
+      );
+
+      const shopifyData = {
+        buisness_id: buisnessId,
+        shop: shop,
+      };
+      const data = await this.redis.set(state, JSON.stringify(shopifyData), 'EX', 60 * 5);
+      console.log(data);
+
+      res.redirect(installUrl);
+    } catch (error) {
+
+    }
+  }
+
+  async verfifyShopifyCallback(query: Record<string, string>, res: Response) {
+    console.log('[Callback] Received query:', query);
+
+    // 1. Verify HMAC
+    const secret = process.env.SHOPIFY_CLIENT_SECRET;
+    if (!secret) {
+      console.error('[Callback] Missing SHOPIFY_API_SECRET');
+      throw new InternalServerErrorException('Missing SHOPIFY_API_SECRET');
+    }
+
+    const { hmac, ...restParams } = query;
+
+    // Construct message with only Shopify-specified params: code, shop, state, timestamp
+    const message = Object.keys(restParams)
+      .sort()
+      .map((key) => `${key}=${restParams[key]}`)
+      .join('&');
+    console.log('[Callback] HMAC message string:', message);
+
+    const generatedHmac = createHmac('sha256', secret)
+      .update(message)
+      .digest('hex');
+    console.log(
+      '[Callback] generatedHmac:',
+      generatedHmac,
+      'receivedHmac:',
+      hmac,
+    );
+
+    if (generatedHmac !== hmac) {
+      console.error('[Callback] HMAC validation failed');
+      throw new BadRequestException('HMAC validation failed');
+    }
+    console.log('[Callback] HMAC validation succeeded');
+
+    // 2. Exchange code for access token
+    const apiKey = process.env.SHOPIFY_CLIENT_ID;
+    if (!apiKey) {
+      console.error('[Callback] Missing SHOPIFY_API_KEY');
+      throw new InternalServerErrorException('Missing SHOPIFY_API_KEY');
+    }
+
+    console.log('[Callback] Exchanging code for token...');
+    let tokenResponse;
+    const payload = {
+      client_id: apiKey,
+      client_secret: secret,
+      code: query.code,
+    };
+    console.log('[Callback] Payload:', payload);
+
+    try {
+      tokenResponse = await axios.post(
+        `https://${query.shop}/admin/oauth/access_token`,
+        payload,
+      );
+      console.log('[Callback] Token response data:', tokenResponse.data);
+    } catch (err) {
+      console.error(
+        '[Callback] Token exchange error:',
+        err.response?.data || err.message,
+      );
+      // Return raw Shopify error to client for debugging
+      return res
+        .status(err.response?.status || 500)
+        .send(err.response?.data || 'Error exchanging code');
+    }
+
+    const accessToken = tokenResponse.data.access_token;
+    console.log('[Callback] Access token obtained:', accessToken);
+
+    // 3. Persist the token where appropriate (DB, Redis, etc.)
+    // Example: await this.redisService.getClient().set(`shopify:token:${restParams.shop}`, accessToken);
+    console.log('[Callback] Persisted access token for shop:', query.shop);
+
+    // 4. Redirect to app UI
+   const data = await this.redis.get(query.state);
+   
+const parsedData = JSON.parse(data);
+    if (!data) return res.redirect(`${process.env.CLIENT_URL}/settings`);
+    const { buisness_id, shop } = parsedData;
+
+    const hashedToken = await encrypt(accessToken);
+    console.log(hashedToken);
+    
+
+    const buisness = await this.databaseService.business.update({
+      where: {
+        id: buisness_id,
+      },
+      data: {
+        shopify_Token: hashedToken,
+        shopify_domain: shop,
+        is_shopify_connected: true
+      },
+    });
+
+
+
+    await this.redis.del(query.state);
+
+    await this.webhookSubscribe.add(
+      "shopify_app_install",
+      {buisness_id: buisness_id},
+      {
+        delay: 0,
+        removeOnComplete: true,
+        removeOnFail: false,
+        attempts:2,
+      }
+    );
+
+
+
+
+
+    return res.redirect(`${process.env.CLIENT_URL}/settings`);
+  }
+
+  async uninstallShopify(res:any) {
+    const user = res.user;
+    const buisness = await this.databaseService.business.findUnique({
+      where: {
+        id: user.business.id,
+        employees:{
+          some:{
+            id: user.id,
+            role: 'ADMIN',
+          }
+        }
+      },
+
+    });
+
+
+    if (!buisness) {
+      throw new BadRequestException(
+        'Only admin have acess to uninstall shopify',
+      );
+
+    }
+    const updateShopify = await this.databaseService.business.update({
+      where:{
+        id:buisness.id
+      },
+      data:{
+        is_shopify_connected:false,
+        shopify_Token:null,
+        shopify_domain:null,
+      }
+    })
+
+    await this.webhookSubscribe.add(
+      "shopify_app_install",
+      {shopify_domain: buisness.shopify_domain,shopify_Token:buisness.shopify_Token},
+      {
+        delay: 0,
+        removeOnComplete: true,
+        removeOnFail: false,
+        attempts:2,
+      }
+    );
+
+
+  }
+
 }
