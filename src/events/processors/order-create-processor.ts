@@ -238,8 +238,11 @@ export class CreateOrderQueue extends WorkerHost {
     try {
       const { orderData, domain } = job.data as JobData;
 
-      const contact =
-        orderData.billing_address?.phone || orderData.customer?.phone;
+      const contact = orderData?.phone  || orderData.customer?.phone ;
+
+        if(!contact){
+          return
+        }
 
       const sanitizedContact = sanitizePhoneNumber(contact);
       const ifCheckout = await this.databaseService.checkout.findUnique({
@@ -332,6 +335,20 @@ export class CreateOrderQueue extends WorkerHost {
       const threeDaysAgo = new Date();
       threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
 
+      const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
+
+      const findLinkTrack = await this.databaseService.linkTrack.findFirst({
+        where: {
+          prospect:{
+            phoneNo: sanitizedContact,
+          
+          },
+          last_click: {
+            gte: twoHoursAgo,
+          },
+        },
+      })
+
       const latestBroadcast = await this.databaseService.broadcast.findFirst({
         where: {
           createdAt: {
@@ -358,8 +375,8 @@ export class CreateOrderQueue extends WorkerHost {
       if (latestBroadcast) {
         let prospect = await this.databaseService.prospect.findUnique({
           where: {
-            buisnessNo_phoneNo: {
-              buisnessNo: latestBroadcast.createdFor.whatsapp_mobile,
+            buisnessId_phoneNo: {
+              buisnessId: latestBroadcast.createdFor.id,
               phoneNo: sanitizedContact,
             },
           },
@@ -368,8 +385,8 @@ export class CreateOrderQueue extends WorkerHost {
         if (prospect && !prospect.shopify_id) {
           prospect = await this.databaseService.prospect.update({
             where: {
-              buisnessNo_phoneNo: {
-                buisnessNo: latestBroadcast.createdFor.whatsapp_mobile,
+              buisnessId_phoneNo: {
+                buisnessId: latestBroadcast.createdFor.id,
                 phoneNo: sanitizedContact,
               },
             },

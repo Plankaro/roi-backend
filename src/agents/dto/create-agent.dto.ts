@@ -11,11 +11,11 @@ export class CreateAgentDto {
 
   @IsNotEmpty()
   @IsString()
-  @MinLength(8, { message: "Password must be at least 8 characters" })
-  @Matches(/[A-Z]/, { message: "Password must contain at least one uppercase letter" })
-  @Matches(/[a-z]/, { message: "Password must contain at least one lowercase letter" })
-  @Matches(/[0-9]/, { message: "Password must contain at least one number" })
-  password: string;
+  @Matches(/^(?:(?:\+[0-9]{1,3})|0)?[0-9]{10}$/, {
+    message:
+      'Please enter a valid phone number: exactly 10 digits, optionally prefixed with 0 or a +<country code>',
+  })
+  phone: string;
 
   @IsOptional()
   @IsString()
@@ -26,8 +26,7 @@ export class CreateAgentDto {
   ManageBroadcast: boolean = true;
 
   @IsBoolean()
-
-  manageTeam: boolean = true;
+  manageBots: boolean = true;
 
   @IsBoolean()
 

@@ -385,6 +385,7 @@ export class BuisnessService {
       });
 
     } catch (error) {
+      console.log(error);
       throw new InternalServerErrorException(error);
     }
   }

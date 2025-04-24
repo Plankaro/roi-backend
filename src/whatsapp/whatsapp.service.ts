@@ -54,6 +54,8 @@ export class WhatsappService {
           components: params.components,
         },
       };
+      console.log(JSON.stringify(payload,null,2));
+      console.log(config);
       const result = await client.post(
         `/${config.whatsappMobileId}/messages`,
         payload,
@@ -62,7 +64,7 @@ export class WhatsappService {
 
       return result.data;
     } catch (error: any) {
-      console.log(JSON.stringify(error,null,2));
+      console.log(JSON.stringify(error.response?.data,null,2));
       const errorMessage = error.response?.data?.error?.error_data?.details;
       console.error(errorMessage || 'gjgyjf');
       throw new InternalServerErrorException(

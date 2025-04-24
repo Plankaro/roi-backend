@@ -418,7 +418,7 @@ export class CreateCampaignDto {
 
   @IsOptional()
   @IsBoolean()
-  related_order_fullfilled: boolean;
+  related_order_fulfilled: boolean;
 
   
 
@@ -438,3 +438,5 @@ export class CreateCampaignDto {
   @Type(() => CreateFilterDto)
   filter: CreateFilterDto;
 }
+
+

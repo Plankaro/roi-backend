@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, InternalServerErrorException } from '@nestjs/common';
 
 import { UpdateCampaignDto } from './dto/update-campaign.dto';
 import { DatabaseService } from 'src/database/database.service';
@@ -38,7 +38,8 @@ export class CampaignService {
         new_order_creation_type: createCampaignDto.new_order_creation_type,
         new_order_creation_time: createCampaignDto.new_order_creation_time as any,
         related_order_created: createCampaignDto.related_order_created,
-        related_order_cancelled: createCampaignDto.related_order_fullfilled,
+        related_order_cancelled: createCampaignDto.related_order_cancelled,
+        related_order_fulfilled: createCampaignDto.related_order_fulfilled,
         discount_type: createCampaignDto.discount_type,
         discount: createCampaignDto.discount,
 
@@ -110,81 +111,115 @@ export class CampaignService {
     return createOrderCampaign;
   }
   async updateCampaign(updateCampaignDto: UpdateCampaignDto, req: any, id: string) {
-    const user = req.user;
-    console.log(user, updateCampaignDto);
-  
-    const updatedCampaign = await this.databaseService.campaign.update({
-      where: {
-        id: id,
-      },
-      data: {
-        name: updateCampaignDto.name,
-        type: updateCampaignDto.type,
-        trigger: updateCampaignDto.trigger,
-        User: { connect: { id: user.id } },
-        Business: { connect: { id: user.business.id } },
-        template_name: updateCampaignDto.template_name,
-        reply_action: updateCampaignDto.reply_action,
-        template_lang: updateCampaignDto.template_language,
-        template_type: updateCampaignDto.template_category,
-        components: updateCampaignDto.templateForm as any,
-        trigger_type: updateCampaignDto.trigger_type,
-        trigger_time: updateCampaignDto.trigger_time as any,
-        filter_condition_match: updateCampaignDto.filter_condition_match,
-        new_checkout_abandonment_filter: updateCampaignDto.new_checkout_abandonment_filter,
-        new_checkout_abandonment_type: updateCampaignDto.new_checkout_abandonment_type,
-        new_checkout_abandonment_time: updateCampaignDto.new_checkout_abandonment_time as any,
-        new_order_creation_filter: updateCampaignDto.new_order_creation_filter,
-        new_order_creation_type: updateCampaignDto.new_order_creation_type,
-        new_order_creation_time: updateCampaignDto.new_order_creation_time as any,
-        related_order_created: updateCampaignDto.related_order_created,
-        related_order_cancelled: updateCampaignDto.related_order_fullfilled,
-        discount_type: updateCampaignDto.discount_type,
-        discount: updateCampaignDto.discount,
-  
-        filters: {
-          create: {
-            is_order_tag_filter_enabled: updateCampaignDto.filter.is_order_tag_filter_enabled,
-            order_tag_filter_all: updateCampaignDto.filter.order_tag_filter_all,
-            order_tag_filter_any: updateCampaignDto.filter.order_tag_filter_any,
-            order_tag_filter_none: updateCampaignDto.filter.order_tag_filter_none,
-            is_product_tag_filter_enabled: updateCampaignDto.filter.is_product_tag_filter_enabled,
-            product_tag_filter_all: updateCampaignDto.filter.product_tag_filter_all,
-            product_tag_filter_any: updateCampaignDto.filter.product_tag_filter_any,
-            product_tag_filter_none: updateCampaignDto.filter.product_tag_filter_none,
-            is_customer_tag_filter_enabled: updateCampaignDto.filter.is_customer_tag_filter_enabled,
-            customer_tag_filter_all: updateCampaignDto.filter.customer_tag_filter_all,
-            customer_tag_filter_any: updateCampaignDto.filter.customer_tag_filter_any,
-            customer_tag_filter_none: updateCampaignDto.filter.customer_tag_filter_none,
-            is_discount_code_filter_enabled: updateCampaignDto.filter.is_discount_code_filter_enabled,
-            discount_code_filter_any: updateCampaignDto.filter.discount_code_filter_any,
-            discount_code_filter_none: updateCampaignDto.filter.discount_code_filter_none,
-            is_payment_gateway_filter_enabled: updateCampaignDto.filter.is_payment_gateway_filter_enabled,
-            payment_gateway_filter_any: updateCampaignDto.filter.payment_gateway_filter_any,
-            payment_gateway_filter_none: updateCampaignDto.filter.payment_gateway_filter_none,
-            is_payment_option_filter_enabled: updateCampaignDto.filter.is_payment_option_filter_enabled,
-            payment_options_type: updateCampaignDto.filter.payment_options_type,
-            send_to_unsub_customer: updateCampaignDto.filter.send_to_unsub_customer,
-            is_order_amount_filter_enabled: updateCampaignDto.filter.is_order_amount_filter_enabled,
-            order_amount_filter_greater_or_equal: updateCampaignDto.filter.order_amount_filter_greater_or_equal,
-            order_amount_filter_less_or_equal: updateCampaignDto.filter.order_amount_filter_less_or_equal,
-            order_amount_min: updateCampaignDto.filter.order_amount_min,
-            order_amount_max: updateCampaignDto.filter.order_amount_max,
-            is_discount_amount_filter_enabled: updateCampaignDto.filter.is_discount_amount_filter_enabled,
-            discount_amount_filter_greater_or_equal: updateCampaignDto.filter.discount_amount_filter_greater_or_equal,
-            discount_amount_filter_less_or_equal: updateCampaignDto.filter.discount_amount_filter_less_or_equal,
-            discount_amount_min: updateCampaignDto.filter.discount_amount_min,
-            discount_amount_max: updateCampaignDto.filter.discount_amount_max,
-            is_order_delivery_filter_enabled: updateCampaignDto.filter.is_order_delivery_filter_enabled,
-            order_method: updateCampaignDto.filter.order_method,
+  try {
+      const user = req.user;
+      console.log(user, updateCampaignDto);
+    
+      const updatedCampaign = await this.databaseService.campaign.update({
+        where: {
+          id: id,
+        },
+        data: {
+          name: updateCampaignDto.name,
+          type: updateCampaignDto.type,
+          trigger: updateCampaignDto.trigger,
+         
+          template_name: updateCampaignDto.template_name,
+          reply_action: updateCampaignDto.reply_action,
+          template_lang: updateCampaignDto.template_language,
+          template_type: updateCampaignDto.template_category,
+          components: updateCampaignDto.templateForm as any,
+          trigger_type: updateCampaignDto.trigger_type,
+          trigger_time: updateCampaignDto.trigger_time as any,
+          filter_condition_match: updateCampaignDto.filter_condition_match,
+          new_checkout_abandonment_filter: updateCampaignDto.new_checkout_abandonment_filter,
+          new_checkout_abandonment_type: updateCampaignDto.new_checkout_abandonment_type,
+          new_checkout_abandonment_time: updateCampaignDto.new_checkout_abandonment_time as any,
+          new_order_creation_filter: updateCampaignDto.new_order_creation_filter,
+          new_order_creation_type: updateCampaignDto.new_order_creation_type,
+          new_order_creation_time: updateCampaignDto.new_order_creation_time as any,
+          related_order_created: updateCampaignDto.related_order_created,
+          related_order_cancelled: updateCampaignDto.related_order_cancelled,
+          related_order_fulfilled: updateCampaignDto.related_order_fulfilled,
+          discount_type: updateCampaignDto.discount_type,
+          discount: updateCampaignDto.discount,
+    
+          filters: {
+            update: {
+              is_order_tag_filter_enabled: updateCampaignDto.filter.is_order_tag_filter_enabled,
+              order_tag_filter_all: updateCampaignDto.filter.order_tag_filter_all,
+              order_tag_filter_any: updateCampaignDto.filter.order_tag_filter_any,
+              order_tag_filter_none: updateCampaignDto.filter.order_tag_filter_none,
+              is_product_tag_filter_enabled: updateCampaignDto.filter.is_product_tag_filter_enabled,
+              product_tag_filter_all: updateCampaignDto.filter.product_tag_filter_all,
+              product_tag_filter_any: updateCampaignDto.filter.product_tag_filter_any,
+              product_tag_filter_none: updateCampaignDto.filter.product_tag_filter_none,
+              is_customer_tag_filter_enabled: updateCampaignDto.filter.is_customer_tag_filter_enabled,
+              customer_tag_filter_all: updateCampaignDto.filter.customer_tag_filter_all,
+              customer_tag_filter_any: updateCampaignDto.filter.customer_tag_filter_any,
+              customer_tag_filter_none: updateCampaignDto.filter.customer_tag_filter_none,
+              is_discount_code_filter_enabled: updateCampaignDto.filter.is_discount_code_filter_enabled,
+              discount_code_filter_any: updateCampaignDto.filter.discount_code_filter_any,
+              discount_code_filter_none: updateCampaignDto.filter.discount_code_filter_none,
+              is_payment_gateway_filter_enabled: updateCampaignDto.filter.is_payment_gateway_filter_enabled,
+              payment_gateway_filter_any: updateCampaignDto.filter.payment_gateway_filter_any,
+              payment_gateway_filter_none: updateCampaignDto.filter.payment_gateway_filter_none,
+              is_payment_option_filter_enabled: updateCampaignDto.filter.is_payment_option_filter_enabled,
+              payment_options_type: updateCampaignDto.filter.payment_options_type,
+              send_to_unsub_customer: updateCampaignDto.filter.send_to_unsub_customer,
+              is_order_amount_filter_enabled: updateCampaignDto.filter.is_order_amount_filter_enabled,
+              order_amount_filter_greater_or_equal: updateCampaignDto.filter.order_amount_filter_greater_or_equal,
+              order_amount_filter_less_or_equal: updateCampaignDto.filter.order_amount_filter_less_or_equal,
+              order_amount_min: updateCampaignDto.filter.order_amount_min,
+              order_amount_max: updateCampaignDto.filter.order_amount_max,
+              is_discount_amount_filter_enabled: updateCampaignDto.filter.is_discount_amount_filter_enabled,
+              discount_amount_filter_greater_or_equal: updateCampaignDto.filter.discount_amount_filter_greater_or_equal,
+              discount_amount_filter_less_or_equal: updateCampaignDto.filter.discount_amount_filter_less_or_equal,
+              discount_amount_min: updateCampaignDto.filter.discount_amount_min,
+              discount_amount_max: updateCampaignDto.filter.discount_amount_max,
+              is_order_delivery_filter_enabled: updateCampaignDto.filter.is_order_delivery_filter_enabled,
+              order_method: updateCampaignDto.filter.order_method,
+            },
           },
         },
-      },
-    });
-  
-    return updatedCampaign;
+      });
+    
+      return updatedCampaign;
+  } catch (error) {
+    console.log(error);
+    throw new InternalServerErrorException('Failed to update campaign');
   }
-  
+  }
+
+  async changeCampaignStatus(id: string, status: any, req: any) {
+    try {
+      const user = req.user;
+      const campaign = await this.databaseService.campaign.findUnique({
+        where: {
+          id,
+          businessId: user.business.id,
+        },
+      });
+    
+      if (!campaign) {
+        throw new BadRequestException('Campaign not found');
+      }
+    
+      const updatedCampaign = await this.databaseService.campaign.update({
+        where: {
+          id,
+        },
+        data: {
+          status: status,
+        },
+      });
+    
+      return {status: updatedCampaign.status};
+  }catch (error) {
+    console.log(error);
+    throw new InternalServerErrorException('Failed to update campaign');
+  }
+}
 
   async getCampaigns(req: any) {
     const user = req.user;
@@ -298,5 +333,24 @@ export class CampaignService {
   
     return results;
   }
+
+  async getSingleCampaign(id: string, req: any) {
+    const user = req.user;
+    const campaign = await this.databaseService.campaign.findUnique({
+      where: {
+        id,
+        businessId: user.business.id,
+      },
+      include: {
+        filters: true,
+      }
+    });
+    console.log(campaign);
   
+    if (!campaign) {
+      throw new BadRequestException('Campaign not found');
+    }
+  
+    return campaign;
+  }
 }

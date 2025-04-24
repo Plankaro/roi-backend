@@ -15,15 +15,13 @@ export class ProspectsService {
   async create(createProspectDto: CreateProspectDto, req: any) {
     try {
       const { shopify_id, name, email, phone, image } = createProspectDto;
-      const buisnessNo = req.user.business.whatsapp_mobile;
-      if (!buisnessNo) {
-        throw new BadRequestException('An error occurred');
-      }
-      console.log(buisnessNo);
+      const buisnessId = req.user.business.id;
+     
+   
       const prospect = await this.databaseService.prospect.upsert({
         where: {
-          buisnessNo_phoneNo: {
-            buisnessNo: buisnessNo,
+          buisnessId_phoneNo: {
+            buisnessId: buisnessId,
             phoneNo: sanitizePhoneNumber(phone),
           },
         },
@@ -35,7 +33,7 @@ export class ProspectsService {
           image,
           phoneNo: sanitizePhoneNumber(phone),
           lead: 'LEAD',
-          buisnessNo: buisnessNo,
+          buisnessId:buisnessId
         },
         include: {
           chats: {
@@ -60,6 +58,25 @@ export class ProspectsService {
       throw new InternalServerErrorException(error.message);
     }
   }
+  async update(id: string, updateProspectDto: UpdateProspectDto, req: any) {
+    const buisnessId = req.user.business.id;
+    try {
+      const updateProspect = await this.databaseService.prospect.update({
+        where: {
+          id,
+          buisnessId: buisnessId,
+        },
+        data: {
+          ...updateProspectDto,
+        },
+      });
+      console.log(updateProspect);
+      return updateProspect;
+    } catch (error) {
+      throw new InternalServerErrorException(error);
+    }
+  }
+
 
   async findAll(req: any, query: any) {
     console.log(req.user);
@@ -216,28 +233,7 @@ export class ProspectsService {
     }
   }
 
-  async update(id: string, updateProspectDto: UpdateProspectDto, req: any) {
-    const buisnessNo = req.user.business.whatsapp_mobile;
-    try {
-      const updateProspect = await this.databaseService.prospect.update({
-        where: {
-          id,
-          buisnessNo: buisnessNo,
-        },
-        data: {
-          ...updateProspectDto,
-        },
-      });
-      console.log(updateProspect);
-      return updateProspect;
-    } catch (error) {
-      throw new InternalServerErrorException(error);
-    }
-  }
-
-  remove(id: number) {
-    return `This action removes a #${id} prospect`;
-  }
+  
 
   async changeblockstatus(id: string, req: any) {
     const buisness = req.user.business;
@@ -266,7 +262,7 @@ export class ProspectsService {
       const updateProspect = await this.databaseService.prospect.update({
         where: {
           id,
-          buisnessNo: buisness.whatsapp_mobile,
+          buisnessId: buisness.id,
         },
         data: {
           is_blocked: !findPropspect.is_blocked,

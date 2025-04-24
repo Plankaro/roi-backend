@@ -61,10 +61,12 @@ export class TemplateService {
           components.push({
             type: 'body',
             text: CreateTemplateDto.body.text,
-            example:{
-              body_text: [CreateTemplateDto.body.variables.map((variable) => {
-                return [variable.value].join(",");
-              })]
+            example: {
+              body_text: [
+                CreateTemplateDto.body.variables.map((variable) => {
+                  return [variable.value].join(',');
+                }),
+              ],
             },
           });
         } else {
@@ -74,22 +76,23 @@ export class TemplateService {
           });
         }
       }
-      if(CreateTemplateDto.footer.length>0){
+      if (CreateTemplateDto.footer.length > 0) {
         components.push({
-          type:"footer",
-          text:CreateTemplateDto.footer
-        })
+          type: 'footer',
+          text: CreateTemplateDto.footer,
+        });
       }
       if (CreateTemplateDto.buttons.length > 0) {
         const buttons = [];
         CreateTemplateDto.buttons.map((button) => {
           if (button.type === 'link') {
-            
             buttons.push({
               type: 'URL',
               text: button.text,
-              url: process.env.BACKEND_URL.replace(/\/?$/, '/') + '{{1}}',
-              example: [process.env.BACKEND_URL.replace(/\/?$/, '/') + '767687686'],
+              url: process.env.BACKEND_URL.replace(/\/?$/, '/') + 'go/{{1}}',
+              example: [
+                process.env.BACKEND_URL.replace(/\/?$/, '/') + 'go/767687686',
+              ],
             });
           } else if (button.type === 'call') {
             buttons.push({
@@ -105,18 +108,16 @@ export class TemplateService {
           }
         });
         components.push({
-          type: "BUTTONS",
-          buttons:buttons
-
-        })
+          type: 'BUTTONS',
+          buttons: buttons,
+        });
       }
       const whatsappTemplatePayload = {
-        name:CreateTemplateDto.name,
-        language:CreateTemplateDto.language,
-        category:CreateTemplateDto.category,
-        components:components
-
-      }
+        name: CreateTemplateDto.name,
+        language: CreateTemplateDto.language,
+        category: CreateTemplateDto.category,
+        components: components,
+      };
 
       const config = getWhatsappConfig(user?.business);
       console.log(config);
@@ -127,7 +128,7 @@ export class TemplateService {
       );
       console.log(JSON.stringify(sendTemplateToMeta));
     } catch (error) {
-      console.log(JSON.stringify(error,null,2))
+      console.log(JSON.stringify(error, null, 2));
       throw new InternalServerErrorException(error);
     }
   }
@@ -137,21 +138,28 @@ export class TemplateService {
     try {
       console.log('Received name param:', name);
       const config = getWhatsappConfig(req.user.business);
-      const deletetemplate = await this.whatsappService.deleteTemplate(name, config);
+      const deletetemplate = await this.whatsappService.deleteTemplate(
+        name,
+        config,
+      );
       console.log('Delete result:', deletetemplate);
-  
+
       return { success: true };
     } catch (error: any) {
-      console.log('Delete error:', JSON.stringify(error?.response?.data || error.message));
-      throw new InternalServerErrorException(error?.response?.data?.error || error.message);
+      console.log(
+        'Delete error:',
+        JSON.stringify(error?.response?.data || error.message),
+      );
+      throw new InternalServerErrorException(
+        error?.response?.data?.error || error.message,
+      );
     }
   }
 
-  async uploadMediaByPathResumable(
-    filePath: string,
-    caption?: string,
-  ): Promise<any> {
-    const config = getWhatsappConfig();
+  async uploadMediaByPathResumable(filePath: string, req: any): Promise<any> {
+    const user = req?.user;
+
+    const config = getWhatsappConfig(user?.business);
 
     // Ensure the file exists
     if (!fs.existsSync(filePath)) {
@@ -257,27 +265,26 @@ export class TemplateService {
     return response;
   }
 
-   async findAllTemplate(req: any) {
-      const buisness = req.user.business;
-      const config = getWhatsappConfig(buisness);
-  
-      try {
-        console.log('fetching templates');
-        const Templates = await this.whatsappService.getTemplates(config);
-        console.log(Templates.data);
-        console.log(typeof Templates.data);
-        const approvedTemplates = Templates?.data?.filter(
-          (template) =>
-            
-            !template.components?.some(
-              (component) => component.type === 'CAROUSEL',
-            ),
-        );
-  
-        return approvedTemplates;
-      } catch (error) {
-        console.log(error);
-        throw new InternalServerErrorException('Failed to fetch templates');
-      }
+  async findAllTemplate(req: any) {
+    const buisness = req.user.business;
+    const config = getWhatsappConfig(buisness);
+
+    try {
+      console.log('fetching templates');
+      const Templates = await this.whatsappService.getTemplates(config);
+      console.log(Templates.data);
+      console.log(typeof Templates.data);
+      const approvedTemplates = Templates?.data?.filter(
+        (template) =>
+          !template.components?.some(
+            (component) => component.type === 'CAROUSEL',
+          ),
+      );
+
+      return approvedTemplates;
+    } catch (error) {
+      console.log(error);
+      throw new InternalServerErrorException('Failed to fetch templates');
     }
+  }
 }

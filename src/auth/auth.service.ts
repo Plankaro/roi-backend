@@ -395,7 +395,7 @@ export class AuthService {
     }
   }
 
-  remove(id: number) {
+  async remove(id: number) {
     return `This action removes a #${id} auth`;
   }
 
@@ -422,10 +422,17 @@ export class AuthService {
     };
   }
 
-  async installShopify(shop: string, res: any, buisnessId: string) {
+  async installShopify(shop: string,req:any) {
     try {
+      const user = req.user
+      
+      // if(user.role !== 'ADMIN') {
+      //   throw new UnauthorizedException('You are not allowed to install shopify');
+      // }
       const state = randomBytes(16).toString('hex');
-      if(!shop || !buisnessId) return
+      if(!shop) {
+        throw new BadRequestException('Shopify domain is required');
+      }
  
       const installUrl = encodeURI(
         `https://${shop}/admin/oauth/authorize` +
@@ -436,13 +443,14 @@ export class AuthService {
       );
 
       const shopifyData = {
-        buisness_id: buisnessId,
+        buisness_id: user.business.id,
         shop: shop,
       };
       const data = await this.redis.set(state, JSON.stringify(shopifyData), 'EX', 60 * 5);
-      console.log(data);
+      console.log(JSON.stringify(installUrl));
 
-      res.redirect(installUrl);
+      return {
+        installUrl: installUrl}
     } catch (error) {
 
     }

@@ -252,9 +252,9 @@ export class BroadcastProcessor extends WorkerHost {
         // Retrieve or create prospect for the contact
         let prospect = await this.databaseService.prospect.findUnique({
           where: {
-            buisnessNo_phoneNo: {
+            buisnessId_phoneNo: {
               phoneNo: contact,
-              buisnessNo: broadcast.createdFor.whatsapp_mobile,
+              buisnessId: broadcast.createdFor.whatsapp_mobile,
             },
           },
         });
@@ -273,7 +273,7 @@ export class BroadcastProcessor extends WorkerHost {
           prospect = await this.databaseService.prospect.create({
             data: {
               phoneNo: contact,
-              buisnessNo: broadcast.createdFor.whatsapp_mobile,
+              buisnessId: broadcast.createdFor.id,
               shopify_id: iflinkedToShopify?.id.replace(/^\D+/g, ''),
               name: iflinkedToShopify?.displayName,
               email: iflinkedToShopify?.email,

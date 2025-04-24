@@ -29,7 +29,7 @@ export class ReceiveChatsQueue extends WorkerHost {
       const { entry } = receiveMessageDto;
       const processedResults = [];
 
-      for (const individualEntry of entry) {
+      for (const individualEntry of entry) { 
     
 
         for (const change of individualEntry.changes) {
@@ -66,6 +66,7 @@ export class ReceiveChatsQueue extends WorkerHost {
                       whatsapp_mobile: businessPhoneNumber,
                     },
                   });
+                  if(!findBuisness){return}
                 const config = getShopifyConfig(findBuisness);
                 const customer = await this.getCustomerByIdentifier(
                   rawPhoneNumber,
@@ -75,15 +76,15 @@ export class ReceiveChatsQueue extends WorkerHost {
                
                 const prospect = await this.databaseService.prospect.upsert({
                   where: {
-                    buisnessNo_phoneNo: {
-                      phoneNo: sanitizePhoneNumber(message.from),
-                      buisnessNo: businessPhoneNumber,
-                    },
+                   buisnessId_phoneNo: {
+                     buisnessId: business.id,
+                     phoneNo: sanitizePhoneNumber(message.from),
+                   }
                   },
                   update: { last_Online: new Date() },
                   create: {
                     phoneNo: sanitizePhoneNumber(message.from),
-                    buisnessNo: businessPhoneNumber,
+                    buisnessId: business.id,
                     lead: 'LEAD',
                     last_Online: new Date(),
                     name: customer.displayName,

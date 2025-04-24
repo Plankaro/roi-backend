@@ -3,7 +3,7 @@ import {
   Body,
   InternalServerErrorException,
   BadRequestException,
-  Logger,
+
 } from '@nestjs/common';
 
 import { WhatsappService } from 'src/whatsapp/whatsapp.service';
@@ -26,6 +26,7 @@ import { Queue } from 'bullmq';
 import { console } from 'inspector';
 import { connect } from 'http2';
 import { SendMessageDto,SendTemplateMessageDto } from './dto/sendchat-dto';
+import { Logger } from '@nestjs/common';
 
 @Injectable()
 export class ChatsService {
@@ -221,23 +222,27 @@ export class ChatsService {
       // Check or create prospect
       let findContact = await this.databaseService.prospect.findUnique({
         where: {
-         buisnessNo_phoneNo: {
-           buisnessNo: buisness.whatsapp_mobile,
-           phoneNo: sanitizePhoneNumber(recipientNo),
-         }
+        //  buisnessNo_phoneNo: {
+        //    buisnessNo: buisness.whatsapp_mobile,
+        //    phoneNo: sanitizePhoneNumber(recipientNo),
+        //  }
+        buisnessId_phoneNo: {
+          buisnessId: buisness.id,
+          phoneNo: sanitizePhoneNumber(recipientNo),
+        }
         },
       });
   
-      if (!findContact) {
-        console.log('Prospect not found. Creating new...');
-        const addContact = await this.databaseService.prospect.create({
-          data: {
-            phoneNo: sanitizePhoneNumber(recipientNo),
-            buisnessNo: buisness.whatsapp_mobile,
-          },
-        });
-        findContact = addContact;
-      }
+      // if (!findContact) {
+      //   console.log('Prospect not found. Creating new...');
+      //   const addContact = await this.databaseService.prospect.create({
+      //     data: {
+      //       phoneNo: sanitizePhoneNumber(recipientNo),
+      //       buisnessId: buisness.id
+      //     },
+      //   });
+      //   findContact = addContact;
+      // }
   
       // Replace placeholder in URL buttons from template
       console.log('--- Updating Button URLs ---');
@@ -278,7 +283,7 @@ export class ChatsService {
           receiverPhoneNo: sanitizePhoneNumber(recipientNo),
           sendDate: new Date(),
           header_type: header?.type,
-          header_value: header?.isEditable && header?.value,
+          header_value: header?.isEditable? header?.value:null,
           body_text: bodyRawText,
           footer_included: footer ? true : false,
           footer_text: footer?.text || '',
@@ -288,7 +293,7 @@ export class ChatsService {
           senderId: user.id,
         },
       });
-
+console.log(addTodb);
       if(linkTrackenabled && trackId){
        await this.databaseService.linkTrack.update({
           where:{
@@ -303,6 +308,7 @@ export class ChatsService {
       console.log('✅ Chat saved to DB:', addTodb);
       return addTodb;
     } catch (error) {
+      Logger.error(error);
       console.error('❌ Error in sendTemplatemessage:', error);
       throw new InternalServerErrorException(error);
     }
@@ -334,10 +340,7 @@ export class ChatsService {
     try {
       const buisness = req.user.business;
       Logger.log(sendChatDto);
-      const config = {
-        whatsappMobileId: buisness.whatsapp_mobile_id,
-        whatsappApiToken: buisness.whatsapp_token,
-      };
+      const config = getWhatsappConfig(buisness);
 
    
       const sendMessage = await this.whatsappService.sendMessage(
@@ -375,7 +378,13 @@ export class ChatsService {
       const chats = await this.databaseService.chat.findMany({
         where: {
           // ✅ `where` clause is required
-          prospectId: prospect_id,
+          Prospect:{
+            id:prospect_id,
+            business:{
+              id:buisness.id
+            }
+          },
+          
           deleted: false,
           Status: { not: 'skipped' },
         },

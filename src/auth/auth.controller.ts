@@ -74,12 +74,16 @@ logout(@Body() userId: string) {
    return this.authService.updateUser(updateBotDto,req);
  } // Specify the route endpoint if needed.
 
- @Public()
- @Get('/shopify/install')
- install(@Query('shop') shop: string,@Query('buisnessId') buisnessId: string,@Res() res: Response) {
-  console.log(shop,buisnessId);
-   return this.authService.installShopify(shop,res,buisnessId);
+
+ @Post('/shopify/install')
+ install(
+   @Body('shopifyName') shop: string,    // ← grabs `req.body.shop` for you
+   @Req() req: Request
+ ) {
+   console.log('shop:', shop);
+   return this.authService.installShopify(shop, req);
  }
+
 
 
  @Public()
@@ -91,5 +95,10 @@ logout(@Body() userId: string) {
    // Debug: log all incoming query params
    await this.authService.verfifyShopifyCallback(query, res);
 
+}
+
+@Post('/shopify/uninstall')
+Uninstall (@Req() req: Request){
+  return this.authService.uninstallShopify(req);
 }
 }

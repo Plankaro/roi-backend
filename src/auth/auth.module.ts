@@ -25,5 +25,6 @@ import { WebhookUnsubscribe } from './processor/webhookunsubscribe';
   ],
   controllers: [AuthController],
   providers: [AuthService,WebhookSubscribe,WebhookUnsubscribe],
+  exports: [AuthService],
 })
 export class AuthModule {}

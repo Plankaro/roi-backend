@@ -12,7 +12,7 @@ model User {
   name            String
   username        String?   @unique
   email           String    @unique
-  phone           String?   @unique
+  phone           String?  
   password        String?
   refreshToken    String?   @db.Text
   emailVerified   DateTime?
@@ -32,7 +32,7 @@ model User {
   templates       Template[]      @relation("CreatedTemplates")
   flashResponses  FlashResponse[] @relation("CreatedFlashResponses")
   ManageBroadcast Boolean         @default(true)
-  manageTeam      Boolean         @default(true)
+  manageBots     Boolean         @default(true)
   manageCampaign  Boolean         @default(true)
   assignChat      Boolean         @default(true)
 
@@ -154,8 +154,8 @@ model Prospect {
   assignedToId String?
   assignedTo   User?   @relation("AssignedProspects", fields: [assignedToId], references: [id])
 
-  buisnessNo String
-  business   Business? @relation(fields: [buisnessNo], references: [whatsapp_mobile], onDelete: Cascade, onUpdate: Cascade)
+  buisnessId String
+  business   Business @relation(fields: [buisnessId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   chats      Chat[]
   order      Order[]
   is_blocked Boolean   @default(false)
@@ -166,9 +166,10 @@ model Prospect {
   discount    discount[]
   ProspectTag ProspectTag[]
 
-  @@unique([buisnessNo, phoneNo])
+
   
   LinkTrack LinkTrack[]
+  @@unique([buisnessId, phoneNo])
 }
 
 
@@ -329,7 +330,8 @@ model LinkTrack {
   utm_medium     String?  
   utm_campaign  String?
   utm_id        String?  
-  checkout   Checkout?
+  checkout_id   String?
+  Checkout     Checkout? @relation(fields: [checkout_id],references: [id],onDelete: SetNull,onUpdate: Cascade)
   Order    Order?
   type     LinkType @default(OTHER)
   order_generated Boolean @default(false)
@@ -725,8 +727,9 @@ model Checkout {
   Order                Order?
   businessId           String?
   business             Business?            @relation(fields: [businessId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  link_track_id        String?  @unique
-  link_track          LinkTrack?  @relation(fields: [link_track_id],references: [id])
+  
+
+  LinkTrack LinkTrack[]
 }
 
 model CheckoutOnCampaign {

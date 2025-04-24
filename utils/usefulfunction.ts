@@ -39,8 +39,8 @@ export function getWhatsappConfig(buisness?: Business) {
       buisness?.whatsapp_mobile_id || process.env.WHATSAPP_MOBILE_ID, // required for sending messages (template/text/media)
     whatsappBusinessId:
       buisness?.whatsapp_buisness_id || process.env.WHATSAPP_BUISNESS_ID, // required for template management (get/create/delete)
-    whatsappApiToken:
-      buisness?.whatsapp_token || process.env.WHATSAPP_API_TOKEN,
+    whatsappApiToken: decrypt(buisness?.whatsapp_token)
+       || process.env.WHATSAPP_API_TOKEN,
     whatsappMobile: buisness?.whatsapp_mobile || '15551365364',
     whatsappAppId: buisness?.whatsapp_app_id || process.env.WHATSAPP_APP_ID, // required
   };
@@ -48,8 +48,8 @@ export function getWhatsappConfig(buisness?: Business) {
 
 export function getRazorpayConfig(buisness?: Business) {
   return {
-    razorpayApiKey: buisness?.razorpay_id,
-    razorpayApiSecret: buisness?.razorpay_secret,
+    razorpayApiKey: decrypt(buisness?.razorpay_id),
+    razorpayApiSecret: decrypt(buisness?.razorpay_secret),
   };
 }
 

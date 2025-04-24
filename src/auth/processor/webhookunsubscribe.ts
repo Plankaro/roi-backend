@@ -20,7 +20,7 @@ export class WebhookUnsubscribe extends WorkerHost {
   async process(job): Promise<void> {
     const { shopify_domain,shopify_Token} = job.data;
 
-    // 1. Fetch your business/store credentials
+    console.log('Received job data:', JSON.stringify(job.data, null, 2));
    
     const payload:any = {
         shopify_Token:shopify_Token,
@@ -48,6 +48,7 @@ export class WebhookUnsubscribe extends WorkerHost {
       { first: 250 },
       config,
     );
+    console.log(JSON.stringify(listResp, null, 2));
 
     if (!listResp?.data?.webhookSubscriptions) {
       this.logger.error('Failed to list webhook subscriptions', listResp);

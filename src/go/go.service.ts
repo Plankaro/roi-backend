@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { CreateGoDto } from './dto/create-go.dto';
 import { UpdateGoDto } from './dto/update-go.dto';
 import { DatabaseService } from 'src/database/database.service';
@@ -15,70 +15,66 @@ export class GoService {
     return `This action returns all go`;
   }
 
-  async findOne(id: string,res:Response) {
+  async findOne(id: string, res: Response, req: any) {
     try {
       // Ensure the URL includes a protocol; if not, assume "https://"
-    const findlink = await this.databaseService.linkTrack.findUnique({
-      where: {
-        id: id,
-      },
- 
-    })
-
-    if (!findlink) {
-      return {};
-    }
-
-    let data;
-    if(findlink.no_of_click == 0){
-      data = {
-        no_of_click: findlink.no_of_click + 1,
-        first_click: new Date(),
-        last_click:  new Date()
+      const findlink = await this.databaseService.linkTrack.findUnique({
+        where: {
+          id: id,
+        },
+      });
+      console.log(req?.cookies);
+      if (!findlink) {
+        res.send('Link not found');
+        return;
       }
-    }else{
-      data = {
-        no_of_click: findlink.no_of_click + 1,
-        last_click:  new Date()
+
+      let data;
+      if (findlink.no_of_click == 0) {
+        data = {
+          no_of_click: findlink.no_of_click + 1,
+          first_click: new Date(),
+          last_click: new Date(),
+        };
+      } else {
+        data = {
+          no_of_click: findlink.no_of_click + 1,
+          last_click: new Date(),
+        };
       }
-    }
+      console.log(data);
 
-    this.databaseService.linkTrack.update({
-      where: {
-        id: id,
-      },
-      data: {
-        ...data
-      },
-    })
+      const update = await this.databaseService.linkTrack.update({
+        where: {
+          id: id,
+        },
+        data: {
+          ...data,
+        },
+      });
 
+      const link = findlink.link;
+      const url = new URL(link);
+      console.log(update);
 
-    const link = findlink.link;
-    const url = new URL(link);
-    
-    // Required UTM parameters
-    url.searchParams.set('utm_source', findlink.utm_source);
-    url.searchParams.set('utm_medium', findlink.utm_medium);
-    
-    // Optional UTM parameter
-    if (findlink.utm_campaign) {
-      url.searchParams.set('utm_campaign', findlink.utm_campaign);
-    }
-    
-    const finalUrl = url.toString();
-    
+      // Required UTM parameters
+      url.searchParams.set('utm_source', findlink.utm_source);
+      url.searchParams.set('utm_medium', findlink.utm_medium);
 
-    return res.redirect(finalUrl);
-    
-      
-    
+      // Optional UTM parameter
+      if (findlink.utm_campaign) {
+        url.searchParams.set('utm_campaign', findlink.utm_campaign);
+      }
+
+      const finalUrl = url.toString();
+      console.log(finalUrl);
+
+      return res.redirect(finalUrl);
     } catch (error) {
       console.error('Error processing URL:', error);
       return {};
     }
   }
-
-  
 
   update(id: number, updateGoDto: UpdateGoDto) {
     return `This action updates a #${id} go`;

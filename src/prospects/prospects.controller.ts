@@ -31,10 +31,8 @@ export class ProspectsController {
     return this.prospectsService.update(id, updateProspectDto,req);
   }
 
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.prospectsService.remove(+id);
-  }
+
+
 
   @Patch('block/:id')
   changeblockstatus(@Param('id') id: string,@Req() req: Request) {

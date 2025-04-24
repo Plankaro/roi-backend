@@ -602,8 +602,8 @@ export class updateOrderCampaign extends WorkerHost {
   
         const prospect = await this.databaseService.prospect.upsert({
           where: {
-            buisnessNo_phoneNo: {
-              buisnessNo: campaign.Business.whatsapp_mobile,
+            buisnessId_phoneNo: {
+              buisnessId: campaign.businessId,
               phoneNo: sanitizePhoneNumber(orderById.customer.phone),
             },
           },
@@ -614,7 +614,7 @@ export class updateOrderCampaign extends WorkerHost {
             email: orderById.customer.email,
   
             lead: 'LEAD',
-            buisnessNo: campaign.Business.whatsapp_mobile,
+            buisnessId: campaign.businessId,
           },
         });
   

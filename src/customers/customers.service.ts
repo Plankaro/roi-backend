@@ -198,10 +198,17 @@ export class CustomersService {
       config,
     );
 
+    console.log(JSON.stringify(response, null, 2));
+
+    if (!response || !response.data || !response.data.customer) {
+      throw new NotFoundException('No customer found');
+    }
+
     let totalMessages = 0,
       sentMessages = 0,
       receivedMessages = 0,
       readMessages = 0;
+
 
     if (getProspect) {
       [totalMessages, sentMessages, receivedMessages, readMessages] =

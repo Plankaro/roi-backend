@@ -8,15 +8,15 @@ import { CreateAgentDto } from './dto/create-agent.dto';
 import { UpdateAgentDto } from './dto/update-agent.dto';
 import { DatabaseService } from 'src/database/database.service';
 import { hash, compare } from 'bcrypt';
-import { agent } from 'supertest';
+import { AuthService } from 'src/auth/auth.service';
 @Injectable()
 export class AgentsService {
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(private readonly databaseService: DatabaseService, private readonly authService: AuthService) {}
   async create(createAgentDto: CreateAgentDto, req: any) {
     try {
       const user = req.user;
 
-      if (user.role !== 'ADMIN' || user.manageTeam !== true) {
+      if (user.role !== 'ADMIN') {
         throw new UnauthorizedException(
           'Admin or user with manage team permission can create agents',
         );
@@ -32,8 +32,8 @@ export class AgentsService {
         throw new BadRequestException('Email already exists');
       }
 
-      const hashedPassword = await hash(createAgentDto.password, 10);
-      const agent = this.databaseService.user.create({
+    
+      const agent = await this.databaseService.user.create({
         data: {
           name: createAgentDto.name,
           email: createAgentDto.email,
@@ -41,10 +41,10 @@ export class AgentsService {
           role: 'AGENT',
           isEmailVerified: true,
           manageCampaign: createAgentDto.manageCampaign,
-          manageTeam: createAgentDto.manageTeam,
+          manageBots: createAgentDto.manageBots,
           ManageBroadcast: createAgentDto.ManageBroadcast,
           assignChat: createAgentDto.assignChat,
-          password: hashedPassword,
+          phone: createAgentDto.phone,
           business: { connect: { id: user.business.id } },
           emailVerified: new Date(),
 
@@ -55,7 +55,10 @@ export class AgentsService {
           // }
         },
       });
-      return agent;
+      await this.authService.getTokenLink(agent.email);
+      return {
+        message: 'Agent created successfully and verification link sent',}
+     
     } catch (error) {
       throw new InternalServerErrorException(error);
     }
@@ -79,7 +82,7 @@ export class AgentsService {
           image: true,
           role: true,
           manageCampaign: true,
-          manageTeam: true,
+          manageBots: true,
           ManageBroadcast: true,
           assignChat: true,
         },
@@ -117,7 +120,7 @@ export class AgentsService {
   async update(id: string, updateAgentDto: UpdateAgentDto, req: any) {
     try {
       const user = req.user;
-      if (user.role !== 'ADMIN' && user.id !== id) {
+      if (user.role !== 'ADMIN') {
         throw new UnauthorizedException('You are not allowed to update agents');
       }
       console.log(id);
@@ -134,10 +137,7 @@ export class AgentsService {
       if (agent.role !== 'AGENT') {
         throw new BadRequestException('Only update agents is allowed');
       }
-      if (updateAgentDto?.password) {
-        const hashedPassword = await hash(updateAgentDto.password, 10);
-        updateAgentDto.password = hashedPassword;
-      }
+    
       console.log(updateAgentDto);
       const updateAgent = await this.databaseService.user.update({
         where: {
@@ -159,7 +159,7 @@ export class AgentsService {
     try {
       const user = req.user;
 
-      if (user.role !== 'ADMIN' || user.manageTeam !== true) {
+      if (user.role !== 'ADMIN' ) {
         throw new UnauthorizedException('You are not allowed to delete agents');
       }
 
@@ -184,7 +184,7 @@ export class AgentsService {
       const { agentId, prospectId } = updateAgent;
 
       console.log(agentId, prospectId);
-      if (user.role !== 'ADMIN' || user.manageTeam !== true) {
+      if (user.role !== 'ADMIN') {
         throw new UnauthorizedException(
           'Admin or user with manage team permission can assign chat to agents',
         );

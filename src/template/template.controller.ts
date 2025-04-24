@@ -32,7 +32,7 @@ export class TemplateController {
   }
   
 
-  @Public()
+
   @Post('upload-media')
   @UseInterceptors(
     FileInterceptor('file', {
@@ -47,12 +47,12 @@ export class TemplateController {
       }),
     }),
   )
-  async uploadFile(@UploadedFile() file: Express.Multer.File) {
+  async uploadFile(@UploadedFile() file: Express.Multer.File, @Req() req: any) {
     if (!file || !file.path) {
       throw new BadRequestException('File is not provided or file path is missing');
     }
     // Pass the file path to the service function
-    return await this.templateService.uploadMediaByPathResumable(file.path);
+    return await this.templateService.uploadMediaByPathResumable(file.path,req);
   }
 
   @Public()

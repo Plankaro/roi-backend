@@ -1,6 +1,6 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Job, tryCatch } from 'bullmq';
-import { Injectable } from '@nestjs/common';
+import { Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { DatabaseService } from 'src/database/database.service';
 import { discount_type } from '@prisma/client';
 import {
@@ -346,6 +346,9 @@ export class CreateCheckoutCampaign extends WorkerHost {
         campaign.template_name,
       );
       const template = response?.data?.[0];
+      if(!template){
+        throw new NotFoundException('Template not found');
+      }
 
       const isLinkTrackEnabled:boolean = isTemplateButtonRedirectSafe(
         template,
@@ -446,7 +449,7 @@ export class CreateCheckoutCampaign extends WorkerHost {
                 {
                   type: 'text',
                   text: button.fromsegment
-                    ? this.getCheckoutValue(checkout, button.segmentname, discount)
+                    ? this.getCheckoutValue(checkout, button.segmentname, discount,isLinkTrackEnabled)
                     : button.value,
                 },
               ],
@@ -461,6 +464,7 @@ export class CreateCheckoutCampaign extends WorkerHost {
                     discount,
                   )
                 : button.value,
+                campaign_id: campaign.id,
                 buisness_id: campaign.businessId,
                 utm_source: "roi_magnet",
                 utm_medium: "whatsapp",
@@ -468,7 +472,7 @@ export class CreateCheckoutCampaign extends WorkerHost {
             });
       
              trackId = url.id;
-          trackUrl = `go/${trackId}`;
+             
       
             components.push({
               type: 'button',
@@ -477,7 +481,7 @@ export class CreateCheckoutCampaign extends WorkerHost {
               parameters: [
                 {
                   type: 'text',
-                  text: trackUrl,
+                  text: trackId,
                 },
               ],
             });
@@ -563,8 +567,8 @@ export class CreateCheckoutCampaign extends WorkerHost {
 
       const prospect = await this.databaseService.prospect.upsert({
         where:{
-          buisnessNo_phoneNo: {
-            buisnessNo: campaign.Business.whatsapp_mobile,
+          buisnessId_phoneNo: {
+            buisnessId: campaign.Business.id,
             phoneNo: sanitizePhoneNumber(checkout.phone)
           }
         },
@@ -575,7 +579,7 @@ export class CreateCheckoutCampaign extends WorkerHost {
           email: checkout.email,
 
           lead: 'LEAD',
-          buisnessNo: campaign.Business.whatsapp_mobile
+          buisnessId: campaign.Business.id
         }
       })
 
@@ -630,6 +634,37 @@ export class CreateCheckoutCampaign extends WorkerHost {
           
         },
       });
+      console.log(addTodb.id)
+      const isAbondnedCheckoutUrl = buttons.find((button) => button.type === 'URL' && button.isEditable === true && button.value ==="abandon_checkout_url");
+
+      const cobs = await this.databaseService.linkTrack.update({
+        where: { id: trackId },
+        data: {
+          chat: {
+            connect: { id: addTodb.id },
+          },
+          prospect: {
+            connect: { id: prospect.id },
+          },
+          type: "CAMPAIGN",
+      
+          // conditional checkout connect/disconnect
+          ...(isAbondnedCheckoutUrl
+            ? {
+              Checkout: {
+                  connect: { id: checkout.id },
+                },
+              }
+            : {
+              Checkout: {
+                  disconnect: true,
+                },
+              }),
+        },
+      });
+      
+
+      console.log(cobs)
      
     } catch (error) {
       console.error('Error in getShopifyPercentageDiscount:', error);
@@ -733,6 +768,7 @@ export class CreateCheckoutCampaign extends WorkerHost {
         variables,
         config,
       );
+      console.log('Discount code created:', response);
      
       return discountCode;
     } catch (error) {
@@ -781,6 +817,7 @@ export class CreateCheckoutCampaign extends WorkerHost {
         variables,
         config,
       );
+
       return response.customer;
     } catch (error) {
       console.error('Error in getCustomerById:', error);
@@ -856,11 +893,12 @@ export class CreateCheckoutCampaign extends WorkerHost {
     checkout: any,
     key: string,
     discount?: string,
+    is_link_track_enabled=true as boolean
   ): string | number | null {
     let abandonUrl = checkout.abandonedCheckoutUrl || null;
 
-    // Remove the base Shopify URL if present using URL parsing
-    if (abandonUrl && checkout.domain) {
+  
+    if (abandonUrl && checkout.domain && !is_link_track_enabled) {
       const baseUrl = `https://${checkout.domain}`;
       try {
         const parsedUrl = new URL(abandonUrl);
@@ -899,7 +937,7 @@ export class CreateCheckoutCampaign extends WorkerHost {
       cart_total_price: checkout.totalPrice || '0.00',
       cart_items: checkout.lineItems.map((item: any) => item.title).join(', '),
       discount_code: discount || null,
-      discount_amount: checkout.totalDiscounts || '0.00',
+      discount_amount: checkout.discount || '0.00',
       abandon_checkout_url: modifiedAbandonUrl,
       shop_url: checkout.domain ? `https://${checkout.domain}` : null,
     };
