@@ -152,16 +152,17 @@ export class ChatsService {
                 buisness_id: buisness.id,
                 utm_source:"roi_magnet",
                 utm_medium:"whatsapp",
+                is_test_link:true,
 
               }
             });
-            trackId=url.id
-         trackurl = `go/${trackId}`
+            trackId=url.id;
+      
             components.push({
               type: 'button',
               sub_type: 'url',
               index,
-              parameters: [{ type: 'text', text: trackurl }], // maybe use url instead of button.value?
+              parameters: [{ type: 'text', text: trackId }], // maybe use url instead of button.value?
             });
           }
         } else if (button.type === 'COPY_CODE') {
@@ -178,6 +179,7 @@ export class ChatsService {
           });
         }
       }
+      console.log(JSON.stringify(components, null, 2));
       
   
       const params = {
@@ -258,7 +260,7 @@ export class ChatsService {
             if (templateUrlButton && templateUrlButton.url) {
               console.log('Original template URL:', templateUrlButton.url);
               const placeholder = '{{1}}';
-              const finalUrl = templateUrlButton.url.split(placeholder).join(linkTrackenabled? trackurl : button.value);
+              const finalUrl = templateUrlButton.url.split(placeholder).join(linkTrackenabled? trackId : button.value);
               console.log('✅ Final URL:', finalUrl);
               return {
                 ...button,
@@ -388,6 +390,15 @@ console.log(addTodb);
           deleted: false,
           Status: { not: 'skipped' },
         },
+        include:{
+          sender: {
+            select: {
+              name: true,
+              id: true,
+              image: true
+            },
+          }
+        }
       });
 
       return chats;

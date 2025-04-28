@@ -89,6 +89,7 @@ model Business {
   is_shopify_connected Boolean @default(false)
   shopify_Token        String?
   shopify_domain       String? @unique
+  shopify_url          String?
 
   is_whatsapp_connected Boolean @default(false)
   whatsapp_mobile_id   String?
@@ -265,8 +266,9 @@ model Order {
 
   buisnessId String?
   business   Business? @relation(fields: [buisnessId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  from_link_id   String? @unique
-  from_link      LinkTrack? @relation(fields: [from_link_id],references: [id])
+ 
+
+  LinkTrack LinkTrack[]
 }
 
 enum Status {
@@ -332,10 +334,13 @@ model LinkTrack {
   utm_id        String?  
   checkout_id   String?
   Checkout     Checkout? @relation(fields: [checkout_id],references: [id],onDelete: SetNull,onUpdate: Cascade)
-  Order    Order?
+  OrderId        String?
+  Order          Order? @relation(fields: [OrderId],references: [id])
   type     LinkType @default(OTHER)
   order_generated Boolean @default(false)
   is_test_link Boolean @default(false)
+ 
+
 
 
 }

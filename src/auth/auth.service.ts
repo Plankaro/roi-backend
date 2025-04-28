@@ -42,7 +42,7 @@ export class AuthService {
 
   async login(LoginDto: LoginDto) {
     try {
-      console.log(LoginDto);
+      
       const user = await this.databaseService.user.findUnique({
         where: {
           email: LoginDto.email,
@@ -57,7 +57,7 @@ export class AuthService {
           },
         },
       });
-      console.log(user);
+
 
       if (!user) throw new UnauthorizedException('no user  found');
       if (!user.password)
@@ -66,7 +66,7 @@ export class AuthService {
       if (!isUserVErified) throw new ForbiddenException('User is not verified');
       const isMatch = await compare(LoginDto.password, user.password);
 
-      console.log(isMatch);
+      
       if (!isMatch)
         throw new UnauthorizedException('Invalid email or password');
       const userTokens = await this.getTokens(user.id, user.email);
@@ -124,7 +124,7 @@ export class AuthService {
       if (!userEdit) {
         throw new NotFoundException('User not found');
       }
-      console.log(UpdateProfileDto)
+     
 
       const data = {}
       if(UpdateProfileDto.name) data['name'] = UpdateProfileDto.name
@@ -164,7 +164,7 @@ export class AuthService {
 
       const name = `${registerAuthDto.firstName} ${registerAuthDto.lastName}`;
       const hashedPassword = await hash(registerAuthDto.password, 10);
-      console.log(registerAuthDto);
+  
 
       // Create the business in the database
       const buisness = await this.databaseService.business.create({
@@ -209,14 +209,14 @@ export class AuthService {
 
   async getTokenLink(email: string) {
     try {
-      console.log(email);
+     
       const user = await this.databaseService.user.findUnique({
         where: {
           email: email,
         },
       });
 
-      console.log(user);
+      
       if (!user) {
         throw new BadRequestException('Email not registered');
       }
@@ -338,7 +338,7 @@ export class AuthService {
 
   async RefreshToken(refresh_token: string) {
     try {
-      console.log('[RefreshToken] Received refresh_token:', refresh_token);
+ 
 
       const token = refresh_token.replace(/^Bearer\s/, '').trim();
 
@@ -353,7 +353,7 @@ export class AuthService {
       const verifyToken = await this.jwtService.verifyAsync(token, {
         secret,
       });
-      console.log('[RefreshToken] Decoded token payload:', verifyToken);
+    
 
       if (!verifyToken) {
         console.error('[RefreshToken] Token verification failed');
@@ -368,7 +368,7 @@ export class AuthService {
         },
       });
 
-      console.log('[RefreshToken] Retrieved user:', user);
+    
 
       if (!user) {
         console.error(
@@ -378,7 +378,7 @@ export class AuthService {
       }
 
       const userTokens = await this.getTokens(user.id, user.email);
-      console.log('[RefreshToken] Generated new tokens:', userTokens);
+      
 
       await this.databaseService.user.update({
         where: { id: user.id },
@@ -386,7 +386,7 @@ export class AuthService {
           refreshToken: userTokens.refresh_token,
         },
       });
-      console.log('[RefreshToken] Updated user with new refresh token');
+      ('[RefreshToken] Updated user with new refresh token');
 
       return userTokens;
     } catch (error) {
@@ -446,8 +446,8 @@ export class AuthService {
         buisness_id: user.business.id,
         shop: shop,
       };
-      const data = await this.redis.set(state, JSON.stringify(shopifyData), 'EX', 60 * 5);
-      console.log(JSON.stringify(installUrl));
+      await this.redis.set(state, JSON.stringify(shopifyData), 'EX', 60 * 5);
+
 
       return {
         installUrl: installUrl}
@@ -457,7 +457,6 @@ export class AuthService {
   }
 
   async verfifyShopifyCallback(query: Record<string, string>, res: Response) {
-    console.log('[Callback] Received query:', query);
 
     // 1. Verify HMAC
     const secret = process.env.SHOPIFY_CLIENT_SECRET;
@@ -473,23 +472,18 @@ export class AuthService {
       .sort()
       .map((key) => `${key}=${restParams[key]}`)
       .join('&');
-    console.log('[Callback] HMAC message string:', message);
+    
 
     const generatedHmac = createHmac('sha256', secret)
       .update(message)
       .digest('hex');
-    console.log(
-      '[Callback] generatedHmac:',
-      generatedHmac,
-      'receivedHmac:',
-      hmac,
-    );
+    
 
     if (generatedHmac !== hmac) {
       console.error('[Callback] HMAC validation failed');
       throw new BadRequestException('HMAC validation failed');
     }
-    console.log('[Callback] HMAC validation succeeded');
+
 
     // 2. Exchange code for access token
     const apiKey = process.env.SHOPIFY_CLIENT_ID;
@@ -498,21 +492,21 @@ export class AuthService {
       throw new InternalServerErrorException('Missing SHOPIFY_API_KEY');
     }
 
-    console.log('[Callback] Exchanging code for token...');
+   
     let tokenResponse;
     const payload = {
       client_id: apiKey,
       client_secret: secret,
       code: query.code,
     };
-    console.log('[Callback] Payload:', payload);
+
 
     try {
       tokenResponse = await axios.post(
         `https://${query.shop}/admin/oauth/access_token`,
         payload,
       );
-      console.log('[Callback] Token response data:', tokenResponse.data);
+      
     } catch (err) {
       console.error(
         '[Callback] Token exchange error:',
@@ -525,11 +519,11 @@ export class AuthService {
     }
 
     const accessToken = tokenResponse.data.access_token;
-    console.log('[Callback] Access token obtained:', accessToken);
+   
 
     // 3. Persist the token where appropriate (DB, Redis, etc.)
     // Example: await this.redisService.getClient().set(`shopify:token:${restParams.shop}`, accessToken);
-    console.log('[Callback] Persisted access token for shop:', query.shop);
+   
 
     // 4. Redirect to app UI
    const data = await this.redis.get(query.state);
@@ -539,7 +533,7 @@ const parsedData = JSON.parse(data);
     const { buisness_id, shop } = parsedData;
 
     const hashedToken = await encrypt(accessToken);
-    console.log(hashedToken);
+
     
 
     const buisness = await this.databaseService.business.update({
@@ -549,9 +543,12 @@ const parsedData = JSON.parse(data);
       data: {
         shopify_Token: hashedToken,
         shopify_domain: shop,
-        is_shopify_connected: true
+        is_shopify_connected: true,
+        shopify_url:shop,
       },
     });
+
+    
 
 
 
@@ -608,7 +605,7 @@ const parsedData = JSON.parse(data);
       }
     })
 
-    await this.webhookSubscribe.add(
+    await this.webhookUnsubscribe.add(
       "shopify_app_install",
       {shopify_domain: buisness.shopify_domain,shopify_Token:buisness.shopify_Token},
       {

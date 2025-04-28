@@ -22,10 +22,16 @@ export function getShopifyConfig(buisness: Business) {
   };
 }
 
-export function googleAnalyticsConfig(buisness: Business) {
+export function getgoogleAnalyticsConfig(buisness: Business) {
   return {
-    mesurementId: buisness?.g_mesurement_id,
-    apiSecret: buisness?.g_api_secret,
+    mesurementId: decrypt(buisness?.g_mesurement_id),
+    apiSecret: decrypt(buisness?.g_api_secret),
+  };
+}
+
+export function getMetaPixelConfig(buisness: Business) {
+  return {
+    pixelId: decrypt(buisness?.p_track_id),
   };
 }
 
@@ -178,7 +184,7 @@ export function getFutureTimestamp(expression: Expression): number {
       throw new Error(`Invalid unit in time expression: "${unit}"`);
   }
 
-  return Date.now() + msToAdd; // Return future timestamp in milliseconds
+  return  msToAdd; // Return future timestamp in milliseconds
 }
 
 export function escapeRegExp(text: string): string {

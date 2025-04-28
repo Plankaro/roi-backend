@@ -23,6 +23,7 @@ export class AnalyticsService {
 
   
   async getEcommerceAnalytics(req, query) {
+    const user = req.user;
     const startDate = new Date(query.startDate);
     const endDate = new Date(query.endDate);
     const now = new Date();
@@ -31,49 +32,125 @@ export class AnalyticsService {
       throw new Error('Invalid startDate or endDate');
     }
   
-    const isToday = endDate.toDateString() === now.toDateString();
-    const effectiveEndDate = isToday ? now : endDate;
+   
+    
   
-    const dayDiff = differenceInDays(effectiveEndDate, startDate);
-  
-    let groupByClause = `DATE("created_at")`;
-    let formatClause = `TO_CHAR(DATE("created_at"), 'YYYY-MM-DD')`;
-  
-    if (dayDiff > 365 * 3) {
-      groupByClause = `DATE_TRUNC('year', "created_at")`;
-      formatClause = `TO_CHAR(DATE_TRUNC('year', "created_at"), 'YYYY')`;
-    } else if (dayDiff > 180) {
-      groupByClause = `DATE_TRUNC('month', "created_at")`;
-      formatClause = `TO_CHAR(DATE_TRUNC('month', "created_at"), 'YYYY-MM')`;
-    }
-  
-    const groupedOrders: any = await this.databaseService.$queryRawUnsafe(
-      `
-      SELECT 
-        ${formatClause} AS order_date,
-        COUNT(*) AS order_count,
-        SUM(CAST("amount" AS numeric)) AS total_revenue
-      FROM "Order"
-      WHERE 
-        "created_at" >= $1
-        AND "created_at" <= $2
-      GROUP BY ${groupByClause}
-      ORDER BY ${groupByClause};
-      `,
-      startDate, // ✅ PASS AS DATE OBJECT
-      effectiveEndDate // ✅ PASS AS DATE OBJECT
-    );
+    const getOrder = await this.databaseService.linkTrack.findMany({
+      where: {
+        order_generated:true,
+        buisness:{
+          id: req.user.business.id
+        },
+        
+        Order:{
+          created_at: {
+            gte: startDate,
+            lte: endDate
+          }
+        }
+      },
+      select: {
 
+        Order:{
+          select: {
+            amount: true,
+            created_at: true
+          }
+        }
+      }
+    })
+
+    const linksClicked = await this.databaseService.linkTrack.findMany({
+      where:{
+        last_click:{
+          gte:startDate,
+          lte:endDate
+        }
+
+      },select: {
+        no_of_click: true,
+        last_click: true,
+        first_click: true,
+        order_generated:true,
+        Order:{
+          select:{
+            amount:true,
+            created_at:true,
+          }
+        }
+      }
+    })
+    
+    const AbondnedCheckout = await this.databaseService.checkout.count({
+      where:{
+        createdAt: {
+          gte: startDate,
+          lte: endDate
+        },
+        completedAt: null
+      }
+    })
+    const recoveredCheckout = await this.databaseService.linkTrack.count({
+      where: {
+        order_generated: true,
+        buisness: {
+          id: req.user.business.id
+        },
+        Order:{
+          created_at: {
+            gte: startDate,
+            lte: endDate,
+          },
+        },
+        Checkout: {
+          completedAt: {
+            not: null,
+          },
+        },
+      },
+    })
+
+    const totalCodtocheckoutlinkSent = await this.databaseService.paymentLink.count({
+      where: {
+        created_at: {
+          gte: startDate,
+          lte: endDate,
+        },
+        business:{
+          id: req.user.business.id
+        }
+      },
+      
+    })
+
+    const totalCodtocheckoutlinkDelivered = await this.databaseService.paymentLink.count({
+      where: {
+        created_at: {
+          gte: startDate,
+          lte: endDate,
+        },
+        business:{
+          id: req.user.business.id
+        },
+       status:"paid"
+      },
+      
+    })
+
+    return {
+      totalCodtocheckoutlinkDelivered,
+      totalCodtocheckoutlinkSent,
+      AbondnedCheckout,
+      recoveredCheckout,
+      linksClicked,
+      getOrder
+    }
+    
+ 
   
   
-    const result = groupedOrders.map((row: any) => ({
-      order_date: row.order_date,
-      order_count: Number(row.order_count),
-      total_revenue: parseFloat(row.total_revenue),
-    }));
-  
-    console.log(groupedOrders)
-    return { result };
+ 
+ 
   }
 async getEngagementAnalytics(req, query) {
   const businessId = req.user.business.id;
@@ -82,7 +159,7 @@ async getEngagementAnalytics(req, query) {
 
   // Get Shopify config for the business
   const config = getShopifyConfig(req.user.business);
-  const order = await this.getAllOrdersWithCustomerJourney(config)
+
 
   // Define Shopify GraphQL query to fetch customer count
   const shopifyQuery = `
@@ -102,7 +179,7 @@ async getEngagementAnalytics(req, query) {
       variables,
       config
     );
-    console.log(shopifyResponse)
+   
     const customerCount = shopifyResponse?.data?.customersCount?.count;
 
 
@@ -314,7 +391,7 @@ async getChatAnalytics(req, query) {
       const timeForBody = Math.ceil(bodyLength / 100);
       return total + timeForBody;
     }, 0);
-    console.log(totalMessageTime);
+
   
     const messagesByAgents = messagesByAgentsRaw.map(agent => ({
       ...agent,
@@ -334,77 +411,6 @@ async getChatAnalytics(req, query) {
   }
 }
 
-
-async getAllOrdersWithCustomerJourney(config: any) {
-  try {
-    const query = `
-      query getAllOrders {
-        orders(first: 30) {
-          edges {
-            node {
-              id
-              name
-              customerJourney {
-                firstVisit {
-                  landingPage
-                  referralCode
-                  referralInfoHtml
-                  referrerUrl
-                  source
-                  sourceType
-                  utmParameters {
-                    campaign
-                    content
-                    medium
-                    source
-                    term
-                  }
-                  occurredAt
-                }
-                lastVisit {
-                  id
-                  landingPage
-                  referralCode
-                  referralInfoHtml
-                  referrerUrl
-                  source
-                  sourceType
-                  utmParameters {
-                    campaign
-                    content
-                    term
-                    medium
-                    source
-                  }
-                  occurredAt
-                }
-              }
-            }
-          }
-        }
-      }
-    `;
-
-    const { data: response, errors } = await this.shopifyService.executeGraphQL(
-      query,
-      {},
-      config,
-    );
-    console.log(JSON.stringify(response, null, 2));
-
-    if (errors) {
-      console.error('GraphQL errors:', errors);
-      throw new Error('GraphQL query failed');
-    }
-
-    const orders = response.orders.edges.map((edge: any) => edge.node);
-
-    return orders;
-  } catch (error) {
-    console.error('Error in getAllOrdersWithCustomerJourney:', error);
-    throw error;
-  }
-}
 
 
 

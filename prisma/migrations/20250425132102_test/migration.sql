@@ -5,10 +5,22 @@ CREATE TYPE "Acess" AS ENUM ('READ', 'WRITE');
 CREATE TYPE "Role" AS ENUM ('ADMIN', 'AGENT');
 
 -- CreateEnum
+CREATE TYPE "NotificationStatus" AS ENUM ('READ', 'DELIVERED');
+
+-- CreateEnum
+CREATE TYPE "NotificationType" AS ENUM ('ASSIGNED', 'CUSTOMERSUPPORT');
+
+-- CreateEnum
 CREATE TYPE "Status" AS ENUM ('PENDING', 'COMPLETED', 'CANCELLED');
 
 -- CreateEnum
 CREATE TYPE "Lead" AS ENUM ('LEAD', 'LOST', 'NEGOTIATION', 'OTHER');
+
+-- CreateEnum
+CREATE TYPE "BotType" AS ENUM ('WELCOME', 'PRODUCT_BROWSING', 'ORDER_CANCEL', 'SHIPPING_CHARGES', 'REPEAT_ORDER', 'DISCOUNT', 'ORDER_TRACK');
+
+-- CreateEnum
+CREATE TYPE "LinkType" AS ENUM ('CAMPAIGN', 'BROADCAST', 'OTHER');
 
 -- CreateEnum
 CREATE TYPE "MessageStatus" AS ENUM ('pending', 'sent', 'delivered', 'read', 'failed', 'skipped');
@@ -84,7 +96,7 @@ CREATE TABLE "User" (
     "role" "Role" NOT NULL,
     "businessId" TEXT,
     "ManageBroadcast" BOOLEAN NOT NULL DEFAULT true,
-    "manageTeam" BOOLEAN NOT NULL DEFAULT true,
+    "manageBots" BOOLEAN NOT NULL DEFAULT true,
     "manageCampaign" BOOLEAN NOT NULL DEFAULT true,
     "assignChat" BOOLEAN NOT NULL DEFAULT true,
 
@@ -117,15 +129,37 @@ CREATE TABLE "Business" (
     "id" TEXT NOT NULL,
     "businessName" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "is_shopify_connected" BOOLEAN NOT NULL DEFAULT false,
     "shopify_Token" TEXT,
     "shopify_domain" TEXT,
+    "shopify_url" TEXT,
+    "is_whatsapp_connected" BOOLEAN NOT NULL DEFAULT false,
     "whatsapp_mobile_id" TEXT,
     "whatsapp_mobile" TEXT,
     "whatsapp_token" TEXT,
     "whatsapp_buisness_id" TEXT,
     "whatsapp_app_id" TEXT,
+    "is_razorpay_connected" BOOLEAN NOT NULL DEFAULT false,
+    "razorpay_id" TEXT,
+    "razorpay_secret" TEXT,
+    "is_google_analytics_connected" BOOLEAN NOT NULL DEFAULT false,
+    "is_meta_pixel" BOOLEAN NOT NULL DEFAULT false,
+    "g_mesurement_id" TEXT,
+    "g_api_secret" TEXT,
+    "p_track_id" TEXT,
 
     CONSTRAINT "Business_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "Tag" (
+    "id" TEXT NOT NULL,
+    "tagName" TEXT NOT NULL,
+    "businessId" TEXT NOT NULL,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "userId" TEXT NOT NULL,
+
+    CONSTRAINT "Tag_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -139,7 +173,7 @@ CREATE TABLE "Prospect" (
     "phoneNo" TEXT NOT NULL,
     "lead" "Lead" NOT NULL DEFAULT 'LEAD',
     "assignedToId" TEXT,
-    "buisnessNo" TEXT NOT NULL,
+    "buisnessId" TEXT NOT NULL,
     "is_blocked" BOOLEAN NOT NULL DEFAULT false,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
@@ -148,10 +182,35 @@ CREATE TABLE "Prospect" (
 );
 
 -- CreateTable
+CREATE TABLE "notification" (
+    "id" TEXT NOT NULL,
+    "user_id" TEXT NOT NULL,
+    "buisness_id" TEXT NOT NULL,
+    "text" TEXT NOT NULL,
+    "type" "NotificationType" NOT NULL,
+    "status" "NotificationStatus" NOT NULL,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "update_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "notification_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "ProspectTag" (
+    "id" TEXT NOT NULL,
+    "prospectId" TEXT NOT NULL,
+    "tagId" TEXT NOT NULL,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "ProspectTag_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "Order" (
     "id" TEXT NOT NULL,
     "shopify_id" TEXT NOT NULL,
     "customer_phoneno" TEXT NOT NULL,
+    "db_checkout_id" TEXT,
     "propspect_id" TEXT,
     "status" TEXT NOT NULL,
     "amount" TEXT NOT NULL,
@@ -177,24 +236,58 @@ CREATE TABLE "Order" (
     "discount_codes" JSONB,
     "fulfillment_status" TEXT,
     "landing_site" TEXT,
-    "fulfillments" JSONB,
     "merchant_business_entity_id" TEXT,
     "name" TEXT,
     "order_number" INTEGER,
     "shipping_lines" JSONB,
     "total_weight" INTEGER,
     "updated_at" TIMESTAMP(3),
+    "buisnessId" TEXT,
 
     CONSTRAINT "Order_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
-CREATE TABLE "Tag" (
+CREATE TABLE "Bots" (
     "id" TEXT NOT NULL,
-    "title" TEXT NOT NULL,
-    "businessId" TEXT,
+    "type" "BotType" NOT NULL,
+    "discount_type" "discount_type" NOT NULL DEFAULT 'PERCENTAGE',
+    "buisness_id" TEXT NOT NULL,
+    "discount_amount" TEXT NOT NULL DEFAULT '10',
+    "discount_expiry" TEXT NOT NULL DEFAULT '7',
+    "discount_minimum" TEXT NOT NULL DEFAULT '200',
+    "no_of_days_before_asking_discount" TEXT NOT NULL DEFAULT '7',
+    "is_active" BOOLEAN NOT NULL DEFAULT true,
+    "shipping_standard_cost" TEXT NOT NULL DEFAULT '150',
+    "shipping_threshold" TEXT NOT NULL DEFAULT '200',
+    "international_shipping_cost" TEXT NOT NULL DEFAULT '200',
 
-    CONSTRAINT "Tag_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "Bots_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "LinkTrack" (
+    "id" TEXT NOT NULL,
+    "campaign_id" TEXT,
+    "broadcast_id" TEXT,
+    "buisness_id" TEXT,
+    "chat_id" TEXT,
+    "prospect_id" TEXT,
+    "first_click" TIMESTAMP(3),
+    "last_click" TIMESTAMP(3),
+    "no_of_click" INTEGER NOT NULL DEFAULT 0,
+    "link" TEXT,
+    "utm_source" TEXT,
+    "utm_medium" TEXT,
+    "utm_campaign" TEXT,
+    "utm_id" TEXT,
+    "checkout_id" TEXT,
+    "OrderId" TEXT,
+    "type" "LinkType" NOT NULL DEFAULT 'OTHER',
+    "order_generated" BOOLEAN NOT NULL DEFAULT false,
+    "is_test_link" BOOLEAN NOT NULL DEFAULT false,
+
+    CONSTRAINT "LinkTrack_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -207,6 +300,7 @@ CREATE TABLE "Chat" (
     "template_used" BOOLEAN NOT NULL DEFAULT false,
     "template_name" TEXT,
     "template_components" JSONB,
+    "senderId" TEXT,
     "header_type" "HeaderType",
     "header_value" TEXT,
     "body_text" TEXT,
@@ -362,7 +456,8 @@ CREATE TABLE "Payment" (
 CREATE TABLE "Campaign" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
-    "type" "CampaignType" NOT NULL,
+    "trigger" "CampaignType" NOT NULL DEFAULT 'CHECKOUT_CREATED',
+    "type" TEXT NOT NULL,
     "status" "CampaignStatus" NOT NULL DEFAULT 'ACTIVE',
     "trigger_type" "campaign_trigger_type" NOT NULL,
     "trigger_time" JSONB,
@@ -373,7 +468,7 @@ CREATE TABLE "Campaign" (
     "is_discount_given" BOOLEAN NOT NULL DEFAULT true,
     "discount" INTEGER,
     "coupon_code" TEXT,
-    "discount_type" "discount_type" NOT NULL,
+    "discount_type" "discount_type" NOT NULL DEFAULT 'PERCENTAGE',
     "filter_condition_match" BOOLEAN NOT NULL,
     "new_checkout_abandonment_filter" BOOLEAN NOT NULL,
     "new_checkout_abandonment_type" "trigger_type",
@@ -386,6 +481,8 @@ CREATE TABLE "Campaign" (
     "related_order_cancelled" BOOLEAN NOT NULL DEFAULT false,
     "userId" TEXT,
     "businessId" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "reply_action" TEXT,
 
     CONSTRAINT "Campaign_pkey" PRIMARY KEY ("id")
 );
@@ -475,6 +572,7 @@ CREATE TABLE "Checkout" (
     "shipping_address" JSONB,
     "billingAddress" JSONB,
     "processedAt" TIMESTAMP(3),
+    "businessId" TEXT,
 
     CONSTRAINT "Checkout_pkey" PRIMARY KEY ("id")
 );
@@ -489,16 +587,58 @@ CREATE TABLE "CheckoutOnCampaign" (
 );
 
 -- CreateTable
+CREATE TABLE "OrderCampaign" (
+    "orderId" TEXT NOT NULL,
+    "campaignId" TEXT NOT NULL,
+    "assignedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "OrderCampaign_pkey" PRIMARY KEY ("orderId","campaignId")
+);
+
+-- CreateTable
+CREATE TABLE "PaymentLink" (
+    "id" TEXT NOT NULL,
+    "razorpay_link_id" TEXT NOT NULL,
+    "order_id" TEXT,
+    "amount" TEXT NOT NULL,
+    "currency" TEXT NOT NULL,
+    "description" TEXT,
+    "customer_name" TEXT,
+    "customer_phone" TEXT,
+    "status" TEXT NOT NULL,
+    "short_url" TEXT NOT NULL,
+    "expire_by" INTEGER,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+    "campaign_id" TEXT,
+    "businessId" TEXT,
+
+    CONSTRAINT "PaymentLink_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "Fulfillment" (
     "id" TEXT NOT NULL,
-    "shopifyId" TEXT NOT NULL,
+    "shopify_id" TEXT NOT NULL,
     "orderId" TEXT NOT NULL,
-    "trackingNumber" TEXT,
-    "trackingCompany" TEXT,
-    "trackingUrl" TEXT,
+    "db_order_id" TEXT,
     "status" TEXT NOT NULL,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "created_at" TIMESTAMP(3) NOT NULL,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+    "service" TEXT NOT NULL,
+    "trackingCompany" TEXT,
+    "shipmentStatus" TEXT,
+    "locationId" BIGINT,
+    "originAddress" JSONB,
+    "email" TEXT,
+    "trackingNumber" TEXT,
+    "trackingNumbers" TEXT[] DEFAULT ARRAY[]::TEXT[],
+    "trackingUrl" TEXT,
+    "trackingUrls" TEXT[] DEFAULT ARRAY[]::TEXT[],
+    "receipt" JSONB,
+    "name" TEXT NOT NULL,
+    "destination" JSONB,
+    "lineItems" JSONB NOT NULL,
 
     CONSTRAINT "Fulfillment_pkey" PRIMARY KEY ("id")
 );
@@ -512,7 +652,7 @@ CREATE TABLE "discount" (
     "code" TEXT NOT NULL,
     "usageLimit" INTEGER,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "prospect_phone" TEXT NOT NULL,
+    "prospect_id" TEXT NOT NULL,
 
     CONSTRAINT "discount_pkey" PRIMARY KEY ("id")
 );
@@ -524,9 +664,6 @@ CREATE UNIQUE INDEX "User_username_key" ON "User"("username");
 CREATE UNIQUE INDEX "User_email_key" ON "User"("email");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "User_phone_key" ON "User"("phone");
-
--- CreateIndex
 CREATE UNIQUE INDEX "Account_userId_key" ON "Account"("userId");
 
 -- CreateIndex
@@ -536,19 +673,25 @@ CREATE INDEX "Account_userId_idx" ON "Account"("userId");
 CREATE UNIQUE INDEX "Account_provider_providerAccountId_key" ON "Account"("provider", "providerAccountId");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "Business_shopify_domain_key" ON "Business"("shopify_domain");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "Business_whatsapp_mobile_key" ON "Business"("whatsapp_mobile");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Prospect_shopify_id_key" ON "Prospect"("shopify_id");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Prospect_phoneNo_key" ON "Prospect"("phoneNo");
+CREATE UNIQUE INDEX "Prospect_buisnessId_phoneNo_key" ON "Prospect"("buisnessId", "phoneNo");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Prospect_buisnessNo_phoneNo_key" ON "Prospect"("buisnessNo", "phoneNo");
+CREATE UNIQUE INDEX "ProspectTag_prospectId_tagId_key" ON "ProspectTag"("prospectId", "tagId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Order_shopify_id_key" ON "Order"("shopify_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Order_db_checkout_id_key" ON "Order"("db_checkout_id");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Order_cart_token_key" ON "Order"("cart_token");
@@ -558,6 +701,9 @@ CREATE UNIQUE INDEX "Order_checkout_id_key" ON "Order"("checkout_id");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Order_checkout_token_key" ON "Order"("checkout_token");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Bots_buisness_id_type_key" ON "Bots"("buisness_id", "type");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Chat_chatId_key" ON "Chat"("chatId");
@@ -572,7 +718,10 @@ CREATE UNIQUE INDEX "Filter_campaign_id_key" ON "Filter"("campaign_id");
 CREATE UNIQUE INDEX "Checkout_shopify_id_key" ON "Checkout"("shopify_id");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Fulfillment_shopifyId_key" ON "Fulfillment"("shopifyId");
+CREATE UNIQUE INDEX "PaymentLink_razorpay_link_id_key" ON "PaymentLink"("razorpay_link_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Fulfillment_shopify_id_key" ON "Fulfillment"("shopify_id");
 
 -- AddForeignKey
 ALTER TABLE "User" ADD CONSTRAINT "User_businessId_fkey" FOREIGN KEY ("businessId") REFERENCES "Business"("id") ON DELETE SET NULL ON UPDATE CASCADE;
@@ -581,10 +730,31 @@ ALTER TABLE "User" ADD CONSTRAINT "User_businessId_fkey" FOREIGN KEY ("businessI
 ALTER TABLE "Account" ADD CONSTRAINT "Account_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "Tag" ADD CONSTRAINT "Tag_businessId_fkey" FOREIGN KEY ("businessId") REFERENCES "Business"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Tag" ADD CONSTRAINT "Tag_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "Prospect" ADD CONSTRAINT "Prospect_assignedToId_fkey" FOREIGN KEY ("assignedToId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Prospect" ADD CONSTRAINT "Prospect_buisnessNo_fkey" FOREIGN KEY ("buisnessNo") REFERENCES "Business"("whatsapp_mobile") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "Prospect" ADD CONSTRAINT "Prospect_buisnessId_fkey" FOREIGN KEY ("buisnessId") REFERENCES "Business"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "notification" ADD CONSTRAINT "notification_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "notification" ADD CONSTRAINT "notification_buisness_id_fkey" FOREIGN KEY ("buisness_id") REFERENCES "Business"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "ProspectTag" ADD CONSTRAINT "ProspectTag_prospectId_fkey" FOREIGN KEY ("prospectId") REFERENCES "Prospect"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "ProspectTag" ADD CONSTRAINT "ProspectTag_tagId_fkey" FOREIGN KEY ("tagId") REFERENCES "Tag"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Order" ADD CONSTRAINT "Order_db_checkout_id_fkey" FOREIGN KEY ("db_checkout_id") REFERENCES "Checkout"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Order" ADD CONSTRAINT "Order_propspect_id_fkey" FOREIGN KEY ("propspect_id") REFERENCES "Prospect"("id") ON DELETE SET NULL ON UPDATE CASCADE;
@@ -593,7 +763,34 @@ ALTER TABLE "Order" ADD CONSTRAINT "Order_propspect_id_fkey" FOREIGN KEY ("props
 ALTER TABLE "Order" ADD CONSTRAINT "Order_BroadCastId_fkey" FOREIGN KEY ("BroadCastId") REFERENCES "Broadcast"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Tag" ADD CONSTRAINT "Tag_businessId_fkey" FOREIGN KEY ("businessId") REFERENCES "Business"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "Order" ADD CONSTRAINT "Order_buisnessId_fkey" FOREIGN KEY ("buisnessId") REFERENCES "Business"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Bots" ADD CONSTRAINT "Bots_buisness_id_fkey" FOREIGN KEY ("buisness_id") REFERENCES "Business"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "LinkTrack" ADD CONSTRAINT "LinkTrack_buisness_id_fkey" FOREIGN KEY ("buisness_id") REFERENCES "Business"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "LinkTrack" ADD CONSTRAINT "LinkTrack_campaign_id_fkey" FOREIGN KEY ("campaign_id") REFERENCES "Campaign"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "LinkTrack" ADD CONSTRAINT "LinkTrack_broadcast_id_fkey" FOREIGN KEY ("broadcast_id") REFERENCES "Broadcast"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "LinkTrack" ADD CONSTRAINT "LinkTrack_chat_id_fkey" FOREIGN KEY ("chat_id") REFERENCES "Chat"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "LinkTrack" ADD CONSTRAINT "LinkTrack_prospect_id_fkey" FOREIGN KEY ("prospect_id") REFERENCES "Prospect"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "LinkTrack" ADD CONSTRAINT "LinkTrack_checkout_id_fkey" FOREIGN KEY ("checkout_id") REFERENCES "Checkout"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "LinkTrack" ADD CONSTRAINT "LinkTrack_id_fkey" FOREIGN KEY ("id") REFERENCES "Order"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Chat" ADD CONSTRAINT "Chat_senderId_fkey" FOREIGN KEY ("senderId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Chat" ADD CONSTRAINT "Chat_prospectId_fkey" FOREIGN KEY ("prospectId") REFERENCES "Prospect"("id") ON DELETE SET NULL ON UPDATE CASCADE;
@@ -650,10 +847,31 @@ ALTER TABLE "Campaign" ADD CONSTRAINT "Campaign_businessId_fkey" FOREIGN KEY ("b
 ALTER TABLE "Filter" ADD CONSTRAINT "Filter_campaign_id_fkey" FOREIGN KEY ("campaign_id") REFERENCES "Campaign"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "Checkout" ADD CONSTRAINT "Checkout_businessId_fkey" FOREIGN KEY ("businessId") REFERENCES "Business"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "CheckoutOnCampaign" ADD CONSTRAINT "CheckoutOnCampaign_checkoutId_fkey" FOREIGN KEY ("checkoutId") REFERENCES "Checkout"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "CheckoutOnCampaign" ADD CONSTRAINT "CheckoutOnCampaign_campaignId_fkey" FOREIGN KEY ("campaignId") REFERENCES "Campaign"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "discount" ADD CONSTRAINT "discount_prospect_phone_fkey" FOREIGN KEY ("prospect_phone") REFERENCES "Prospect"("phoneNo") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "OrderCampaign" ADD CONSTRAINT "OrderCampaign_orderId_fkey" FOREIGN KEY ("orderId") REFERENCES "Order"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "OrderCampaign" ADD CONSTRAINT "OrderCampaign_campaignId_fkey" FOREIGN KEY ("campaignId") REFERENCES "Campaign"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "PaymentLink" ADD CONSTRAINT "PaymentLink_order_id_fkey" FOREIGN KEY ("order_id") REFERENCES "Order"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "PaymentLink" ADD CONSTRAINT "PaymentLink_businessId_fkey" FOREIGN KEY ("businessId") REFERENCES "Business"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "PaymentLink" ADD CONSTRAINT "PaymentLink_campaign_id_fkey" FOREIGN KEY ("campaign_id") REFERENCES "Campaign"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Fulfillment" ADD CONSTRAINT "Fulfillment_db_order_id_fkey" FOREIGN KEY ("db_order_id") REFERENCES "Order"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "discount" ADD CONSTRAINT "discount_prospect_id_fkey" FOREIGN KEY ("prospect_id") REFERENCES "Prospect"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

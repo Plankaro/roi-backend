@@ -231,6 +231,8 @@ export class CreateOrderQueue extends WorkerHost {
     private readonly databaseService: DatabaseService,
     @InjectQueue('createOrderCampaign')
     private readonly createOrderCampaign: Queue,
+    @InjectQueue('linktrackQueue')
+    private readonly linktrackQueue: Queue,
   ) {
     super();
   }
@@ -238,11 +240,11 @@ export class CreateOrderQueue extends WorkerHost {
     try {
       const { orderData, domain } = job.data as JobData;
 
-      const contact = orderData?.phone  || orderData.customer?.phone ;
+      const contact = orderData?.phone || orderData.customer?.phone;
 
-        if(!contact){
-          return
-        }
+      if (!contact) {
+        return;
+      }
 
       const sanitizedContact = sanitizePhoneNumber(contact);
       const ifCheckout = await this.databaseService.checkout.findUnique({
@@ -256,7 +258,7 @@ export class CreateOrderQueue extends WorkerHost {
           shopify_domain: domain,
         },
       });
-     
+
       const order_created = await this.databaseService.order.create({
         data: {
           shopify_id: orderData.id.toString(),
@@ -284,7 +286,7 @@ export class CreateOrderQueue extends WorkerHost {
           currency: orderData.currency,
           discount_codes: orderData.discount_codes,
           fulfillment_status: orderData.fulfillment_status,
-       
+
           landing_site: orderData.landing_site,
           updated_at: orderData.updated_at,
           total_weight: orderData.total_weight,
@@ -295,6 +297,7 @@ export class CreateOrderQueue extends WorkerHost {
           shipping_address: orderData.shipping_address,
         },
       });
+      console.log(order_created);
 
       const Campaigns = await this.databaseService.campaign.findMany({
         where: {
@@ -313,6 +316,7 @@ export class CreateOrderQueue extends WorkerHost {
             campaign.trigger_type === 'AFTER_CAMPAIGN_CREATED'
               ? 0
               : getFutureTimestamp(campaign.trigger_time as any);
+          console.log(time);
           this.createOrderCampaign
             .add(
               'createOrderCampaignQueue',
@@ -332,99 +336,20 @@ export class CreateOrderQueue extends WorkerHost {
         });
       }
 
-      const threeDaysAgo = new Date();
-      threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+      // Two hours *later*
+      // Compute a 2-hour delay in milliseconds
+      const twoHourDelayMs = 2 * 60 * 60 * 1000; // 7,200,000 ms
 
-      const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
-
-      const findLinkTrack = await this.databaseService.linkTrack.findFirst({
-        where: {
-          prospect:{
-            phoneNo: sanitizedContact,
-          
-          },
-          last_click: {
-            gte: twoHoursAgo,
-          },
+    
+      const jobs = await this.linktrackQueue.add(
+        'linktrackQueue', // name of the job
+        { orderId: order_created.id }, // payload
+        {
+          delay: 0, // delay in milliseconds
+          removeOnComplete: true,
         },
-      })
-
-      const latestBroadcast = await this.databaseService.broadcast.findFirst({
-        where: {
-          createdAt: {
-            gte: threeDaysAgo,
-          },
-          createdFor: {
-            shopify_domain: domain,
-          },
-          Chat: {
-            some: {
-              receiverPhoneNo: sanitizedContact,
-            },
-          },
-         
-        },
-        include: {
-          createdFor: true,
-        },
-        orderBy: {
-          createdAt: 'desc',
-        },
-      });
-
-      if (latestBroadcast) {
-        let prospect = await this.databaseService.prospect.findUnique({
-          where: {
-            buisnessId_phoneNo: {
-              buisnessId: latestBroadcast.createdFor.id,
-              phoneNo: sanitizedContact,
-            },
-          },
-        });
-
-        if (prospect && !prospect.shopify_id) {
-          prospect = await this.databaseService.prospect.update({
-            where: {
-              buisnessId_phoneNo: {
-                buisnessId: latestBroadcast.createdFor.id,
-                phoneNo: sanitizedContact,
-              },
-            },
-            data: {
-              shopify_id: orderData.customer.id.toString(),
-            },
-          });
-        }
-
-        const isOrderUnique = await this.databaseService.order.findFirst({
-          where: {
-            customer_phoneno: sanitizedContact,
-            BroadCastId: latestBroadcast.id,
-          },
-        });
-
-        if (!isOrderUnique) {
-          await this.databaseService.broadcast.update({
-            where: { id: latestBroadcast.id },
-            data: {
-              unique_order_created: { increment: 1 },
-            },
-          });
-        }
-
-        await this.databaseService.order.update({
-          where: {
-            id: order_created.id,
-          },
-          data: {
-            propspect_id: prospect ? prospect.id : null,
-            fromBroadcast: true,
-            BroadCastId: latestBroadcast.id, /// Ensure
-          },
-        });
-      } else {
-        console.log('No recent broadcast found for this contact.');
-      }
+      );
+      console.log('Job added to linktrackQueue:', jobs.id);
     } catch (error) {
       console.error('Error in manipulateOrder:', error);
     }

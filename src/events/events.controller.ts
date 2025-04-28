@@ -28,7 +28,7 @@ export class EventsController {
     @Headers() headers: Record<string, string>,
   ) {
     
-   
+   console.log("updateCheckout",JSON.stringify(updateCheckout,null,2))
     await this.eventsService.manipulateUpdatedCheckout(updateCheckout, headers["x-shopify-shop-domain"]);
     return { success: true };
   }
@@ -56,7 +56,7 @@ async createOrder(
     @Headers() headers: Record<string, string>,
   ) {
 
-    // await this.eventsService.manipulateUpdateOrder(orderData, headers["x-shopify-shop-domain"]);
+    await this.eventsService.manipulateUpdateOrder(orderData, headers["x-shopify-shop-domain"]);
 
     return { success: true };
   }
@@ -67,8 +67,8 @@ async createOrder(
     @Body() orderData: any,
     @Headers() headers: Record<string, string>,
   ) {
-    // console.log("orderData",JSON.stringify(orderData,null,2))
-    // await this.eventsService.manipulateCancelOrder(orderData, headers["x-shopify-shop-domain"]);
+    console.log("orderData",JSON.stringify(orderData,null,2))
+    await this.eventsService.manipulateCancelOrder(orderData, headers["x-shopify-shop-domain"]);
 
     // return { success: true };
   }

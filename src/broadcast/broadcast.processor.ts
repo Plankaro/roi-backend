@@ -28,11 +28,10 @@ export class BroadcastProcessor extends WorkerHost {
   }
 
   async process(job: Job<any, any, string>): Promise<void> {
-    console.log('==== PROCESSING JOB ====');
-    console.log('Job ID:', job.id);
+
     try {
       const { id } = job.data;
-      console.log('Job Data:', job.data);
+    
 
       // Update broadcast status to running
       const broadcast = await this.databaseService.broadcast.update({
@@ -40,12 +39,7 @@ export class BroadcastProcessor extends WorkerHost {
         data: { status: 'running' },
         include: { creator: true, createdFor: true },
       });
-      console.log(
-        'Broadcast updated:',
-        broadcast.id,
-        'Status:',
-        broadcast.status,
-      );
+  
 
       const config = getWhatsappConfig(broadcast.createdFor);
 
@@ -55,8 +49,7 @@ export class BroadcastProcessor extends WorkerHost {
       );
 
       const template = response?.data?.[0];
-      console.log('--- Template Response ---');
-      console.log(JSON.stringify(template, null, 2));
+      
 
       if (!template) {
         console.error('❌ Template not found');
@@ -66,16 +59,13 @@ export class BroadcastProcessor extends WorkerHost {
       // Retrieve contacts based on contacts type
       let data: any;
       if (broadcast.contacts_type === 'shopify' && broadcast.segment_id) {
-        console.log(
-          'Fetching Shopify contacts for segment:',
-          broadcast.segment_id,
-        );
+       
         data = await this.customersService.getAllContactsForSegment(
           broadcast.segment_id,
           broadcast.creator,
         );
       } else if (broadcast.contacts_type === 'excel' && broadcast.excelData) {
-        console.log('Processing Excel data.');
+       
         const exceldata: any = broadcast.excelData;
         data = exceldata.data.map((item) => ({
           ...item,
@@ -85,25 +75,23 @@ export class BroadcastProcessor extends WorkerHost {
         console.error('Invalid contacts type');
         throw new Error('Invalid contacts type');
       }
-      console.log('Total contacts:', data.length);
-      console.log();
+   
 
       // Process each contact
       for (const broadcastData of data) {
         let trackurl: string;
         let trackId: string;
-        console.log('===================================');
-        console.log(broadcastData.phone);
+     
         if (!broadcastData.phone) {
           return;
         }
         const contact = sanitizePhoneNumber(broadcastData.phone);
-        console.log('Processing contact:', contact);
+    
 
         // Build components for the template message
         const components = [];
         const { header, buttons, body } = broadcast.componentData as any;
-        console.log('Component Data:', { header, buttons, body });
+    
 
         // Process header component
         if (header && header.isEditable) {
@@ -153,7 +141,7 @@ export class BroadcastProcessor extends WorkerHost {
               ],
             });
           }
-          console.log('Header processed with value:', headerValue);
+          
         }
 
         // Process body component parameters

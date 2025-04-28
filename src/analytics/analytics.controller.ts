@@ -13,7 +13,7 @@ export class AnalyticsController {
     return this.analyticsService.create(createAnalyticsDto);
   }
 
-  @Public()
+
   @Get('/ecommerce')
   getEcommerceAnalytics(@Query() query: { startDate?: string; endDate?: string }, @Req() req: Request) {
       return this.analyticsService.getEcommerceAnalytics(req,query);

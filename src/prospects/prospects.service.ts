@@ -84,8 +84,9 @@ export class ProspectsService {
 
   
     try {
+      const buisnessId = req.user.business.id;
       const buisnessNo = req.user.business.whatsapp_mobile;
-      if (!buisnessNo) {
+      if (!buisnessId ) {
         throw new BadRequestException('An error occurred');
       }
   
@@ -102,7 +103,7 @@ export class ProspectsService {
   
       // Start building a dynamic Prisma filter
       const whereFilter: any = {
-        buisnessNo, // Always filter by business number
+        buisnessId:buisnessId, // Always filter by business number
       };
   
       // Build an array to collect conditions for the `chats` relation

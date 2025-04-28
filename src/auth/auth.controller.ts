@@ -80,7 +80,7 @@ logout(@Body() userId: string) {
    @Body('shopifyName') shop: string,    // ← grabs `req.body.shop` for you
    @Req() req: Request
  ) {
-   console.log('shop:', shop);
+
    return this.authService.installShopify(shop, req);
  }
 

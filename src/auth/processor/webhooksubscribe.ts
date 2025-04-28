@@ -78,7 +78,7 @@ export class WebhookSubscribe extends WorkerHost {
         variables,
         config,
       );
-      console.log(JSON.stringify(resp, null, 2));
+   
 
       // guard against network/parse errors
       if (!resp?.data?.webhookSubscriptionCreate) {
@@ -120,6 +120,6 @@ export class WebhookSubscribe extends WorkerHost {
         config,
       
     );
-    console.log(JSON.stringify(listResponse, null, 2));
+ 
   }
 }

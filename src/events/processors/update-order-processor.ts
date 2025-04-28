@@ -62,7 +62,7 @@ export class UpdateOrderProcessor extends WorkerHost {
         currency: orderData.currency,
         discount_codes: orderData.discount_codes,
         fulfillment_status: orderData.fulfillment_status,
-
+        tags: orderData.tags,
         landing_site: orderData.landing_site,
         updated_at: orderData.updated_at,
         total_weight: orderData.total_weight,

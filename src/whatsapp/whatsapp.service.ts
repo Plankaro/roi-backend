@@ -64,6 +64,9 @@ export class WhatsappService {
 
       return result.data;
     } catch (error: any) {
+      console.error(
+        error
+      )
       console.log(JSON.stringify(error.response?.data,null,2));
       const errorMessage = error.response?.data?.error?.error_data?.details;
       console.error(errorMessage || 'gjgyjf');

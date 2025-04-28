@@ -8,6 +8,7 @@ import { getShopifyConfig, sanitizePhoneNumber } from 'utils/usefulfunction';
 import { ChatsGateway } from '../chats.gateway';
 import { ShopifyService } from 'src/shopify/shopify.service';
 import { GemniService } from 'src/gemni/gemni.service';
+import { Prospect } from 'src/prospects/entities/prospect.entity';
 
 @Processor('receiveChatsQueue')
 @Injectable()
@@ -143,11 +144,13 @@ export class ReceiveChatsQueue extends WorkerHost {
                   }
                 });
 
-                const gemniResponse =
+                if(prospect.assignedToId!==null){
+                  const gemniResponse =
                   await this.gemniService.generateEnumValues(
                     chatMessage.body_text,
+                    prospect?.chats[0]?.body_text??"",
                   );
-                console.log(gemniResponse);
+        
 
                 await this.bottransferQueue.add(
                   'bottransfer',
@@ -159,6 +162,8 @@ export class ReceiveChatsQueue extends WorkerHost {
                   { delay: 0, removeOnComplete: true },
                 );
 
+                }
+               
                 console.log(`Chat saved to DB: ${JSON.stringify(chatMessage)}`);
                 processedResults.push(chatMessage);
                 console.log(chatMessage.Prospect.business.id)

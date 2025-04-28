@@ -20,6 +20,7 @@ import { FullfillmentEventProcessor } from './processors/fullfillment-event-proc
 import { FullfillmentEventCampaign } from './processors/fullfillment-event-campaign';
 import { UpdateFullfillmentCampaignProcessor } from './processors/fullfillment-update-campaign';
 import { UpdateFullfillmentEventProcessor } from './processors/fullfillment-update-processor';
+import { LinkTrackQueue } from './processors/link-track-queue';
 
 
 @Module({
@@ -43,6 +44,7 @@ import { UpdateFullfillmentEventProcessor } from './processors/fullfillment-upda
       { name: 'createFulfillmentCampaign' },
       { name: 'createFullfillmentEventQueue' },
       { name: 'createFulfillmentEventCampaign' },
+      {name: 'linktrackQueue'},
 
     ),
   ],
@@ -62,7 +64,8 @@ import { UpdateFullfillmentEventProcessor } from './processors/fullfillment-upda
     FullfillmentEventProcessor,
     FullfillmentEventCampaign,
     UpdateFullfillmentCampaignProcessor,
-    UpdateFullfillmentEventProcessor
+    UpdateFullfillmentEventProcessor,
+    LinkTrackQueue
     
     
     

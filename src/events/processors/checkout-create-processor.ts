@@ -228,6 +228,8 @@ export class CreateCheckoutQueue extends WorkerHost {
           // campaigns: { connect: [{ id: someCampaignId }] },
         },
       });
+
+      
   
       const Campaigns = await this.databaseService.campaign.findMany({
         where: {
@@ -243,6 +245,7 @@ export class CreateCheckoutQueue extends WorkerHost {
       Campaigns.forEach((campaign) => {
 
         const time =campaign.trigger_type ==="AFTER_CAMPAIGN_CREATED"? 0: getFutureTimestamp(campaign.trigger_time as any)
+        console.log(time);
         this.createCheckoutCampaignQueue
           .add(
             'createCheckoutCampaign',

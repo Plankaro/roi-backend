@@ -49,7 +49,7 @@ export class BotService {
   async update(updateBotDto: any, req: any) {
     try {
       const user = req.user;
-      console.log(updateBotDto)
+ 
 
       const bot = await this.databaseService.bots.upsert({
         where: {

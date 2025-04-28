@@ -67,7 +67,7 @@ export class AgentsService {
   async findAll(req: any) {
     try {
       const user = req.user;
-      console.log(user);
+ 
 
       const teams = await this.databaseService.user.findMany({
         where: {
@@ -123,7 +123,7 @@ export class AgentsService {
       if (user.role !== 'ADMIN') {
         throw new UnauthorizedException('You are not allowed to update agents');
       }
-      console.log(id);
+
       const agent = await this.databaseService.user.findUnique({
         where: {
           id,
@@ -138,7 +138,7 @@ export class AgentsService {
         throw new BadRequestException('Only update agents is allowed');
       }
     
-      console.log(updateAgentDto);
+
       const updateAgent = await this.databaseService.user.update({
         where: {
           id,
@@ -183,7 +183,7 @@ export class AgentsService {
       const user = req.user;
       const { agentId, prospectId } = updateAgent;
 
-      console.log(agentId, prospectId);
+
       if (user.role !== 'ADMIN') {
         throw new UnauthorizedException(
           'Admin or user with manage team permission can assign chat to agents',
@@ -237,7 +237,7 @@ export class AgentsService {
           },
         },
       });
-      console.log(update);
+
 
       return update;
     } catch (error) {

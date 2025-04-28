@@ -23,10 +23,13 @@ export class ChatsController {
     @Res() res: Response,
   ): void {
     const VERIFY_TOKEN = 'testwebhook';
+    console.log(mode, token, challenge);
 
     if (mode === 'subscribe' && token === VERIFY_TOKEN) {
+      console.log('WEBHOOK_VERIFIED');
       res.status(200).send(challenge);
     } else {
+      console.log('WEBHOOK_VERIFICATION_FAILED');
       res.sendStatus(403);
     }
   }
@@ -61,6 +64,7 @@ export class ChatsController {
   @Public()
   @Post('/webhook')
   receiveMessage(@Body() receievemessageDto: any) {
+    console.log(receievemessageDto);
    
  return this.chatsService.receiveMessage(receievemessageDto)
    

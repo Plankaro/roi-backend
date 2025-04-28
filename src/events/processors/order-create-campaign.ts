@@ -67,6 +67,8 @@ export class CreateOrderCampaign extends WorkerHost {
         return;
       }
 
+      
+
       //  console.log('Fetched checkout:', checkout);
       //  console.log('Fetched campaign:', campaign);
 
@@ -824,6 +826,7 @@ export class CreateOrderCampaign extends WorkerHost {
 
       const { data: response, errors } =
         await this.shopifyService.executeGraphQL(query, variables, config);
+        console.log(JSON.stringify(response,null,2));
 
       if (errors) {
         console.error('Error executing GraphQL query:', errors);

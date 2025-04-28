@@ -69,12 +69,16 @@ export class CreateCheckoutCampaign extends WorkerHost {
       const order = await this.databaseService.order.findUnique({
         where: { checkout_id: checkout.shopify_id },
       });
-
+      console.log(order)
       //get order
    
         if (order?.tags && campaign.filters.is_order_tag_filter_enabled) {
+          console.log('order tags', order?.tags);
           const tagsfromField = getTagsArray(order?.tags);
+          console.log('tagsfromField', tagsfromField);
+
           if (campaign.filters.order_tag_filter_all.length > 0) {
+          
             if (
               !allTagsPresent(
                 tagsfromField,
@@ -335,6 +339,7 @@ export class CreateCheckoutCampaign extends WorkerHost {
           campaignId: campaign.id,
         },
       });
+      
 
       const components = [];
       const { header, buttons, body } = campaign.components as any;
@@ -371,7 +376,7 @@ export class CreateCheckoutCampaign extends WorkerHost {
         let headerValue = '';
         if (header.type === 'TEXT') {
           headerValue = header.fromsegment
-            ? this.getCheckoutValue(checkout, header.segmentname, discount)
+            ? this.getCheckoutValue(checkout, header.segmentname, discount, isLinkTrackEnabled,campaign)
             : header.value;
           if (
             template.parameter_format === 'NAMED' &&
@@ -420,7 +425,7 @@ export class CreateCheckoutCampaign extends WorkerHost {
       // Process body component parameters
       const bodyParameters = body.map((param) => {
         const value = param.fromsegment
-          ? this.getCheckoutValue(checkout, param.segmentname, discount)
+          ? this.getCheckoutValue(checkout, param.segmentname, discount,isLinkTrackEnabled,campaign)
           : param.value || 'test';
         return template.parameter_format === 'NAMED'
           ? {
@@ -449,7 +454,7 @@ export class CreateCheckoutCampaign extends WorkerHost {
                 {
                   type: 'text',
                   text: button.fromsegment
-                    ? this.getCheckoutValue(checkout, button.segmentname, discount,isLinkTrackEnabled)
+                    ? this.getCheckoutValue(checkout, button.segmentname, discount,isLinkTrackEnabled,campaign)
                     : button.value,
                 },
               ],
@@ -472,6 +477,7 @@ export class CreateCheckoutCampaign extends WorkerHost {
             });
       
              trackId = url.id;
+             console.log(trackId)
              
       
             components.push({
@@ -635,7 +641,18 @@ export class CreateCheckoutCampaign extends WorkerHost {
         },
       });
       console.log(addTodb.id)
-      const isAbondnedCheckoutUrl = buttons.find((button) => button.type === 'URL' && button.isEditable === true && button.value ==="abandon_checkout_url");
+      const isAbondnedCheckoutUrl = buttons.find((button) => button.type === 'URL' && button.isEditable === true && button.segmentname==="abandon_checkout_url");
+
+
+
+      const matchingButton = updatedButtons?.find(
+        (button) =>
+          button.type === 'URL' &&
+          button.isEditable === true &&
+          button.value?.toLowerCase().startsWith(campaign.Business.shopify_url)
+      );
+     
+      
 
       const cobs = await this.databaseService.linkTrack.update({
         where: { id: trackId },
@@ -647,6 +664,7 @@ export class CreateCheckoutCampaign extends WorkerHost {
             connect: { id: prospect.id },
           },
           type: "CAMPAIGN",
+          is_test_link:matchingButton?true:false,
       
           // conditional checkout connect/disconnect
           ...(isAbondnedCheckoutUrl
@@ -893,7 +911,8 @@ export class CreateCheckoutCampaign extends WorkerHost {
     checkout: any,
     key: string,
     discount?: string,
-    is_link_track_enabled=true as boolean
+    is_link_track_enabled=true as boolean,
+    campaign?:any,
   ): string | number | null {
     let abandonUrl = checkout.abandonedCheckoutUrl || null;
 
@@ -937,7 +956,7 @@ export class CreateCheckoutCampaign extends WorkerHost {
       cart_total_price: checkout.totalPrice || '0.00',
       cart_items: checkout.lineItems.map((item: any) => item.title).join(', '),
       discount_code: discount || null,
-      discount_amount: checkout.discount || '0.00',
+      discount_amount: campaign?.discount_type==="AMOUNT"? `Rs ${campaign?.discount} ` : `${campaign?.discount}%` || '0.00',
       abandon_checkout_url: modifiedAbandonUrl,
       shop_url: checkout.domain ? `https://${checkout.domain}` : null,
     };

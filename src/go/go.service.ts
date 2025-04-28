@@ -23,7 +23,7 @@ export class GoService {
           id: id,
         },
       });
-      console.log(req?.cookies);
+    
       if (!findlink) {
         res.send('Link not found');
         return;
@@ -75,6 +75,7 @@ export class GoService {
       return {};
     }
   }
+  
 
   update(id: number, updateGoDto: UpdateGoDto) {
     return `This action updates a #${id} go`;

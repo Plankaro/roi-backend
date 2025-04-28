@@ -22,8 +22,7 @@ export class BotController {
 
   @Post('')
   update(@Body() updateBotDto: any, @Req() req: Request) {
-    console.log("route hit")
-    console.log(updateBotDto);
+   
     return this.botService.update(updateBotDto,req);
   }
 

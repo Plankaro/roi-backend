@@ -36,13 +36,20 @@ import { AnalyticsModule } from './analytics/analytics.module';
 
 import { BotModule } from './bot/bot.module';
 import { TagsModule } from './tags/tags.module';
+import { ServeStaticModule } from '@nestjs/serve-static';
+import { join } from 'path';
 
 
 
 
 @Module({
   imports: [
+
     ConfigModule.forRoot({ isGlobal: true }),
+    ServeStaticModule.forRoot({
+      rootPath: join(__dirname, '..', 'public'),
+      serveRoot: '/static', // Optional: serves files under '/static' path
+    }),
     CacheModule.register(),
     BullModule.forRoot({
       connection: {
