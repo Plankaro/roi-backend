@@ -107,11 +107,10 @@ console.log('isFromRoiMagnet',isFromRoiMagnet)
             Order: { connect: { id: orderId } },
           },
         });
+        
         if(findBusiness.is_google_analytics_connected){
           const type = findLink.campaign
-          const createEvent = await this.trackGa4Event(
-
-          )
+          
             
           
         }
@@ -150,7 +149,14 @@ console.log('findUrl',findUrl)
         });
         console.log(update);
 
-       
+       const res = await this.trackGa4Event(
+          "campaign",
+          Number(getOrder.amount),
+          getOrder.created_at,
+          findLink?.campaign?.name || 'ROI Magnet',
+          findBusiness
+        )
+        Logger.log('res',res)
 
         return;
       }
@@ -286,14 +292,18 @@ console.log('findUrl',findUrl)
         },
       ],
     };
+    Logger.log('payload',payload)
   
     try {
       const res = await axios.post(endpoint, payload, {
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' }, 
       });
+      console.log(res);
+
       if (res.status !== 204) {
         console.warn(`GA4 responded with status ${res.status}`, res.data);
       }
+      return res.data;
     } catch (err: any) {
       console.error('Error sending GA4 event:', err.response?.data || err.message);
     }

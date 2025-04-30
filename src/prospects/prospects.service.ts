@@ -223,11 +223,9 @@ export class ProspectsService {
         where: {
           id,
         },
-        include: {
-          order: true,
-        },
+       
       });
-      console.log;
+      
       return response;
     } catch (error) {
       throw new InternalServerErrorException(error);

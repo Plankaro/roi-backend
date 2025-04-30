@@ -20,18 +20,10 @@ export class OrdersController {
   }
 
   @Get('/customer/:id')
-  findOne(@Param('id') id: string,req: any) {
+  findOne(@Param('id') id: string,@Req() req: any) {
     console.log(req)
     return this.ordersService.findOrderforCustomer(id,req);
   }
 
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() updateOrderDto: UpdateOrderDto) {
-    return this.ordersService.update(+id, updateOrderDto);
-  }
-
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.ordersService.remove(+id);
-  }
+ 
 }

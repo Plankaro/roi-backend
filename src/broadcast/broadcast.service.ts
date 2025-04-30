@@ -364,7 +364,7 @@ export class BroadcastService {
       });
 
       if (!broadcast) {
-        throw new Error('Broadcast not found');
+        throw new NotFoundException('Broadcast not found');
       }
 
       // Execute all queries concurrently

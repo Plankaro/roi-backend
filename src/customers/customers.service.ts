@@ -159,6 +159,7 @@ export class CustomersService {
 
   async getCustomerById(customerId: string, req: any) {
     const buisness = req.user.business ;
+    console.log(customerId);
     const config = getShopifyConfig(buisness);
     const query = `
   query ($id: ID!) {

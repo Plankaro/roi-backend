@@ -27,8 +27,6 @@ import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { UpdateProfileDto } from './dto/update-user.dto';
 
-
-
 @Injectable()
 export class AuthService {
   constructor(
@@ -37,12 +35,12 @@ export class AuthService {
     @InjectRedis() private readonly redis: Redis,
     private readonly sendgridService: SendgridService,
     @InjectQueue('webhookSubscribe') private readonly webhookSubscribe: Queue,
-    @InjectQueue('webhookUnsubscribe') private readonly webhookUnsubscribe:Queue,
+    @InjectQueue('webhookUnsubscribe')
+    private readonly webhookUnsubscribe: Queue,
   ) {}
 
   async login(LoginDto: LoginDto) {
     try {
-      
       const user = await this.databaseService.user.findUnique({
         where: {
           email: LoginDto.email,
@@ -58,7 +56,6 @@ export class AuthService {
         },
       });
 
-
       if (!user) throw new UnauthorizedException('no user  found');
       if (!user.password)
         throw new BadRequestException('User is registered with auth provider');
@@ -66,7 +63,6 @@ export class AuthService {
       if (!isUserVErified) throw new ForbiddenException('User is not verified');
       const isMatch = await compare(LoginDto.password, user.password);
 
-      
       if (!isMatch)
         throw new UnauthorizedException('Invalid email or password');
       const userTokens = await this.getTokens(user.id, user.email);
@@ -100,20 +96,22 @@ export class AuthService {
     try {
       const user = req.user;
       const userDetails = {
-        name:user.name,
-        email:user.email,
-        image:user.image , 
-        role:user.role,
-       
-
-      }
+        name: user.name,
+        email: user.email,
+        image: user.image,
+        role: user.role,
+        ManageBroadcast: user.ManageBroadcast,
+        manageBots: user.ManageBroadcast,
+        manageCampaign: user.manageCampaign,
+        assignChat: user.assignChat,
+      };
       return userDetails;
     } catch (error) {
       throw new InternalServerErrorException(error);
     }
   }
-  async updateUser(UpdateProfileDto:UpdateProfileDto,req:any){
-    const user = req.user
+  async updateUser(UpdateProfileDto: UpdateProfileDto, req: any) {
+    const user = req.user;
     try {
       const userEdit = await this.databaseService.user.findUnique({
         where: {
@@ -124,21 +122,23 @@ export class AuthService {
       if (!userEdit) {
         throw new NotFoundException('User not found');
       }
-     
 
-      const data = {}
-      if(UpdateProfileDto.name) data['name'] = UpdateProfileDto.name
-      if(UpdateProfileDto.image) data['image'] = UpdateProfileDto.image
+      const data = {};
+      if (UpdateProfileDto.name) data['name'] = UpdateProfileDto.name;
+      if (UpdateProfileDto.image) data['image'] = UpdateProfileDto.image;
 
-      if(UpdateProfileDto.newPassword){
-        const isMatch = await compare(UpdateProfileDto.currentPassword, userEdit.password);
+      if (UpdateProfileDto.newPassword) {
+        const isMatch = await compare(
+          UpdateProfileDto.currentPassword,
+          userEdit.password,
+        );
 
-        if (!isMatch){
+        if (!isMatch) {
           throw new UnauthorizedException('Invalid current password');
         }
 
         const hashedPassword = await hash(UpdateProfileDto.newPassword, 10);
-        data['password'] = hashedPassword
+        data['password'] = hashedPassword;
       }
 
       await this.databaseService.user.update({
@@ -147,13 +147,10 @@ export class AuthService {
         },
         data,
       });
-    
-
-
-  }catch(error){
-    throw new InternalServerErrorException(error);
+    } catch (error) {
+      throw new InternalServerErrorException(error);
+    }
   }
-}
 
   async register(registerAuthDto: RegisterAuthDto) {
     try {
@@ -164,7 +161,6 @@ export class AuthService {
 
       const name = `${registerAuthDto.firstName} ${registerAuthDto.lastName}`;
       const hashedPassword = await hash(registerAuthDto.password, 10);
-  
 
       // Create the business in the database
       const buisness = await this.databaseService.business.create({
@@ -209,14 +205,12 @@ export class AuthService {
 
   async getTokenLink(email: string) {
     try {
-     
       const user = await this.databaseService.user.findUnique({
         where: {
           email: email,
         },
       });
 
-      
       if (!user) {
         throw new BadRequestException('Email not registered');
       }
@@ -338,8 +332,6 @@ export class AuthService {
 
   async RefreshToken(refresh_token: string) {
     try {
- 
-
       const token = refresh_token.replace(/^Bearer\s/, '').trim();
 
       const secret = process.env.REFRESH_TOKEN_JWT_SECRET;
@@ -353,7 +345,6 @@ export class AuthService {
       const verifyToken = await this.jwtService.verifyAsync(token, {
         secret,
       });
-    
 
       if (!verifyToken) {
         console.error('[RefreshToken] Token verification failed');
@@ -363,12 +354,8 @@ export class AuthService {
       const user = await this.databaseService.user.findUnique({
         where: {
           id: verifyToken.sub,
-    
-        
         },
       });
-
-    
 
       if (!user) {
         console.error(
@@ -378,7 +365,6 @@ export class AuthService {
       }
 
       const userTokens = await this.getTokens(user.id, user.email);
-      
 
       await this.databaseService.user.update({
         where: { id: user.id },
@@ -422,18 +408,18 @@ export class AuthService {
     };
   }
 
-  async installShopify(shop: string,req:any) {
+  async installShopify(shop: string, req: any) {
     try {
-      const user = req.user
-      
+      const user = req.user;
+
       // if(user.role !== 'ADMIN') {
       //   throw new UnauthorizedException('You are not allowed to install shopify');
       // }
       const state = randomBytes(16).toString('hex');
-      if(!shop) {
+      if (!shop) {
         throw new BadRequestException('Shopify domain is required');
       }
- 
+
       const installUrl = encodeURI(
         `https://${shop}/admin/oauth/authorize` +
           `?client_id=${process.env.SHOPIFY_CLIENT_ID}` +
@@ -448,16 +434,13 @@ export class AuthService {
       };
       await this.redis.set(state, JSON.stringify(shopifyData), 'EX', 60 * 5);
 
-
       return {
-        installUrl: installUrl}
-    } catch (error) {
-
-    }
+        installUrl: installUrl,
+      };
+    } catch (error) {}
   }
 
   async verfifyShopifyCallback(query: Record<string, string>, res: Response) {
-
     // 1. Verify HMAC
     const secret = process.env.SHOPIFY_CLIENT_SECRET;
     if (!secret) {
@@ -472,18 +455,15 @@ export class AuthService {
       .sort()
       .map((key) => `${key}=${restParams[key]}`)
       .join('&');
-    
 
     const generatedHmac = createHmac('sha256', secret)
       .update(message)
       .digest('hex');
-    
 
     if (generatedHmac !== hmac) {
       console.error('[Callback] HMAC validation failed');
       throw new BadRequestException('HMAC validation failed');
     }
-
 
     // 2. Exchange code for access token
     const apiKey = process.env.SHOPIFY_CLIENT_ID;
@@ -492,7 +472,6 @@ export class AuthService {
       throw new InternalServerErrorException('Missing SHOPIFY_API_KEY');
     }
 
-   
     let tokenResponse;
     const payload = {
       client_id: apiKey,
@@ -500,13 +479,11 @@ export class AuthService {
       code: query.code,
     };
 
-
     try {
       tokenResponse = await axios.post(
         `https://${query.shop}/admin/oauth/access_token`,
         payload,
       );
-      
     } catch (err) {
       console.error(
         '[Callback] Token exchange error:',
@@ -519,22 +496,18 @@ export class AuthService {
     }
 
     const accessToken = tokenResponse.data.access_token;
-   
 
     // 3. Persist the token where appropriate (DB, Redis, etc.)
     // Example: await this.redisService.getClient().set(`shopify:token:${restParams.shop}`, accessToken);
-   
 
     // 4. Redirect to app UI
-   const data = await this.redis.get(query.state);
-   
-const parsedData = JSON.parse(data);
+    const data = await this.redis.get(query.state);
+
+    const parsedData = JSON.parse(data);
     if (!data) return res.redirect(`${process.env.CLIENT_URL}/settings`);
     const { buisness_id, shop } = parsedData;
 
     const hashedToken = await encrypt(accessToken);
-
-    
 
     const buisness = await this.databaseService.business.update({
       where: {
@@ -544,79 +517,68 @@ const parsedData = JSON.parse(data);
         shopify_Token: hashedToken,
         shopify_domain: shop,
         is_shopify_connected: true,
-        shopify_url:shop,
+        shopify_url: shop,
       },
     });
-
-    
-
-
 
     await this.redis.del(query.state);
 
     await this.webhookSubscribe.add(
-      "shopify_app_install",
-      {buisness_id: buisness_id},
+      'shopify_app_install',
+      { buisness_id: buisness_id },
       {
         delay: 0,
         removeOnComplete: true,
         removeOnFail: false,
-        attempts:2,
-      }
+        attempts: 2,
+      },
     );
-
-
-
-
 
     return res.redirect(`${process.env.CLIENT_URL}/settings`);
   }
 
-  async uninstallShopify(res:any) {
+  async uninstallShopify(res: any) {
     const user = res.user;
     const buisness = await this.databaseService.business.findUnique({
       where: {
         id: user.business.id,
-        employees:{
-          some:{
+        employees: {
+          some: {
             id: user.id,
             role: 'ADMIN',
-          }
-        }
+          },
+        },
       },
-
     });
-
 
     if (!buisness) {
       throw new BadRequestException(
         'Only admin have acess to uninstall shopify',
       );
-
     }
     const updateShopify = await this.databaseService.business.update({
-      where:{
-        id:buisness.id
+      where: {
+        id: buisness.id,
       },
-      data:{
-        is_shopify_connected:false,
-        shopify_Token:null,
-        shopify_domain:null,
-      }
-    })
+      data: {
+        is_shopify_connected: false,
+        shopify_Token: null,
+        shopify_domain: null,
+      },
+    });
 
     await this.webhookUnsubscribe.add(
-      "shopify_app_install",
-      {shopify_domain: buisness.shopify_domain,shopify_Token:buisness.shopify_Token},
+      'shopify_app_install',
+      {
+        shopify_domain: buisness.shopify_domain,
+        shopify_Token: buisness.shopify_Token,
+      },
       {
         delay: 0,
         removeOnComplete: true,
         removeOnFail: false,
-        attempts:2,
-      }
+        attempts: 2,
+      },
     );
-
-
   }
-
 }
