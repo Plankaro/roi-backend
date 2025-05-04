@@ -134,22 +134,25 @@ export function getTagsArray(tagsInput) {
 
 // Returns true if every tag in tagsFromDb is exactly present in the extracted tags array.
 export function allTagsPresent(tagsFromField, tagsFromDb) {
-  if (tagsFromDb.length === 0) return true;
+  if (tagsFromDb.length === 0) return false;
   const fieldTags = getTagsArray(tagsFromField);
+  if(fieldTags.length === 0) return false;
   return tagsFromDb.every((tag) => fieldTags.includes(tag));
 }
 
 // Returns true if at least one tag in tagsFromDb is exactly present in the extracted tags array.
 export function anyTagPresent(tagsFromField, tagsFromDb) {
-  if (tagsFromDb.length === 0) return true;
+  if (tagsFromDb.length === 0) return false;
   const fieldTags = getTagsArray(tagsFromField);
+  if(fieldTags.length === 0) return false;
   return tagsFromDb.some((tag) => fieldTags.includes(tag));
 }
 
 // Returns true if none of the tags in tagsFromDb is present in the extracted tags array.
 export function noneTagPresent(tagsFromField, tagsFromDb) {
-  if (tagsFromDb.length === 0) return true;
+  if (tagsFromDb.length === 0) return false;
   const fieldTags = getTagsArray(tagsFromField);
+  if(fieldTags.length === 0) return false;
   return tagsFromDb.every((tag) => !fieldTags.includes(tag));
 }
 

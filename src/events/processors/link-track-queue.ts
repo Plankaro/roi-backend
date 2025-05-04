@@ -2,7 +2,13 @@ import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
 import { Injectable, Logger } from '@nestjs/common';
 import { DatabaseService } from 'src/database/database.service';
-import { decrypt, getMetaPixelConfig, getShopifyConfig, getgoogleAnalyticsConfig, sanitizePhoneNumber } from 'utils/usefulfunction';
+import {
+  decrypt,
+  getMetaPixelConfig,
+  getShopifyConfig,
+  getgoogleAnalyticsConfig,
+  sanitizePhoneNumber,
+} from 'utils/usefulfunction';
 import { ShopifyService } from 'src/shopify/shopify.service';
 
 import _ from 'lodash';
@@ -55,7 +61,7 @@ export class LinkTrackQueue extends WorkerHost {
 
     const config = getShopifyConfig(findBusiness);
 
-    const order:any = await this.getOrderById(getOrder.shopify_id, config);
+    const order: any = await this.getOrderById(getOrder.shopify_id, config);
 
     if (!order) {
       console.warn(
@@ -72,7 +78,7 @@ export class LinkTrackQueue extends WorkerHost {
 
       const isFromRoiMagnet =
         firstSource === 'roi_magnet' || lastSource === 'roi_magnet';
-console.log('isFromRoiMagnet',isFromRoiMagnet)
+      console.log('isFromRoiMagnet', isFromRoiMagnet);
       if (!isFromRoiMagnet) {
         return;
       }
@@ -84,7 +90,7 @@ console.log('isFromRoiMagnet',isFromRoiMagnet)
           checkout_id: getOrder.db_checkout_id,
           prospect: { phoneNo: sanitizedPhone },
           buisness: { id: findBusiness.id },
-          order_generated: false,
+
           is_test_link: false,
           chat: {
             createdAt: { gte: seventyFourHoursAgo, lte: twoHoursAgo },
@@ -95,26 +101,42 @@ console.log('isFromRoiMagnet',isFromRoiMagnet)
         orderBy: {
           last_click: 'desc', // ↪️ sort so the newest click comes first
         },
-        include: { Order: true,campaign: true },
+        include: { Order: true, campaign: true },
       });
-      console.log('findLink',findLink)
+      console.log('findLink', findLink);
 
       if (findLink) {
         const update = await this.databaseService.linkTrack.update({
           where: { id: findLink.id },
           data: {
-            order_generated: true,
             Order: { connect: { id: orderId } },
           },
+          include: {
+            campaign: true,
+          },
         });
-        
-        if(findBusiness.is_google_analytics_connected){
-          const type = findLink.campaign
-          
-            
-          
+
+        if (findBusiness.is_google_analytics_connected) {
+          await this.trackGa4Event(
+            'campaign',
+            Number(getOrder.amount),
+            getOrder.currency,
+            getOrder.created_at,
+            update?.campaign?.name || 'ROI Magnet',
+            findBusiness,
+          );
         }
-      
+
+        if (findBusiness.is_meta_pixel) {
+          // await this.trackMetaPixelEvent(
+          //   "campaign",
+          //   Number(getOrder.amount),
+          //   getOrder.currency,
+          //   getOrder.created_at,
+          //   update?.campaign?.name || 'ROI Magnet',
+          //   findBusiness
+          // )
+        }
 
         return;
       }
@@ -126,7 +148,6 @@ console.log('isFromRoiMagnet',isFromRoiMagnet)
           prospect: { phoneNo: sanitizedPhone },
           buisness: { id: findBusiness.id },
           checkout_id: null,
-          order_generated: false,
           is_test_link: false,
           // chat: {
           //   createdAt: { gte: seventyFourHoursAgo, lte: twoHoursAgo },
@@ -138,26 +159,62 @@ console.log('isFromRoiMagnet',isFromRoiMagnet)
           last_click: 'desc', // ↪️ sort so the newest click comes first
         },
       });
-console.log('findUrl',findUrl)
+      console.log('findUrl', findUrl);
       if (findUrl) {
         const update = await this.databaseService.linkTrack.update({
           where: { id: findUrl.id },
           data: {
-            order_generated: true,
             Order: { connect: { id: getOrder.id } },
+          },
+          include: {
+            campaign: true,
+          broadcast: true
           },
         });
         console.log(update);
-
-       const res = await this.trackGa4Event(
-          "campaign",
-          Number(getOrder.amount),
-          getOrder.created_at,
-          findLink?.campaign?.name || 'ROI Magnet',
-          findBusiness
-        )
-        Logger.log('res',res)
-
+        if(update.type==="BROADCAST"){
+          if(findBusiness.is_google_analytics_connected){
+            await this.trackGa4Event(
+              'broadcast',
+              Number(getOrder.amount),
+              getOrder.currency,
+              getOrder.created_at,
+              update?.broadcast?.name || 'ROI Magnet',
+              findBusiness,
+            );
+          }
+          if(findBusiness.is_meta_pixel){
+            // await this.trackMetaPixelEvent(
+            //   "broadcast",
+            //   Number(getOrder.amount),
+            //   getOrder.currency,
+            //   getOrder.created_at,
+            //   update?.broadcast?.name || 'ROI Magnet',
+            //   findBusiness
+            // )
+          }
+        }else if(update.type==="CAMPAIGN"){
+          if(findBusiness.is_google_analytics_connected){
+            await this.trackGa4Event(
+              'campaign',
+              Number(getOrder.amount),
+              getOrder.currency,
+              getOrder.created_at,
+              update?.campaign?.name || 'ROI Magnet',
+              findBusiness,
+            );
+          }
+          if(findBusiness.is_meta_pixel){
+            // await this.trackMetaPixelEvent(
+            //   "campaign",
+            //   Number(getOrder.amount),
+            //   getOrder.currency,
+            //   getOrder.created_at,
+            //   update?.campaign?.name || 'ROI Magnet',
+            //   findBusiness
+            // )
+          }
+        }
         return;
       }
     }
@@ -165,17 +222,21 @@ console.log('findUrl',findUrl)
 
   async getOrderById(
     orderId: string,
-    config: any
+    config: any,
   ): Promise<{
     customerJourney: {
-      firstVisit?: { /* …utmParameters & occurredAt… */ }
-      lastVisit?: { /* …utmParameters & occurredAt… */ }
-    }
-    amount: number
-    phone: string | null
+      firstVisit?: {
+        /* …utmParameters & occurredAt… */
+      };
+      lastVisit?: {
+        /* …utmParameters & occurredAt… */
+      };
+    };
+    amount: number;
+    phone: string | null;
   } | null> {
     console.log(`Fetching minimal order data for ${orderId}`);
-  
+
     const query = /* GraphQL */ `
       query getMinimalOrder($id: ID!) {
         order(id: $id) {
@@ -214,14 +275,14 @@ console.log('findUrl',findUrl)
       }
     `;
     const variables = { id: `gid://shopify/Order/6241744486652` };
-  
+
     try {
       const { data, errors } = await this.shopifyService.executeGraphQL(
         query,
         variables,
-        config
+        config,
       );
-  
+
       if (errors?.length) {
         console.error(`GraphQL errors fetching minimal order:`, errors);
         return null;
@@ -231,72 +292,70 @@ console.log('findUrl',findUrl)
         console.warn(`No order returned for ${orderId}`);
         return null;
       }
-  
+
       const customerJourney = order.customerJourney;
       console.log('customerJourney', customerJourney);
       const amount = parseFloat(order.totalPriceSet.shopMoney.amount);
       const phone = order.customer?.phone ?? null;
-  
+
       console.log(
-        `Got minimal order data — amount: ${amount}, phone: ${phone}`
+        `Got minimal order data — amount: ${amount}, phone: ${phone}`,
       );
       return { customerJourney, amount, phone };
     } catch (err: any) {
       console.error(
         `Error in getOrderById minimal fetch for ${orderId}:`,
-        err.stack || err.message
+        err.stack || err.message,
       );
       throw err;
     }
   }
-  
 
-
-
- async  trackGa4Event(
+  async trackGa4Event(
     type: string,
     order_amount: number,
+    order_currency: string,
     createdAt: string | Date,
     name: string,
-    business: any
+    business: any,
   ): Promise<void> {
-
     const config = getgoogleAnalyticsConfig(business);
-    const {mesurementId, apiSecret} = config
-    if(!mesurementId || !apiSecret) {
-      return
+    const { mesurementId, apiSecret } = config;
+    if (!mesurementId || !apiSecret) {
+      return;
     }
-    
+
     const endpoint =
       `https://www.google-analytics.com/mp/collect` +
       `?measurement_id=${mesurementId}` +
       `&api_secret=${apiSecret}`;
-  
+
     // Use crypto.randomUUID() for a v4 UUID
     const clientId = randomUUID();
-  
+
     // GA4 expects timestamp in microseconds
     const timestampMicros =
       (new Date(createdAt).getTime() || Date.now()) * 1000;
-  
+
     const payload = {
-      client_id:        clientId,
+      client_id: clientId,
       timestamp_micros: timestampMicros,
       events: [
         {
           name: type,
           params: {
             name,
-            order_amount,
+            value: order_amount,
+            currency: order_currency,
           },
         },
       ],
     };
-    Logger.log('payload',payload)
-  
+    Logger.log('payload', payload);
+
     try {
       const res = await axios.post(endpoint, payload, {
-        headers: { 'Content-Type': 'application/json' }, 
+        headers: { 'Content-Type': 'application/json' },
       });
       console.log(res);
 
@@ -305,64 +364,66 @@ console.log('findUrl',findUrl)
       }
       return res.data;
     } catch (err: any) {
-      console.error('Error sending GA4 event:', err.response?.data || err.message);
+      console.error(
+        'Error sending GA4 event:',
+        err.response?.data || err.message,
+      );
     }
   }
 
-   async  trackMetaPixelEvent(
+  async trackMetaPixelEvent(
     type: string,
     order_amount: number,
+    order_currency: string,
     createdAt: string | Date,
     name: string,
     business: any,
     userIp?: string,
     userAgent?: string,
-    
   ): Promise<void> {
-    const  { pixelId } = getMetaPixelConfig(business);
+    const { pixelId } = getMetaPixelConfig(business);
     const endpoint = `https://graph.facebook.com/v14.0/${pixelId}/events`;
     const eventTime = Math.floor(new Date(createdAt).getTime() / 1000);
-    const eventId   = randomUUID();
-  
+    const eventId = randomUUID();
+
     // Conversions API requires a user_data block for matching quality.
     // Fill in whatever you have: email (hashed), phone (hashed), ip, ua, etc.
     const user_data: Record<string, any> = {};
-    if (userIp)    user_data.client_ip_address = userIp;
-    if (userAgent) user_data.client_user_agent   = userAgent;
-  
+    if (userIp) user_data.client_ip_address = userIp;
+    if (userAgent) user_data.client_user_agent = userAgent;
+
     const payload = {
       data: [
         {
-          event_name:      type,
-          event_time:      eventTime,
-          event_id:        eventId,
-          action_source:   'website',
-          event_source_url:'',             // optionally track page URL
+          event_name: type,
+          event_time: eventTime,
+          event_id: eventId,
+          action_source: 'website',
+          // optionally track page URL
           user_data,
           custom_data: {
-            value:           order_amount,
-            currency:        'USD',         // swap your currency code
-            content_name:    name,
-          }
-        }
+            value: order_amount,
+            currency: order_currency, // swap your currency code
+            content_name: name,
+          },
+        },
       ],
-      partner_agent: 'your-server',       // optional identifier
+      partner_agent: 'roi-magnet', // optional identifier
     };
-  
+
     try {
-      const res = await axios.post(
-        endpoint,
-        payload,
-        {
-          params: { access_token: decrypt(business?.whatsapp_token) },
-          headers: { 'Content-Type': 'application/json' }
-        }
-      );
+      const res = await axios.post(endpoint, payload, {
+        params: { access_token: decrypt(business?.whatsapp_token) },
+        headers: { 'Content-Type': 'application/json' },
+      });
       if (res.data.error) {
         console.error('Meta Pixel API error:', res.data.error);
       }
     } catch (err: any) {
-      console.error('Failed to send Meta Pixel event:', err.response?.data || err.message);
+      console.error(
+        'Failed to send Meta Pixel event:',
+        err.response?.data || err.message,
+      );
     }
   }
 }

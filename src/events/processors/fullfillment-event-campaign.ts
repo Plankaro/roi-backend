@@ -258,8 +258,8 @@ export class FullfillmentEventCampaign extends WorkerHost {
     if (campaign.filters.is_order_count_filter_enabled) {
       const orderCount = Number(orderById.customer.OrderCount);
       const {
-        order_count_greater_or_equal: minAmount,
-        order_count_less_or_equal: maxAmount,
+        order_count_filter_greater_or_equal: minAmount,
+        order_count_filter_less_or_equal: maxAmount,
         order_count_min: rangeMin,
         order_count_max: rangeMax,
       } = campaign.filters;

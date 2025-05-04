@@ -312,11 +312,11 @@ export class CreateFilterDto {
 
     @IsOptional()
     @IsNumber()
-    order_count_greater_or_equal: number;
+    order_count_filter_greater_or_equal: number;
 
     @IsOptional()
     @IsNumber()
-    order_count_less_or_equal: number;
+    order_count_filter_less_or_equal: number;
     @IsOptional()
     @IsNumber()
     order_count_min: number;

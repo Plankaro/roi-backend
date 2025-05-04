@@ -22,7 +22,7 @@ export class UpdatedCheckoutQueue extends WorkerHost {
      })
      if(!checkifavailabe) return
  
-     const updatedCheckout = await this.databaseService.checkout.update({
+     await this.databaseService.checkout.update({
        where: {
          shopify_id:`${checkOutData.id}`,
        },

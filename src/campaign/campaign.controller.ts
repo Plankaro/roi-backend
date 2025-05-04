@@ -30,6 +30,12 @@ updateCampaign(@Param('id') id: string,@Body() updateCampaignDto: any,@Req() req
   return this.campaignService.updateCampaign(updateCampaignDto,req,id);
 }
 
+@Patch('/status/:id')
+changeCampaignStatus(@Param('id') id: string,@Body() status: any,@Req() req:any){
+  console.log(status);
+  return this.campaignService.changeCampaignStatus(id,status,req);
+}
+
 
 
 

@@ -1,6 +1,11 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Job, tryCatch } from 'bullmq';
-import { Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { DatabaseService } from 'src/database/database.service';
 import { discount_type } from '@prisma/client';
 import {
@@ -21,9 +26,6 @@ import {
   noneTagPresent,
 } from 'utils/usefulfunction';
 import { Order } from 'src/orders/entities/order.entity';
-import { Campaign } from 'src/campaign/entities/campaign.entity';
-import { add } from 'date-fns';
-import { url } from 'inspector';
 
 @Processor('createCheckoutCampaign')
 @Injectable()
@@ -38,11 +40,8 @@ export class CreateCheckoutCampaign extends WorkerHost {
 
   async process(job: Job<any>): Promise<void> {
     try {
-    
-
       const { checkoutId, campaignId } = job.data;
-      console.log(campaignId)
-    
+      console.log(campaignId);
 
       const [checkout, campaign] = await this.databaseService.$transaction([
         this.databaseService.checkout.findUnique({
@@ -58,253 +57,329 @@ export class CreateCheckoutCampaign extends WorkerHost {
         }),
       ]);
 
-    
-
-      if (
-        campaign?.related_order_created &&
-        checkout.completedAt !== null
-      )
-        return null;
-
+      if (campaign?.related_order_created && checkout.completedAt !== null) {
+        console.log('order already created');
+        return;
+      }
       const order = await this.databaseService.order.findUnique({
         where: { checkout_id: checkout.shopify_id },
       });
-      console.log(order)
+
+      //realted order canceleed 
+      if(campaign.related_order_cancelled && order?.cancelled_at !== null){
+        console.log('order already cancelled');
+        return;
+      }
+
       //get order
-   
-        if (order?.tags && campaign.filters.is_order_tag_filter_enabled) {
-          console.log('order tags', order?.tags);
-          const tagsfromField = getTagsArray(order?.tags);
-          console.log('tagsfromField', tagsfromField);
 
-          if (campaign.filters.order_tag_filter_all.length > 0) {
-          
-            if (
-              !allTagsPresent(
-                tagsfromField,
-                campaign.filters.order_tag_filter_all,
-              )
+      if (order?.tags && campaign.filters.is_order_tag_filter_enabled) {
+        console.log('order tags', order?.tags);
+        const tagsfromField = getTagsArray(order?.tags);
+        console.log('tagsfromField', tagsfromField);
+
+        if (campaign.filters.order_tag_filter_all.length > 0) {
+          if (
+            !allTagsPresent(
+              tagsfromField,
+              campaign.filters.order_tag_filter_all,
             )
-              return;
-          }
-          if (campaign.filters.order_tag_filter_any.length > 0) {
-            if (
-              !anyTagPresent(
-                tagsfromField,
-                campaign.filters.order_tag_filter_any,
-              )
-            )
-              return;
-          }
-          if (campaign.filters.order_tag_filter_none.length > 0) {
-            if (
-              !noneTagPresent(
-                tagsfromField,
-                campaign.filters.order_tag_filter_none,
-              )
-            )
-              return;
+          ) {
+            return;
           }
         }
-        const shopifyConfig = getShopifyConfig(campaign.Business);
-        const customer = checkout.customer as any;
-        const getCustomerById = await this.getCustomerById(
-          customer?.id?.toString(),
-          shopifyConfig,
-        );
-        //customer filter
-        if (campaign.filters.is_customer_tag_filter_enabled) {
-          const tagsfromField = getTagsArray(getCustomerById?.tags);
-          if (campaign.filters.customer_tag_filter_all.length > 0) {
-            if (
-              !allTagsPresent(
-                tagsfromField,
-                campaign.filters.customer_tag_filter_all,
-              )
-            )
-              return;
-          }
-          if (campaign.filters.customer_tag_filter_any.length > 0) {
-            if (
-              !anyTagPresent(
-                tagsfromField,
-                campaign.filters.customer_tag_filter_any,
-              )
-            )
-              return;
-          }
-          if (campaign.filters.customer_tag_filter_none.length > 0) {
-            if (
-              !noneTagPresent(
-                tagsfromField,
-                campaign.filters.customer_tag_filter_none,
-              )
-            )
-          
-              return;
-          }
-        }
-        //ProductTags
-
-        const products = checkout.lineItems as any;
-        const ProductList = await this.getProductsByIdArray(
-          products,
-          shopifyConfig,
-        );
-        if (ProductList && campaign.filters.is_product_tag_filter_enabled) {
-          const tagsFromField = getTagsArray(
-            ProductList?.map((products) => products.tags),
+        if (campaign.filters.order_tag_filter_any.length > 0) {
+          console.log(
+            'order tag filter any',
+            anyTagPresent(tagsfromField, campaign.filters.order_tag_filter_any),
           );
-          if (campaign.filters.product_tag_filter_all.length > 0) {
-            if (
-              !allTagsPresent(
-                tagsFromField,
-                campaign.filters.product_tag_filter_all,
-              )
-            )
-              return;
-          }
-          if (campaign.filters.product_tag_filter_any.length > 0) {
-            if (
-              !anyTagPresent(
-                tagsFromField,
-                campaign.filters.product_tag_filter_any,
-              )
-            )
-              return;
-          }
-          if (campaign.filters.product_tag_filter_none.length > 0) {
-            if (
-              !noneTagPresent(
-                tagsFromField,
-                campaign.filters.product_tag_filter_none,
-              )
-            )
-              return;
-          }
-        }
-        //discount_code
-        if (campaign.filters.is_discount_code_filter_enabled) {
-          const discount_code = checkout.discountCodes as any;
-          const discountCodeArray = discount_code?.map((code) => code.code);
           if (
-            campaign.filters.discount_code_filter_any.length > 0 &&
-            !campaign.filters.discount_code_filter_any.some((tag) =>
-              discountCodeArray.includes(tag),
-            )
+            !anyTagPresent(tagsfromField, campaign.filters.order_tag_filter_any)
           ) {
             return;
           }
+        }
+        if (campaign.filters.order_tag_filter_none.length > 0) {
           if (
-            campaign.filters.discount_code_filter_none.length > 0 &&
-            !campaign.filters.discount_code_filter_none.every((tag) =>
-              discountCodeArray.includes(tag),
+            !noneTagPresent(
+              tagsfromField,
+              campaign.filters.order_tag_filter_none,
             )
           ) {
             return;
           }
         }
+      }
 
-        if (campaign.filters.is_payment_gateway_filter_enabled) {
+      const shopifyConfig = getShopifyConfig(campaign.Business);
+      const customer = checkout.customer as any;
+      const getCustomerById = await this.getCustomerById(
+        customer?.id?.toString(),
+        shopifyConfig,
+      );
+      //customer filter
+      if (campaign.filters.is_customer_tag_filter_enabled) {
+        const tagsfromField = getTagsArray(getCustomerById?.tags);
+        if (campaign.filters.customer_tag_filter_all.length > 0) {
           if (
-            campaign.filters.discount_code_filter_any.length > 0 &&
-            !campaign.filters.discount_code_filter_any.includes(checkout.gateway)
-          ) {
-            return;
-          }
-
-          if (
-            campaign.filters.discount_code_filter_none.length > 0 &&
-            campaign.filters.discount_code_filter_none.includes(checkout.gateway)
+            !allTagsPresent(
+              tagsfromField,
+              campaign.filters.customer_tag_filter_all,
+            )
           ) {
             return;
           }
         }
-        //resolving tags\
+        if (campaign.filters.customer_tag_filter_any.length > 0) {
+          if (
+            !anyTagPresent(
+              tagsfromField,
+              campaign.filters.customer_tag_filter_any,
+            )
+          )
+            return;
+        }
+        if (campaign.filters.customer_tag_filter_none.length > 0) {
+          if (
+            !noneTagPresent(
+              tagsfromField,
+              campaign.filters.customer_tag_filter_none,
+            )
+          )
+            return;
+        }
+      }
+      //ProductTags
+
+      const products = checkout.lineItems as any;
+      const ProductList = await this.getProductsByIdArray(
+        products,
+        shopifyConfig,
+      );
+      if (ProductList && campaign.filters.is_product_tag_filter_enabled) {
+        const tagsFromField = getTagsArray(
+          ProductList?.map((products) => products.tags),
+        );
+        if (campaign.filters.product_tag_filter_all.length > 0) {
+          if (
+            !allTagsPresent(
+              tagsFromField,
+              campaign.filters.product_tag_filter_all,
+            )
+          )
+            return;
+        }
+        if (campaign.filters.product_tag_filter_any.length > 0) {
+          if (
+            !anyTagPresent(
+              tagsFromField,
+              campaign.filters.product_tag_filter_any,
+            )
+          )
+            return;
+        }
+        if (campaign.filters.product_tag_filter_none.length > 0) {
+          if (
+            !noneTagPresent(
+              tagsFromField,
+              campaign.filters.product_tag_filter_none,
+            )
+          )
+            return;
+        }
+      }
+      //discount_code
+      if (campaign.filters.is_discount_code_filter_enabled) {
+        const discount_code = checkout.discountCodes as any;
+        const discountCodeArray = discount_code?.map((code) => code.code);
         if (
-          campaign.filters.is_payment_option_filter_enabled &&
-          order?.status &&
-          campaign.filters.payment_options_type !== order.status
+          campaign.filters.discount_code_filter_any.length > 0 &&
+          !campaign.filters.discount_code_filter_any.some((tag) =>
+            discountCodeArray.includes(tag),
+          )
         ) {
           return;
         }
-        if (campaign.filters.is_send_to_unsub_customer_filter_enabled) {
-          if (
-            campaign.filters.send_to_unsub_customer == false &&
-            customer.emailMarketingConsent.marketingState !== 'subscribed'
-          ) {
-            return;
-          }
+        if (
+          campaign.filters.discount_code_filter_none.length > 0 &&
+          !campaign.filters.discount_code_filter_none.every((tag) =>
+            discountCodeArray.includes(tag),
+          )
+        ) {
+          return;
         }
+      }
 
-        if (campaign.filters.is_order_amount_filter_enabled) {
-          const orderAmount = Number(order.amount);
-
-          const {
-            order_amount_filter_greater_or_equal: minAmount,
-            order_amount_filter_less_or_equal: maxAmount,
-            order_amount_min: rangeMin,
-            order_amount_max: rangeMax,
-          } = campaign.filters;
-
-          if (
-            (minAmount && orderAmount < minAmount) ||
-            (maxAmount !== 0 && orderAmount > maxAmount) ||
-            orderAmount < rangeMin ||
-            orderAmount > rangeMax
-          ) {
-            // Order amount is outside the specified range; handle accordingly
-            return;
-          }
-
-          // Proceed with processing the order
+      if (campaign.filters.is_payment_gateway_filter_enabled) {
+        if (
+          campaign.filters.discount_code_filter_any.length > 0 &&
+          !campaign.filters.discount_code_filter_any.includes(checkout.gateway)
+        ) {
+          return;
         }
 
         if (
-          checkout.discountCodes &&
-          campaign.filters.is_discount_amount_filter_enabled
+          campaign.filters.discount_code_filter_none.length > 0 &&
+          campaign.filters.discount_code_filter_none.includes(checkout.gateway)
         ) {
-          const discountCodeArray = checkout.discountCodes as any;
-          const discountAmount = discountCodeArray.reduce((acc, discount) => {
-            return acc + parseFloat(discount.amount);
-          }, 0);
-          const {
-            discount_amount_filter_greater_or_equal: minAmount,
-            discount_amount_filter_less_or_equal: maxAmount,
-            discount_amount_min: rangeMin,
-            discount_amount_max: rangeMax,
-          } = campaign.filters;
-          if (
-            (minAmount && discountAmount < minAmount) ||
-            (maxAmount !== 0 && discountAmount > maxAmount) ||
-            discountAmount < rangeMin ||
-            discountAmount > rangeMax
-          ) {
-            // Order amount is outside the specified range; handle accordingly
-            return;
-          }
+          return;
         }
-        // Proceed with processing the order
-        if (campaign.filters.is_order_count_filter_enabled) {
-          const orderCount = customer.OrderCount;
-          const {
-            order_count_greater_or_equal: minAmount,
-            order_count_less_or_equal: maxAmount,
-            order_count_min: rangeMin,
-            order_count_max: rangeMax,
-          } = campaign.filters;
-          if (
-            (minAmount && orderCount < minAmount) ||
-            (maxAmount !== 0 && orderCount > maxAmount) ||
-            orderCount < rangeMin ||
-            orderCount > rangeMax
-          ) {
-            // Order amount is outside the specified range; handle accordingly
-            return;
-          }
+      }
+      //resolving tags\
+      console.log(
+        campaign.filters.is_payment_option_filter_enabled,
+        'is_payment_option_filter_enabled',
+      );
+      console.log(order);
+      console.log('status', order?.status);
+      console.log(
+        'payment_options_type',
+        campaign.filters.payment_options_type,
+      );
+      // Payment Option Filter
+      console.log(
+        'is_payment_option_filter_enabled:',
+        campaign.filters.is_payment_option_filter_enabled,
+      );
+      if (campaign.filters.is_payment_option_filter_enabled && order?.status) {
+        console.log(
+          'Expected filter:',
+          campaign.filters.payment_options_type,
+          'Actual order.status:',
+          order.status,
+        );
+
+        // If filter = PAID, bail until the order is paid
+        if (
+          campaign.filters.payment_options_type === 'PAID' &&
+          order.status !== 'paid'
+        ) {
+          console.log('Fail: order not yet paid — waiting for PAID status');
+          return;
         }
 
-      
+        // If filter = UNPAID, bail once the order *is* paid
+        if (
+          campaign.filters.payment_options_type === 'UNPAID' &&
+          order.status === 'paid'
+        ) {
+          console.log('Fail: order already paid — skipping UNPAID flow');
+          return;
+        }
+
+        console.log('Pass: payment option filter');
+      }
+
+      if (campaign.filters.is_send_to_unsub_customer_filter_enabled) {
+        if (
+          campaign.filters.send_to_unsub_customer == false &&
+          customer.emailMarketingConsent.marketingState !== 'subscribed'
+        ) {
+          return;
+        }
+      }
+
+      if (campaign.filters.is_order_amount_filter_enabled) {
+        const orderAmount = Number(order.amount);
+        console.log('orderAmount', orderAmount);
+        
+
+        const {
+          order_amount_filter_greater_or_equal: minAmount,
+          order_amount_filter_less_or_equal: maxAmount,
+          order_amount_min: rangeMin,
+          order_amount_max: rangeMax,
+          order_amount_type: orderAmountType,
+        } = campaign.filters;
+        console.log(orderAmountType)
+
+        if (orderAmountType === 'greater' && orderAmount < minAmount) {
+          console.log('orderAmount < minAmount');
+          return;
+        } else if (orderAmountType === 'less' && orderAmount > maxAmount) {
+          console.log('orderAmount > maxAmount');
+          return;
+        } else if (
+          orderAmountType === 'custom' &&
+          (orderAmount < rangeMin || orderAmount > rangeMax)
+        ) {
+          console.log('orderAmount < rangeMin || orderAmount > rangeMax');
+          return;
+        }
+
+        // Proceed with processing the order
+      }
+
+      if (
+        checkout.discountCodes &&
+        campaign.filters.is_discount_amount_filter_enabled
+      ) {
+        const discountCodeArray = checkout.discountCodes as any;
+        const discountAmount = discountCodeArray.reduce((acc, discount) => {
+          return acc + parseFloat(discount.amount);
+        }, 0);
+        const {
+          discount_amount_filter_greater_or_equal: minAmount,
+          discount_amount_filter_less_or_equal: maxAmount,
+          discount_amount_min: rangeMin,
+          discount_amount_max: rangeMax,
+          discount_amount_type: discountAmountType,
+        } = campaign.filters;
+
+        if (discountAmountType === 'greater' && discountAmount < minAmount) {
+          console.log('discountAmount < minAmount');
+          return;
+        } else if (
+          discountAmountType === 'less' &&
+          discountAmount > maxAmount
+        ) {
+          console.log('discountAmount > maxAmount');
+          return;
+        } else if (
+          discountAmountType === 'custom' &&
+          (discountAmount < rangeMin || discountAmount > rangeMax)
+        ) {
+          console.log('discountAmount < rangeMin || discountAmount > rangeMax');
+          return;
+        }
+      }
+      // Proceed with processing the order
+      if (campaign.filters.is_order_count_filter_enabled) {
+        const orderCount = customer.OrderCount;
+        const {
+          order_count_filter_less_or_equal: minAmount,
+          order_count_filter_greater_or_equal: maxAmount,
+          order_count_min: rangeMin,
+          order_count_max: rangeMax,
+          order_count_type: orderCountType,
+        } = campaign.filters;
+
+        if (orderCountType === 'greater' && orderCount < minAmount) {
+          console.log('orderCount < minAmount');
+          return;
+        } else if (orderCountType === 'less' && orderCount > maxAmount) {
+          console.log('orderCount > maxAmount');
+          return;
+        } else if (
+          orderCountType === 'custom' &&
+          (orderCount < rangeMin || orderCount > rangeMax)
+        ) {
+          console.log('orderCount < rangeMin || orderCount > rangeMax');
+          return;
+        }
+      }
+
+      if(campaign.filters.is_order_delivery_filter_enabled){
+       const fullfillment:any = order.fulfillment_status[0];
+       if(!fullfillment){
+        console.log('order not yet fulfilled');
+        return;
+       }
+       if(campaign.filters.order_method!==fullfillment.shipment_status){
+        console.log('order fullfillment failed');
+        return;
+       }
+      }
 
       // Abandoned Checkout Logic
       if (campaign.new_checkout_abandonment_filter === true) {
@@ -314,7 +389,6 @@ export class CreateCheckoutCampaign extends WorkerHost {
             ? '0 minutes'
             : `${trigger_time.time} ${trigger_time.unit}`,
         );
-     
 
         const abandoned_checkout =
           await this.databaseService.checkout.findFirst({
@@ -326,12 +400,9 @@ export class CreateCheckoutCampaign extends WorkerHost {
             },
           });
         if (abandoned_checkout) {
-
-         
           return;
         }
       }
-     
 
       await this.databaseService.checkoutOnCampaign.create({
         data: {
@@ -339,11 +410,9 @@ export class CreateCheckoutCampaign extends WorkerHost {
           campaignId: campaign.id,
         },
       });
-      
 
       const components = [];
       const { header, buttons, body } = campaign.components as any;
-     
 
       const config = getWhatsappConfig(campaign.Business);
       const response = await this.whatsappService.findSpecificTemplate(
@@ -351,14 +420,12 @@ export class CreateCheckoutCampaign extends WorkerHost {
         campaign.template_name,
       );
       const template = response?.data?.[0];
-      if(!template){
+      if (!template) {
         throw new NotFoundException('Template not found');
       }
 
-      const isLinkTrackEnabled:boolean = isTemplateButtonRedirectSafe(
-        template,
-      )
-     
+      const isLinkTrackEnabled: boolean =
+        isTemplateButtonRedirectSafe(template);
 
       const customerId = checkout.customer as any;
       let discount;
@@ -370,13 +437,19 @@ export class CreateCheckoutCampaign extends WorkerHost {
           shopifyConfig,
         );
       }
-    
+
       // // Process header component
       if (header && header.isEditable) {
         let headerValue = '';
         if (header.type === 'TEXT') {
           headerValue = header.fromsegment
-            ? this.getCheckoutValue(checkout, header.segmentname, discount, isLinkTrackEnabled,campaign)
+            ? this.getCheckoutValue(
+                checkout,
+                header.segmentname,
+                discount,
+                isLinkTrackEnabled,
+                campaign,
+              )
             : header.value;
           if (
             template.parameter_format === 'NAMED' &&
@@ -404,7 +477,17 @@ export class CreateCheckoutCampaign extends WorkerHost {
         } else if (header.type === 'IMAGE') {
           components.push({
             type: 'header',
-            parameters: [{ type: 'image', image: { link: header.value==="ProductImage"?ProductList?.[0]?.images?.[0]??"":header.value } }],
+            parameters: [
+              {
+                type: 'image',
+                image: {
+                  link:
+                    header.value === 'ProductImage'
+                      ? (ProductList?.[0]?.images?.[0] ?? '')
+                      : header.value,
+                },
+              },
+            ],
           });
         } else if (header.type === 'VIDEO') {
           components.push({
@@ -419,13 +502,18 @@ export class CreateCheckoutCampaign extends WorkerHost {
             ],
           });
         }
-   
       }
 
       // Process body component parameters
       const bodyParameters = body.map((param) => {
         const value = param.fromsegment
-          ? this.getCheckoutValue(checkout, param.segmentname, discount,isLinkTrackEnabled,campaign)
+          ? this.getCheckoutValue(
+              checkout,
+              param.segmentname,
+              discount,
+              isLinkTrackEnabled,
+              campaign,
+            )
           : param.value || 'test';
         return template.parameter_format === 'NAMED'
           ? {
@@ -436,14 +524,13 @@ export class CreateCheckoutCampaign extends WorkerHost {
           : { type: 'text', text: value };
       });
       components.push({ type: 'body', parameters: bodyParameters });
- 
 
       // Process buttons
-     let trackId;
-     let trackUrl;
+      let trackId;
+      let trackUrl;
       for (const [index, button] of buttons.entries()) {
         console.log(`Button [${index}]:`, button);
-      
+
         if (button.type === 'URL' && button.isEditable === true) {
           if (!isLinkTrackEnabled) {
             components.push({
@@ -454,7 +541,13 @@ export class CreateCheckoutCampaign extends WorkerHost {
                 {
                   type: 'text',
                   text: button.fromsegment
-                    ? this.getCheckoutValue(checkout, button.segmentname, discount,isLinkTrackEnabled,campaign)
+                    ? this.getCheckoutValue(
+                        checkout,
+                        button.segmentname,
+                        discount,
+                        isLinkTrackEnabled,
+                        campaign,
+                      )
                     : button.value,
                 },
               ],
@@ -463,23 +556,27 @@ export class CreateCheckoutCampaign extends WorkerHost {
             const url = await this.databaseService.linkTrack.create({
               data: {
                 link: button.fromsegment
-                ? this.getCheckoutValue(
-                    checkout,
-                    button.segmentname,
-                    discount,
-                  )
-                : button.value,
+                  ? this.getCheckoutValue(
+                      checkout,
+                      button.segmentname,
+                      discount,
+                    )
+                  : button.value,
+                recovered_checkout: button.fromsegment
+                  ? button.segmentname === 'abandon_checkout_url'
+                    ? true
+                    : false
+                  : false,
                 campaign_id: campaign.id,
                 buisness_id: campaign.businessId,
-                utm_source: "roi_magnet",
-                utm_medium: "whatsapp",
+                utm_source: 'roi_magnet',
+                utm_medium: 'whatsapp',
               },
             });
-      
-             trackId = url.id;
-             console.log(trackId)
-             
-      
+
+            trackId = url.id;
+            console.log(trackId);
+
             components.push({
               type: 'button',
               sub_type: 'url',
@@ -506,9 +603,10 @@ export class CreateCheckoutCampaign extends WorkerHost {
           });
         }
       }
-      
-      console.log(JSON.stringify(ProductList,null,2))
-  console.log(JSON.stringify(components,null,2))
+
+      console.log(JSON.stringify(ProductList, null, 2));
+      console.log(JSON.stringify(components, null, 2));
+
 
       const messageResponse = await this.whatsappService.sendTemplateMessage(
         {
@@ -520,20 +618,17 @@ export class CreateCheckoutCampaign extends WorkerHost {
         config,
       );
 
-
       const footer = template.components.find(
-        (component) => component.type === 'footer'
+        (component) => component.type === 'footer',
       );
       let bodycomponent = template.components.find(
-        (component) => component.type.toLowerCase() === 'body'
+        (component) => component.type.toLowerCase() === 'body',
       );
- 
-      
+
       let bodyRawText = '';
       if (bodycomponent && bodycomponent.text) {
         bodyRawText = bodycomponent.text;
-     
-      
+
         // Build a mapping for placeholders from the body parameters
         const mapping = body.reduce(
           (acc, param) => {
@@ -544,74 +639,72 @@ export class CreateCheckoutCampaign extends WorkerHost {
               ? this.getCheckoutValue(checkout, param.segmentname, discount)
               : param.value;
             acc[key] = value;
-            
+
             return acc;
           },
-          {} as Record<string, string | number | null>
+          {} as Record<string, string | number | null>,
         );
-      
-   
-      
+
         // Replace each placeholder in the bodyRawText with its mapped value
         Object.keys(mapping).forEach((placeholder) => {
           const escapedPlaceholder = escapeRegExp(placeholder);
           // Create a regex pattern to match the placeholder wrapped in curly braces,
           // with optional whitespace inside the braces.
           const regex = new RegExp(`{{\\s*${escapedPlaceholder}\\s*}}`, 'g');
-         
+
           bodyRawText = bodyRawText.replace(
             regex,
-            mapping[placeholder] as string
+            mapping[placeholder] as string,
           );
-          
         });
-      
+
         // Remove any remaining curly braces in case some placeholders weren't replaced
         bodyRawText = bodyRawText.replace(/{{|}}/g, '');
-       
       }
 
       const prospect = await this.databaseService.prospect.upsert({
-        where:{
+        where: {
           buisnessId_phoneNo: {
             buisnessId: campaign.Business.id,
-            phoneNo: sanitizePhoneNumber(checkout.phone)
-          }
+            phoneNo: sanitizePhoneNumber(checkout.phone),
+          },
         },
-        update:{},
-        create:{
+        update: {},
+        create: {
           phoneNo: sanitizePhoneNumber(checkout.phone),
           name: checkout.name,
           email: checkout.email,
 
           lead: 'LEAD',
-          buisnessId: campaign.Business.id
-        }
-      })
+          buisnessId: campaign.Business.id,
+        },
+      });
 
-        const updatedButtons = buttons.map((button) => {
-              if (button.type === 'URL' && button.isEditable === true) {
-                const findButtonfromtemplate = template.components.find(
-                  (component) => component.type === 'BUTTONS'
-                );
-                if (findButtonfromtemplate) {
-                  const templateUrlButton = findButtonfromtemplate.buttons.find(
-                    (btn) => btn.type === 'URL'
-                  );
-                  if (templateUrlButton && templateUrlButton.url) {
-                    console.log('Original template URL:', templateUrlButton.url);
-                    const placeholder = '{{1}}';
-                    const finalUrl = templateUrlButton.url.split(placeholder).join(isLinkTrackEnabled? trackUrl : button.value);
-                    console.log('✅ Final URL:', finalUrl);
-                    return {
-                      ...button,
-                      value: finalUrl,
-                    };
-                  }
-                }
-              }
-              return button;
-            });
+      const updatedButtons = buttons.map((button) => {
+        if (button.type === 'URL' && button.isEditable === true) {
+          const findButtonfromtemplate = template.components.find(
+            (component) => component.type === 'BUTTONS',
+          );
+          if (findButtonfromtemplate) {
+            const templateUrlButton = findButtonfromtemplate.buttons.find(
+              (btn) => btn.type === 'URL',
+            );
+            if (templateUrlButton && templateUrlButton.url) {
+              console.log('Original template URL:', templateUrlButton.url);
+              const placeholder = '{{1}}';
+              const finalUrl = templateUrlButton.url
+                .split(placeholder)
+                .join(isLinkTrackEnabled ? trackUrl : button.value);
+              console.log('✅ Final URL:', finalUrl);
+              return {
+                ...button,
+                value: finalUrl,
+              };
+            }
+          }
+        }
+        return button;
+      });
 
       // Save chat record to the database
       // console.log('Creating chat record in DB for contact:', contact);
@@ -637,22 +730,22 @@ export class CreateCheckoutCampaign extends WorkerHost {
           template_components: components,
           isForCampaign: true,
           campaignId: campaign.id,
-          
         },
       });
-      console.log(addTodb.id)
-      const isAbondnedCheckoutUrl = buttons.find((button) => button.type === 'URL' && button.isEditable === true && button.segmentname==="abandon_checkout_url");
-
-
+      console.log(addTodb.id);
+      const isAbondnedCheckoutUrl = buttons.find(
+        (button) =>
+          button.type === 'URL' &&
+          button.isEditable === true &&
+          button.segmentname === 'abandon_checkout_url',
+      );
 
       const matchingButton = updatedButtons?.find(
         (button) =>
           button.type === 'URL' &&
           button.isEditable === true &&
-          button.value?.toLowerCase().startsWith(campaign.Business.shopify_url)
+          button.value?.toLowerCase().startsWith(campaign.Business.shopify_url),
       );
-     
-      
 
       const cobs = await this.databaseService.linkTrack.update({
         where: { id: trackId },
@@ -663,34 +756,30 @@ export class CreateCheckoutCampaign extends WorkerHost {
           prospect: {
             connect: { id: prospect.id },
           },
-          type: "CAMPAIGN",
-          is_test_link:matchingButton?true:false,
-      
+          type: 'CAMPAIGN',
+          is_test_link: matchingButton ? true : false,
+
           // conditional checkout connect/disconnect
           ...(isAbondnedCheckoutUrl
             ? {
-              Checkout: {
+                Checkout: {
                   connect: { id: checkout.id },
                 },
               }
             : {
-              Checkout: {
+                Checkout: {
                   disconnect: true,
                 },
               }),
         },
       });
-      
 
-      console.log(cobs)
-     
+      console.log(cobs);
     } catch (error) {
       console.error('Error in getShopifyPercentageDiscount:', error);
       throw error;
     }
   }
-
-
 
   async getShopifyDiscount(
     type: discount_type,
@@ -787,7 +876,7 @@ export class CreateCheckoutCampaign extends WorkerHost {
         config,
       );
       console.log('Discount code created:', response);
-     
+
       return discountCode;
     } catch (error) {
       console.error('Error in getShopifyDiscount:', error);
@@ -872,7 +961,7 @@ export class CreateCheckoutCampaign extends WorkerHost {
         }
       }
     `;
-  
+
     try {
       // Execute the query concurrently for each product in the array.
       const responses = await Promise.all(
@@ -884,7 +973,6 @@ export class CreateCheckoutCampaign extends WorkerHost {
         }),
       );
 
-  
       // Process the responses to extract the product and transform the images field.
       return responses.map((response) => {
         // Extract the product from response.data.product
@@ -906,17 +994,16 @@ export class CreateCheckoutCampaign extends WorkerHost {
       throw error;
     }
   }
-  
+
   getCheckoutValue(
     checkout: any,
     key: string,
     discount?: string,
-    is_link_track_enabled=true as boolean,
-    campaign?:any,
+    is_link_track_enabled = true as boolean,
+    campaign?: any,
   ): string | number | null {
     let abandonUrl = checkout.abandonedCheckoutUrl || null;
 
-  
     if (abandonUrl && checkout.domain && !is_link_track_enabled) {
       const baseUrl = `https://${checkout.domain}`;
       try {
@@ -931,15 +1018,12 @@ export class CreateCheckoutCampaign extends WorkerHost {
       }
     }
 
-
     // Append discount as a query parameter if discount exists
     const modifiedAbandonUrl = abandonUrl
       ? discount
         ? `${abandonUrl}${abandonUrl.includes('?') ? '&' : '?'}discount=${discount}`
         : abandonUrl
       : null;
-
-   
 
     const mapping: Record<string, any> = {
       customer_full_name:
@@ -956,15 +1040,16 @@ export class CreateCheckoutCampaign extends WorkerHost {
       cart_total_price: checkout.totalPrice || '0.00',
       cart_items: checkout.lineItems.map((item: any) => item.title).join(', '),
       discount_code: discount || null,
-      discount_amount: campaign?.discount_type==="AMOUNT"? `Rs ${campaign?.discount} ` : `${campaign?.discount}%` || '0.00',
+      discount_amount:
+        campaign?.discount_type === 'AMOUNT'
+          ? `Rs ${campaign?.discount} `
+          : `${campaign?.discount}%` || '0.00',
       abandon_checkout_url: modifiedAbandonUrl,
       shop_url: checkout.domain ? `https://${checkout.domain}` : null,
     };
 
     return mapping.hasOwnProperty(key) ? mapping[key] : key;
   }
-
-
 
   // Example Usage:
   // Should print the abandoned checkout URL

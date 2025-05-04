@@ -96,7 +96,7 @@ export class EventsService {
   }
 
   async manipulateUpdatedCheckout(updateCheckout: any, domain: string) {
-    console.log(updateCheckout)
+  
     await this.updatedCheckoutQueue.add(
       'updatedCheckoutQueue',
       { checkOutData: updateCheckout, domain },
@@ -128,7 +128,7 @@ export class EventsService {
     //   console.log('Received checkout data:', checkOutData);
   }
 
-  async manipulatePayment(paymentData: any) {
+  async   manipulatePayment(paymentData: any) {
     try {
       console.log('Received payment data:', JSON.stringify(paymentData, null, 2));
   

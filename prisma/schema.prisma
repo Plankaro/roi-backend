@@ -12,7 +12,7 @@ model User {
   name            String
   username        String?   @unique
   email           String    @unique
-  phone           String?  
+  phone           String?
   password        String?
   refreshToken    String?   @db.Text
   emailVerified   DateTime?
@@ -32,7 +32,7 @@ model User {
   templates       Template[]      @relation("CreatedTemplates")
   flashResponses  FlashResponse[] @relation("CreatedFlashResponses")
   ManageBroadcast Boolean         @default(true)
-  manageBots     Boolean         @default(true)
+  manageBots      Boolean         @default(true)
   manageCampaign  Boolean         @default(true)
   assignChat      Boolean         @default(true)
 
@@ -79,34 +79,34 @@ model Account {
 }
 
 model Business {
-  id           String     @id @default(cuid())
-  businessName String
-  createdAt    DateTime   @default(now())
+  id                   String     @id @default(cuid())
+  businessName         String
+  createdAt            DateTime   @default(now())
   // List of employees (admins, agents, etc.) who are associated with this business.
-  employees    User[]     @relation("BusinessEmployees")
-  prospects    Prospect[]
-  tags         Tag[]
-  is_shopify_connected Boolean @default(false)
+  employees            User[]     @relation("BusinessEmployees")
+  prospects            Prospect[]
+  tags                 Tag[]
+  is_shopify_connected Boolean    @default(false)
   shopify_Token        String?
-  shopify_domain       String? @unique
+  shopify_domain       String?    @unique
   shopify_url          String?
 
   is_whatsapp_connected Boolean @default(false)
-  whatsapp_mobile_id   String?
-  whatsapp_mobile      String? @unique
-  whatsapp_token       String?
-  whatsapp_buisness_id String?
-  whatsapp_app_id      String?
+  whatsapp_mobile_id    String?
+  whatsapp_mobile       String? @unique
+  whatsapp_token        String?
+  whatsapp_buisness_id  String?
+  whatsapp_app_id       String?
 
   is_razorpay_connected Boolean @default(false)
-  razorpay_id          String?
-  razorpay_secret      String?
+  razorpay_id           String?
+  razorpay_secret       String?
 
   is_google_analytics_connected Boolean @default(false)
-  is_meta_pixel   Boolean @default(false)
-  g_mesurement_id      String?
-  g_api_secret         String?
-  p_track_id           String?
+  is_meta_pixel                 Boolean @default(false)
+  g_mesurement_id               String?
+  g_api_secret                  String?
+  p_track_id                    String?
 
   Broadcast     Broadcast[]
   Template      Template[]
@@ -159,33 +159,30 @@ model Prospect {
   business   Business @relation(fields: [buisnessId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   chats      Chat[]
   order      Order[]
-  is_blocked Boolean   @default(false)
-  created_at DateTime  @default(now())
-  updated_at DateTime  @updatedAt
+  is_blocked Boolean  @default(false)
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
 
   // Many-to-Many Relationship with Broadcast via BroadcastContact
   discount    discount[]
   ProspectTag ProspectTag[]
 
-
-  
   LinkTrack LinkTrack[]
+
   @@unique([buisnessId, phoneNo])
 }
 
-
 model notification {
-    id         String   @id @default(cuid())
-    user_id    String
-    user       User @relation(fields: [user_id],references: [id],onDelete: Cascade )
-    buisness_id String
-    Buisness   Business @relation(fields: [buisness_id],references: [id],onDelete: Cascade)
-    text       String
-    type      NotificationType
-    status   NotificationStatus
-    created_at DateTime @default(now())
-    update_at  DateTime @default(now())
-
+  id          String             @id @default(cuid())
+  user_id     String
+  user        User               @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  buisness_id String
+  Buisness    Business           @relation(fields: [buisness_id], references: [id], onDelete: Cascade)
+  text        String
+  type        NotificationType
+  status      NotificationStatus
+  created_at  DateTime           @default(now())
+  update_at   DateTime           @default(now())
 }
 
 enum NotificationStatus {
@@ -266,9 +263,9 @@ model Order {
 
   buisnessId String?
   business   Business? @relation(fields: [buisnessId], references: [id], onDelete: Cascade, onUpdate: Cascade)
- 
 
-  LinkTrack LinkTrack[]
+  linkTrackId String?
+  linkTrack   LinkTrack? @relation("LinkTrackToOrder", fields: [linkTrackId], references: [id])
 }
 
 enum Status {
@@ -316,40 +313,36 @@ model LinkTrack {
   id           String     @id @default(cuid())
   campaign_id  String?
   broadcast_id String?
-  buisness     Business? @relation(fields: [buisness_id],references: [id])
+  buisness     Business?  @relation(fields: [buisness_id], references: [id])
   buisness_id  String?
   campaign     Campaign?  @relation(fields: [campaign_id], references: [id])
   broadcast    Broadcast? @relation(fields: [broadcast_id], references: [id])
-  chat_id       String?
-  chat         Chat?  @relation(fields: [chat_id],references: [id])
-  prospect_id    String?
-  prospect      Prospect? @relation(fields: [prospect_id],references: [id])
-  first_click    DateTime?
-  last_click     DateTime?
-  no_of_click    Int @default(0)
-  link           String?
-  utm_source     String?  
-  utm_medium     String?  
-  utm_campaign  String?
-  utm_id        String?  
-  checkout_id   String?
-  Checkout     Checkout? @relation(fields: [checkout_id],references: [id],onDelete: SetNull,onUpdate: Cascade)
-  OrderId        String?
-  Order          Order? @relation(fields: [OrderId],references: [id])
-  type     LinkType @default(OTHER)
-  order_generated Boolean @default(false)
-  is_test_link Boolean @default(false)
- 
+  chat_id      String?
+  chat         Chat?      @relation(fields: [chat_id], references: [id])
+  prospect_id  String?
+  prospect     Prospect?  @relation(fields: [prospect_id], references: [id])
+  first_click  DateTime?
+  last_click   DateTime?
+  no_of_click  Int        @default(0)
+  link         String?
+  utm_source   String?
+  utm_medium   String?
+  utm_campaign String?
+  utm_id       String?
+  checkout_id  String?
+  Checkout     Checkout?  @relation(fields: [checkout_id], references: [id], onDelete: SetNull, onUpdate: Cascade)
 
+  type            LinkType @default(OTHER)
+  recovered_checkout   Boolean  @default(false)
+  is_test_link    Boolean  @default(false)
 
-
+  Order Order[] @relation("LinkTrackToOrder")
 }
 
 enum LinkType {
   CAMPAIGN
   BROADCAST
   OTHER
-  
 }
 
 model Chat {
@@ -401,8 +394,6 @@ model Chat {
   type String
 
   Contacts Contacts[]
-
-
 
   LinkTrack LinkTrack[]
 }
@@ -488,8 +479,6 @@ model Broadcast {
   skip_inactive_contacts_days           Int?
   reply_count                           Int             @default(0)
   unique_interactions                   Int             @default(0)
-
- 
 
   LinkTrack LinkTrack[]
 }
@@ -635,13 +624,11 @@ model Campaign {
   businessId                      String?
   Chat                            Chat[]
   createdAt                       DateTime              @default(now())
-  reply_action                     String?
+  reply_action                    String?
 
   OrderCampaign OrderCampaign[]
 
   PaymentLink PaymentLink[]
-
-  
 
   LinkTrack LinkTrack[]
 }
@@ -673,22 +660,31 @@ model Filter {
   is_send_to_unsub_customer_filter_enabled Boolean            @default(false)
   send_to_unsub_customer                   Boolean?
   is_order_amount_filter_enabled           Boolean            @default(false)
+  order_amount_type                        minmax?
   order_amount_filter_greater_or_equal     Int?
   order_amount_filter_less_or_equal        Int?
   order_amount_min                         Int?
   order_amount_max                         Int?
   is_discount_amount_filter_enabled        Boolean            @default(false)
+  discount_amount_type                     minmax?
   discount_amount_filter_greater_or_equal  Int?
   discount_amount_filter_less_or_equal     Int?
   discount_amount_min                      Int?
   discount_amount_max                      Int?
   is_order_delivery_filter_enabled         Boolean            @default(false)
   is_order_count_filter_enabled            Boolean            @default(false)
-  order_count_greater_or_equal             Int?
-  order_count_less_or_equal                Int?
+  order_count_type                         minmax?
+  order_count_filter_greater_or_equal             Int?
+  order_count_filter_less_or_equal                Int?
   order_count_min                          Int?
   order_count_max                          Int?
   order_method                             OrderMethod?
+}
+
+enum minmax {
+  greater
+  less
+  custom
 }
 
 model Checkout {
@@ -732,7 +728,6 @@ model Checkout {
   Order                Order?
   businessId           String?
   business             Business?            @relation(fields: [businessId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  
 
   LinkTrack LinkTrack[]
 }
@@ -834,35 +829,33 @@ enum time_unit {
 }
 
 model Fulfillment {
-   id               String    @id @default(cuid()) 
-  shopify_id          String     @unique
-  orderId             String
- db_order_id        String? 
-  order            Order?    @relation(fields: [db_order_id], references: [id], onDelete: Cascade)
-  status              String
-  createdAt           DateTime   @map("created_at")
-  updatedAt           DateTime   @map("updated_at")
-  service             String
-  trackingCompany     String?
-  shipmentStatus      String?
-  locationId          BigInt?
-  originAddress       Json?
-  email               String?
-  trackingNumber      String?
-  trackingNumbers     String[]   @default([])
-  trackingUrl         String?
-  trackingUrls        String[]   @default([])
-  receipt             Json?
-  name                String
-  
+  id              String   @id @default(cuid())
+  shopify_id      String   @unique
+  orderId         String
+  db_order_id     String?
+  order           Order?   @relation(fields: [db_order_id], references: [id], onDelete: Cascade)
+  status          String
+  createdAt       DateTime @map("created_at")
+  updatedAt       DateTime @map("updated_at")
+  service         String
+  trackingCompany String?
+  shipmentStatus  String?
+  locationId      BigInt?
+  originAddress   Json?
+  email           String?
+  trackingNumber  String?
+  trackingNumbers String[] @default([])
+  trackingUrl     String?
+  trackingUrls    String[] @default([])
+  receipt         Json?
+  name            String
 
   // Destination is stored as nested JSON
-  destination         Json?
+  destination Json?
 
   // All line items and nested data stored as JSON array
-  lineItems           Json
+  lineItems Json
 }
-
 
 model discount {
   id         String        @id @default(cuid()) // Local DB ID

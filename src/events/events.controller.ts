@@ -15,6 +15,7 @@ export class EventsController {
     @Body() checkoutData: any,
     @Headers() headers: Record<string, string>,
   ) {
+    console.log("checkoutData",JSON.stringify(checkoutData,null,2))
    
     await this.eventsService.manipulateCheckout(checkoutData, headers["x-shopify-shop-domain"]);
 
@@ -28,7 +29,7 @@ export class EventsController {
     @Headers() headers: Record<string, string>,
   ) {
     
-   console.log("updateCheckout",JSON.stringify(updateCheckout,null,2))
+   
     await this.eventsService.manipulateUpdatedCheckout(updateCheckout, headers["x-shopify-shop-domain"]);
     return { success: true };
   }

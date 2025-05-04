@@ -35,29 +35,20 @@ export class AnalyticsService {
    
     
   
-    const getOrder = await this.databaseService.linkTrack.findMany({
+    const getOrder = await this.databaseService.order.findMany({
       where: {
-        order_generated:true,
-        buisness:{
-          id: req.user.business.id
+        linkTrackId: {
+          not: null
         },
-        
-        Order:{
-          created_at: {
-            gte: startDate,
-            lte: endDate
-          }
-        }
+        created_at: {
+          gte: startDate,
+          lte: endDate,
+        },
       },
       select: {
-
-        Order:{
-          select: {
-            amount: true,
-            created_at: true
-          }
-        }
-      }
+        amount: true,
+        created_at: true,
+      },
     })
 
     const linksClicked = await this.databaseService.linkTrack.findMany({
@@ -71,13 +62,6 @@ export class AnalyticsService {
         no_of_click: true,
         last_click: true,
         first_click: true,
-        order_generated:true,
-        Order:{
-          select:{
-            amount:true,
-            created_at:true,
-          }
-        }
       }
     })
     
@@ -90,24 +74,26 @@ export class AnalyticsService {
         completedAt: null
       }
     })
-    const recoveredCheckout = await this.databaseService.linkTrack.count({
-      where: {
-        order_generated: true,
-        buisness: {
-          id: req.user.business.id
+    const recoveredCheckout = await this.databaseService.order.count({
+      where:{
+        created_at: {
+          gte: startDate,
+          lte: endDate
         },
-        Order:{
-          created_at: {
-            gte: startDate,
-            lte: endDate,
-          },
+        linkTrackId: {
+          not: null
         },
-        Checkout: {
-          completedAt: {
-            not: null,
-          },
-        },
-      },
+       linkTrack: {   
+       NOT: {
+        checkout_id: null,
+         last_click: null,
+         no_of_click: 0
+       }
+     }
+      },select: {
+        amount: true,
+        created_at: true
+      }
     })
 
     const totalCodtocheckoutlinkSent = await this.databaseService.paymentLink.count({

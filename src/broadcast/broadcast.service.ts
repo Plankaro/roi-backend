@@ -238,7 +238,7 @@ export class BroadcastService {
             },
           });
           console.log(url);
-          trackurl = `go/${url.id}`;
+          trackurl = `${url.id}`;
           components.push({
             type: 'button',
             sub_type: 'url',
@@ -353,19 +353,11 @@ export class BroadcastService {
           createdForId: business.id,
           id: id,
         },
-        include: {
-          Order: true,
-          creator: {
-            select: {
-              name: true,
-            },
-          },
-        },
+       
+      
       });
 
-      if (!broadcast) {
-        throw new NotFoundException('Broadcast not found');
-      }
+     
 
       // Execute all queries concurrently
       const [
@@ -452,6 +444,21 @@ export class BroadcastService {
           count: group._count._all,
         }),
       );
+      const link = await this.databaseService.linkTrack.findMany({
+        where:{
+          broadcast_id:id,
+        },
+        select:{
+          no_of_click:true,
+          first_click:true,
+          last_click:true,
+          Order:{
+            select:{
+              amount:true
+            }
+          }
+        }
+      })
 
       return {
         ...broadcast,
@@ -464,6 +471,7 @@ export class BroadcastService {
         skippedReasonGroups: transformedSkippedReasonGroups,
         failedReasonGroups: transformedFailedReasonGroups,
         template: Templates.data[0],
+        link,
       };
     } catch (error) {
       console.log(error);

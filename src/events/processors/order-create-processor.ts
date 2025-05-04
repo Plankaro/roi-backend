@@ -338,18 +338,18 @@ export class CreateOrderQueue extends WorkerHost {
 
       // Two hours *later*
       // Compute a 2-hour delay in milliseconds
-      const twoHourDelayMs = 2 * 60 * 60 * 1000; // 7,200,000 ms
+      // const twoHourDelayMs = 2 * 60 * 60 * 1000; // 7,200,000 ms
 
     
-      const jobs = await this.linktrackQueue.add(
-        'linktrackQueue', // name of the job
-        { orderId: order_created.id }, // payload
-        {
-          delay: 0, // delay in milliseconds
-          removeOnComplete: true,
-        },
-      );
-      console.log('Job added to linktrackQueue:', jobs.id);
+      // const jobs = await this.linktrackQueue.add(
+      //   'linktrackQueue', // name of the job
+      //   { orderId: order_created.id }, // payload
+      //   {
+      //     delay: 0, // delay in milliseconds
+      //     removeOnComplete: true,
+      //   },
+      // );
+      // console.log('Job added to linktrackQueue:', jobs.id);
     } catch (error) {
       console.error('Error in manipulateOrder:', error);
     }
