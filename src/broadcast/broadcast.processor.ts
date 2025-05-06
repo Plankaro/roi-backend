@@ -59,10 +59,11 @@ export class BroadcastProcessor extends WorkerHost {
       // Retrieve contacts based on contacts type
       let data: any;
       if (broadcast.contacts_type === 'shopify' && broadcast.segment_id) {
+        console.log(broadcast.createdFor);
        
         data = await this.customersService.getAllContactsForSegment(
           broadcast.segment_id,
-          broadcast.creator,
+          broadcast.createdFor,
         );
       } else if (broadcast.contacts_type === 'excel' && broadcast.excelData) {
        
@@ -212,7 +213,7 @@ export class BroadcastProcessor extends WorkerHost {
               });
               console.log(url);
               trackId = url.id;
-              trackurl = `go/${trackId}}`;
+              trackurl = `${trackId}`;
               components.push({
                 type: 'button',
                 sub_type: 'url',
@@ -242,7 +243,7 @@ export class BroadcastProcessor extends WorkerHost {
           where: {
             buisnessId_phoneNo: {
               phoneNo: contact,
-              buisnessId: broadcast.createdFor.whatsapp_mobile,
+              buisnessId: broadcast.createdFor.id,
             },
           },
         });
@@ -253,10 +254,11 @@ export class BroadcastProcessor extends WorkerHost {
           const iflinkedToShopify =
             await this.customersService.getCustomerByPhone(
               `+${contact}`,
-              broadcast.creator,
+              broadcast.createdFor,
             );
           uniqueContact = true;
           console.log('Unique contact:', iflinkedToShopify);
+          console.log(contact)
 
           prospect = await this.databaseService.prospect.create({
             data: {
@@ -475,6 +477,13 @@ export class BroadcastProcessor extends WorkerHost {
               },
             });
           }
+          await this.databaseService.linkTrack.update({
+            where: { id: trackId },
+            data: {
+              chat_id: addTodb.id,
+              prospect_id: prospect?.id,
+            },
+          })
         } catch (error: any) {
           // Capture detailed error info, using error.response.data if available
           const errorDetail = error.message;

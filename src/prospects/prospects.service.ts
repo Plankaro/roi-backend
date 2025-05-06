@@ -242,7 +242,7 @@ export class ProspectsService {
       const findPropspect = await this.databaseService.prospect.findUnique({
         where: {
           id,
-          // buisnessNo: buisness.whatsapp_mobile,
+          buisnessId: buisness.id,
         },
       });
 

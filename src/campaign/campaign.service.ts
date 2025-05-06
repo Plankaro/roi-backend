@@ -337,6 +337,18 @@ export class CampaignService {
           }),
         ]);
 
+        const orders = await this.databaseService.order.findMany({
+          where:{
+            linkTrack:{
+              campaign_id: campaign.id
+            }
+          },
+          select:{
+            amount: true,
+            id: true
+          }
+        })
+
         // Abandoned Checkout Recovered:
         // Here we assume that the Checkout model is linked to a campaign via a relation (e.g., CheckoutOnCampaign)
         // and that you can filter with a relation filter.
@@ -378,18 +390,7 @@ export class CampaignService {
         //   0
         // );
 
-        const orders = await this.databaseService.linkTrack.findMany({
-          where: {
-            campaign_id: campaign.id,
-          },
-          select: {
-            Order: {
-              select: {
-                amount: true,
-              },
-            },
-          },
-        });
+       
         return {
           ...campaign,
           totalMessages,

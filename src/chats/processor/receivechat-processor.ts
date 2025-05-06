@@ -138,7 +138,12 @@ export class ReceiveChatsQueue extends WorkerHost {
                   include:{
                     Prospect:{
                       include: {
-                        business:true
+                        business:true,
+                      }
+                    },
+                    Broadcast:{
+                      select:{
+                        
                       }
                     }
                   }
@@ -150,6 +155,8 @@ export class ReceiveChatsQueue extends WorkerHost {
                     chatMessage.body_text,
                     prospect?.chats[0]?.body_text??"",
                   );
+
+                  
         
 
                 await this.bottransferQueue.add(

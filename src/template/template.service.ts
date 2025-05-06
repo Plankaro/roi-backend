@@ -128,8 +128,8 @@ export class TemplateService {
       );
       console.log(JSON.stringify(sendTemplateToMeta));
     } catch (error) {
-      console.log(JSON.stringify(error, null, 2));
-      throw new InternalServerErrorException(error);
+ 
+      throw new InternalServerErrorException(error?.response?.data?.error?.error_user_msg || "failed to send templates");
     }
   }
 

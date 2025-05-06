@@ -11,7 +11,6 @@ export class MediaDto {
   recipientNo: string;
 
   @IsString()
- 
   prospectId: string; // Maps to `id`
 
   @IsUrl()

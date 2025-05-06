@@ -1,4 +1,5 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
+import { extractProductImages } from 'utils/usefulfunction';
 import { Job } from 'bullmq';
 import { Injectable } from '@nestjs/common';
 import { DatabaseService } from 'src/database/database.service';
@@ -67,8 +68,6 @@ export class CreateOrderCampaign extends WorkerHost {
         return;
       }
 
-      
-
       //  console.log('Fetched checkout:', checkout);
       //  console.log('Fetched campaign:', campaign);
 
@@ -84,8 +83,11 @@ export class CreateOrderCampaign extends WorkerHost {
 
       //  //get order
 
-      if (order?.tags && campaign.filters.is_order_tag_filter_enabled) {
+      console.log('order', JSON.stringify(orderById.tags, null, 2));
+
+      if (campaign.filters.is_order_tag_filter_enabled) {
         const tagsfromField = getTagsArray(orderById?.tags);
+
         if (campaign.filters.order_tag_filter_all.length > 0) {
           if (
             !allTagsPresent(
@@ -245,9 +247,9 @@ export class CreateOrderCampaign extends WorkerHost {
         }
       }
 
+      // Order Amount Filter
       if (campaign.filters.is_order_amount_filter_enabled) {
         const orderAmount = Number(order.amount);
-
         const {
           order_amount_filter_greater_or_equal: minAmount,
           order_amount_filter_less_or_equal: maxAmount,
@@ -256,8 +258,8 @@ export class CreateOrderCampaign extends WorkerHost {
         } = campaign.filters;
 
         if (
-          (minAmount && orderAmount < minAmount) ||
-          (maxAmount !== 0 && orderAmount > maxAmount) ||
+          (minAmount !== undefined && orderAmount < minAmount) ||
+          (maxAmount !== undefined && orderAmount > maxAmount) ||
           orderAmount < rangeMin ||
           orderAmount > rangeMax
         ) {
@@ -268,6 +270,7 @@ export class CreateOrderCampaign extends WorkerHost {
         // Proceed with processing the order
       }
 
+      // Discount Amount Filter
       if (
         orderById.totalDiscounts &&
         campaign.filters.is_discount_amount_filter_enabled
@@ -279,35 +282,66 @@ export class CreateOrderCampaign extends WorkerHost {
           discount_amount_min: rangeMin,
           discount_amount_max: rangeMax,
         } = campaign.filters;
+
         if (
-          (minAmount && discountAmount < minAmount) ||
-          (maxAmount !== 0 && discountAmount > maxAmount) ||
+          (minAmount !== undefined && discountAmount < minAmount) ||
+          (maxAmount !== undefined && discountAmount > maxAmount) ||
           discountAmount < rangeMin ||
           discountAmount > rangeMax
         ) {
-          // Order amount is outside the specified range; handle accordingly
+          // Discount amount is outside the specified range; handle accordingly
           return;
         }
+
+        // Proceed with processing the order
       }
-      //    // Proceed with processing the order
+      console.log(orderById.customer.numberOfOrders);
+
+      // Order Count Filter
       if (campaign.filters.is_order_count_filter_enabled) {
-        const orderCount = Number(orderById.customer.OrderCount);
+        const orderCount = Number(orderById.customer.numberOfOrders);
+        console.log(orderCount);
         const {
           order_count_filter_greater_or_equal: minAmount,
           order_count_filter_less_or_equal: maxAmount,
           order_count_min: rangeMin,
           order_count_max: rangeMax,
         } = campaign.filters;
+
         if (
-          (minAmount && orderCount < minAmount) ||
-          (maxAmount !== 0 && orderCount > maxAmount) ||
+          (minAmount !== undefined && orderCount < minAmount) ||
+          (maxAmount !== undefined && orderCount > maxAmount) ||
           orderCount < rangeMin ||
           orderCount > rangeMax
         ) {
-          // Order amount is outside the specified range; handle accordingly
+          // Order count is outside the specified range; handle accordingly
+          return;
+        }
+
+        // Proceed with processing the order
+      }
+
+      console.log(orderById.displayFinancialStatus);
+
+      if (campaign.filters.is_payment_option_filter_enabled) {
+        if (
+          campaign.filters.payment_options_type === 'PAID' &&
+          orderById.displayFinancialStatus !== 'paid'
+        ) {
+          console.log('Fail: order not yet paid — waiting for PAID status');
+          return;
+        }
+
+        // If filter = UNPAID, bail once the order *is* paid
+        if (
+          campaign.filters.payment_options_type === 'UNPAID' &&
+          orderById.displayFinancialStatus === 'paid'
+        ) {
+          console.log('Fail: order already paid — skipping UNPAID flow');
           return;
         }
       }
+      console.log('Pass: payment option filter');
 
       //  // Abandoned Checkout Logic
       if (campaign.new_checkout_abandonment_filter === true) {
@@ -340,6 +374,27 @@ export class CreateOrderCampaign extends WorkerHost {
         orderById.displayFulfillmentStatus !== 'UNFULFILLED'
       ) {
         return;
+      }
+      
+      if(campaign.new_order_creation_filter === true){
+        const trigger_time = campaign.new_order_creation_time as any;
+        const orderDate = getFromDate(
+          campaign.new_order_creation_type === 'AFTER_EVENT'
+            ? '0 minutes'
+            : `${trigger_time.time} ${trigger_time.unit}`,
+        );
+        const neworder = await this.databaseService.order.findFirst({
+          where: {
+            customer_phoneno: orderById.customer.phone ,
+            id: { not: order.id },
+            cancelled_at: null,
+            created_at: { gt: orderDate },
+          },
+        });
+        if(neworder){
+          console.log('order already created');
+          return;
+        }
       }
 
       const linkOrderWithCampaign =
@@ -391,6 +446,8 @@ export class CreateOrderCampaign extends WorkerHost {
         campaign.template_name,
       );
       const template = response?.data?.[0];
+      const productimageslist = extractProductImages(orderById);
+      console.log('productimageslist', productimageslist);
       // Ensure safe access
 
       // // Process header component
@@ -426,7 +483,17 @@ export class CreateOrderCampaign extends WorkerHost {
         } else if (header.type === 'IMAGE') {
           components.push({
             type: 'header',
-            parameters: [{ type: 'image', image: { link: header.value } }],
+            parameters: [
+              {
+                type: 'image',
+                image: {
+                  link:
+                    header.value === 'ProductImage'
+                      ? productimageslist[0]
+                      : header.value,
+                },
+              },
+            ],
           });
         } else if (header.type === 'VIDEO') {
           components.push({
@@ -459,77 +526,85 @@ export class CreateOrderCampaign extends WorkerHost {
       components.push({ type: 'body', parameters: bodyParameters });
 
       // Process buttons
-      
 
       const isLinkTrackEnabled: boolean =
         isTemplateButtonRedirectSafe(template);
 
-        let trackId;
-        let trackUrl;
-         for (const [index, button] of buttons.entries()) {
-           console.log(`Button [${index}]:`, button);
-         
-           if (button.type === 'URL' && button.isEditable === true) {
-             if (!isLinkTrackEnabled) {
-               components.push({
-                 type: 'button',
-                 sub_type: 'url',
-                 index,
-                 parameters: [
-                   {
-                     type: 'text',
-                     text:  button.fromsegment
-                     ? button.segmentname === 'cod_to_checkout_link'
-                       ? razorpaymentUrl
-                       : this.getOrderValue(orderById, button.segmentname)
-                     : button.value,
-                   },
-                 ],
-               });
-             } else {
-               const url = await this.databaseService.linkTrack.create({
-                 data: {
-                   link:  button.fromsegment
-                   ? button.segmentname === 'cod_to_checkout_link'
-                     ? razorpaymentUrl
-                     : this.getOrderValue(orderById, button.segmentname)
-                   : button.value,
-                   buisness_id: campaign.businessId,
-                   utm_source: "roi_magnet",
-                   utm_medium: "whatsapp",
-                 },
-               });
-         
-                trackId = url.id;
-             trackUrl = `go/${trackId}`;
-         
-               components.push({
-                 type: 'button',
-                 sub_type: 'url',
-                 index,
-                 parameters: [
-                   {
-                     type: 'text',
-                     text: trackUrl,
-                   },
-                 ],
-               });
-             }
-           } else if (button.type === 'COPY_CODE') {
-             components.push({
-               type: 'button',
-               sub_type: 'COPY_CODE',
-               index,
-               parameters: [
-                 {
-                   type: 'coupon_code',
-                   coupon_code: button.value,
-                 },
-               ],
-             });
-           }
-         }
-         
+      let trackId;
+      let trackUrl;
+      for (const [index, button] of buttons.entries()) {
+        console.log(`Button [${index}]:`, button);
+
+        if (button.type === 'URL' && button.isEditable === true) {
+          if (!isLinkTrackEnabled) {
+            components.push({
+              type: 'button',
+              sub_type: 'url',
+              index,
+              parameters: [
+                {
+                  type: 'text',
+                  text: button.fromsegment
+                    ? button.segmentname === 'cod_to_checkout_link'
+                      ? razorpaymentUrl
+                      : this.getOrderValue(orderById, button.segmentname)
+                    : button.value,
+                },
+              ],
+            });
+          } else {
+            const is_test_link =
+            button.isEditable === true &&
+            button.fromsegment === true &&
+            (
+              button.segmentname === "cod_to_checkout_link" ||
+              button.segmentname === "order_status_link"
+            );
+
+            const url = await this.databaseService.linkTrack.create({
+              data: {
+                link: button.fromsegment
+                  ? button.segmentname === 'cod_to_checkout_link'
+                    ? razorpaymentUrl
+                    : this.getOrderValue(orderById, button.segmentname)
+                  : button.value,
+                buisness_id: campaign.businessId,
+                utm_source: 'roi_magnet',
+                utm_medium: 'whatsapp',
+                is_test_link: is_test_link,
+                campaign_id: campaign.id,
+              },
+            });
+
+            trackId = url.id;
+            trackUrl = `go/${trackId}`;
+
+            components.push({
+              type: 'button',
+              sub_type: 'url',
+              index,
+              parameters: [
+                {
+                  type: 'text',
+                  text: trackUrl,
+                },
+              ],
+            });
+          }
+        } else if (button.type === 'COPY_CODE') {
+          components.push({
+            type: 'button',
+            sub_type: 'COPY_CODE',
+            index,
+            parameters: [
+              {
+                type: 'coupon_code',
+                coupon_code: button.value,
+              },
+            ],
+          });
+        }
+      }
 
       const messageResponse = await this.whatsappService.sendTemplateMessage(
         {
@@ -587,16 +662,18 @@ export class CreateOrderCampaign extends WorkerHost {
       const updatedButtons = buttons.map((button) => {
         if (button.type === 'URL' && button.isEditable === true) {
           const findButtonfromtemplate = template.components.find(
-            (component) => component.type === 'BUTTONS'
+            (component) => component.type === 'BUTTONS',
           );
           if (findButtonfromtemplate) {
             const templateUrlButton = findButtonfromtemplate.buttons.find(
-              (btn) => btn.type === 'URL'
+              (btn) => btn.type === 'URL',
             );
             if (templateUrlButton && templateUrlButton.url) {
               console.log('Original template URL:', templateUrlButton.url);
               const placeholder = '{{1}}';
-              const finalUrl = templateUrlButton.url.split(placeholder).join(isLinkTrackEnabled? trackUrl : button.value);
+              const finalUrl = templateUrlButton.url
+                .split(placeholder)
+                .join(isLinkTrackEnabled ? trackUrl : button.value);
               console.log('✅ Final URL:', finalUrl);
               return {
                 ...button,
@@ -669,6 +746,7 @@ export class CreateOrderCampaign extends WorkerHost {
           name
           email
           phone
+          cancelledAt
           landingPageUrl
           createdAt
           processedAt
@@ -826,7 +904,7 @@ export class CreateOrderCampaign extends WorkerHost {
 
       const { data: response, errors } =
         await this.shopifyService.executeGraphQL(query, variables, config);
-        console.log(JSON.stringify(response,null,2));
+      console.log(JSON.stringify(response, null, 2));
 
       if (errors) {
         console.error('Error executing GraphQL query:', errors);

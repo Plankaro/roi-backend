@@ -1,8 +1,9 @@
-import { Injectable, InternalServerErrorException, Req } from '@nestjs/common';
+import { Injectable, InternalServerErrorException, Req,UnauthorizedException } from '@nestjs/common';
 import { CreateBotDto } from './dto/create-bot.dto';
 import { UpdateBotDto } from './dto/update-bot.dto';
 import { DatabaseService } from 'src/database/database.service';
 import { Bots, BotType } from '@prisma/client';
+
 @Injectable()
 export class BotService {
   constructor(private readonly databaseService: DatabaseService) {}
@@ -49,6 +50,9 @@ export class BotService {
   async update(updateBotDto: any, req: any) {
     try {
       const user = req.user;
+      if(!user.manageBots){
+        throw new UnauthorizedException('You are not allowed to update bots');
+      }
  
 
       const bot = await this.databaseService.bots.upsert({

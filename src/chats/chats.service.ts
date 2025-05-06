@@ -293,7 +293,11 @@ export class ChatsService {
           type: template.type || 'text',
           template_components: components,
           senderId: user.id,
+          isAutomated:false,
         },
+        include:{
+          sender:true
+        }
       });
 console.log(addTodb);
       if(linkTrackenabled && trackId){
@@ -361,7 +365,11 @@ console.log(addTodb);
           body_text: message,
           type: 'personal',
           senderId: req.user.id,
+          isAutomated:false,
         },
+        include: {
+          sender: true
+        }
       });
 
       return result;
@@ -455,6 +463,7 @@ console.log(addTodb);
   async sendMedia(MediaDto: MediaDto, req: any) {
     const buisness: Business = req.user.business;
     const config = getWhatsappConfig(buisness);
+    console.log(MediaDto)
 
     try {
       function mapMediaTypeToHeaderType(mediaType: string): HeaderType {
@@ -491,7 +500,11 @@ console.log(addTodb);
           body_text: MediaDto.caption,
           type: 'personal',
           senderId: req.user.id,
-        },
+          isAutomated:false,
+          
+        },include: {
+          sender: true
+        }
       });
 
       return result;
@@ -525,13 +538,7 @@ console.log(addTodb);
       const config = getWhatsappConfig(business);
   
       // Step 1: Find relevant chats
-      const chats = await this.databaseService.chat.findMany({
-        where: {
-          prospectId: prospectorId,
-          deleted: false,
-          receiverPhoneNo: business.whatsapp_mobile,
-        },
-      });
+     
   
       // Step 2: Bulk update to mark all as 'read'
       await this.databaseService.chat.updateMany({
@@ -539,6 +546,9 @@ console.log(addTodb);
           prospectId: prospectorId,
           deleted: false,
           receiverPhoneNo: business.whatsapp_mobile,
+          Status:{
+            not:"read"
+          }
         },
         data: {
           Status: 'read',
@@ -556,6 +566,23 @@ console.log(addTodb);
     }
   }
 
+  async markNotificationsAsRead( req: any) {
+    try {
+      const business: Business = req.user.business;
+      const updateNotification = await this.databaseService.notification.updateMany({
+      where:{
+        user_id: req.user.id,
+        status:"DELIVERED",
+      },data:{
+        status:"READ"
+      }
+      })
+  
+      // Step 1: Find relevant chats
+    }catch{
+      
+    }
+  }
 
     
   

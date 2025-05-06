@@ -4,7 +4,7 @@ import { Injectable } from '@nestjs/common';
 import { DatabaseService } from 'src/database/database.service';
 import { JobData } from './checkout-create-processor';
 import {
-    allTagsPresent,
+  allTagsPresent,
   anyTagPresent,
   escapeRegExp,
   getFromDate,
@@ -14,7 +14,7 @@ import {
   getWhatsappConfig,
   noneTagPresent,
   sanitizePhoneNumber,
-  isTemplateButtonRedirectSafe
+  isTemplateButtonRedirectSafe,
 } from 'utils/usefulfunction';
 import { ShopifyService } from 'src/shopify/shopify.service';
 import { WhatsappService } from 'src/whatsapp/whatsapp.service';
@@ -51,17 +51,24 @@ export class FullfillmentEventCampaign extends WorkerHost {
     const shopifyConfig = getShopifyConfig(campaign.Business);
     const whatsappConfig = getWhatsappConfig(campaign.Business);
     const razorpayConfig = getRazorpayConfig(campaign.Business);
+   
+    const orderById = await this.getOrderById(
+      fullfillment.orderId,
+      shopifyConfig,
+    );
+    console.log(JSON.stringify(orderById, null, 2));
+    const order = await this.databaseService.order.findUnique({
+      where: { shopify_id: orderById.id },
+    })
 
-    const orderById =await this.getOrderById(fullfillment.orderId, shopifyConfig);
-    console.log(JSON.stringify(orderById,null,2))
-    
-    if(!orderById){
-        return
-       }
 
+    if (!orderById) {
+      return;
+    }
 
-    if (orderById?.tags && campaign.filters.is_order_tag_filter_enabled) {
+    if (campaign.filters.is_order_tag_filter_enabled) {
       const tagsfromField = getTagsArray(orderById?.tags);
+
       if (campaign.filters.order_tag_filter_all.length > 0) {
         if (
           !allTagsPresent(tagsfromField, campaign.filters.order_tag_filter_all)
@@ -210,9 +217,9 @@ export class FullfillmentEventCampaign extends WorkerHost {
       }
     }
 
+    // Order Amount Filter
     if (campaign.filters.is_order_amount_filter_enabled) {
-      const orderAmount = Number(orderById.amount);
-
+      const orderAmount = Number(order.amount);
       const {
         order_amount_filter_greater_or_equal: minAmount,
         order_amount_filter_less_or_equal: maxAmount,
@@ -221,8 +228,8 @@ export class FullfillmentEventCampaign extends WorkerHost {
       } = campaign.filters;
 
       if (
-        (minAmount && orderAmount < minAmount) ||
-        (maxAmount !== 0 && orderAmount > maxAmount) ||
+        (minAmount !== undefined && orderAmount < minAmount) ||
+        (maxAmount !== undefined && orderAmount > maxAmount) ||
         orderAmount < rangeMin ||
         orderAmount > rangeMax
       ) {
@@ -233,6 +240,7 @@ export class FullfillmentEventCampaign extends WorkerHost {
       // Proceed with processing the order
     }
 
+    // Discount Amount Filter
     if (
       orderById.totalDiscounts &&
       campaign.filters.is_discount_amount_filter_enabled
@@ -244,40 +252,118 @@ export class FullfillmentEventCampaign extends WorkerHost {
         discount_amount_min: rangeMin,
         discount_amount_max: rangeMax,
       } = campaign.filters;
+
       if (
-        (minAmount && discountAmount < minAmount) ||
-        (maxAmount !== 0 && discountAmount > maxAmount) ||
+        (minAmount !== undefined && discountAmount < minAmount) ||
+        (maxAmount !== undefined && discountAmount > maxAmount) ||
         discountAmount < rangeMin ||
         discountAmount > rangeMax
       ) {
-        // Order amount is outside the specified range; handle accordingly
+        // Discount amount is outside the specified range; handle accordingly
         return;
       }
+
+      // Proceed with processing the order
     }
-    //    // Proceed with processing the order
+    console.log(orderById.customer.numberOfOrders);
+
+    // Order Count Filter
     if (campaign.filters.is_order_count_filter_enabled) {
-      const orderCount = Number(orderById.customer.OrderCount);
+      const orderCount = Number(orderById.customer.numberOfOrders);
+      console.log(orderCount);
       const {
         order_count_filter_greater_or_equal: minAmount,
         order_count_filter_less_or_equal: maxAmount,
         order_count_min: rangeMin,
         order_count_max: rangeMax,
       } = campaign.filters;
+
       if (
-        (minAmount && orderCount < minAmount) ||
-        (maxAmount !== 0 && orderCount > maxAmount) ||
+        (minAmount !== undefined && orderCount < minAmount) ||
+        (maxAmount !== undefined && orderCount > maxAmount) ||
         orderCount < rangeMin ||
         orderCount > rangeMax
       ) {
-        // Order amount is outside the specified range; handle accordingly
+        // Order count is outside the specified range; handle accordingly
+        return;
+      }
+
+      // Proceed with processing the order
+    }
+
+    console.log(orderById.displayFinancialStatus);
+
+    if (campaign.filters.is_payment_option_filter_enabled) {
+      if (
+        campaign.filters.payment_options_type === 'PAID' &&
+        orderById.displayFinancialStatus !== 'paid'
+      ) {
+        console.log('Fail: order not yet paid — waiting for PAID status');
+        return;
+      }
+
+      // If filter = UNPAID, bail once the order *is* paid
+      if (
+        campaign.filters.payment_options_type === 'UNPAID' &&
+        orderById.displayFinancialStatus === 'paid'
+      ) {
+        console.log('Fail: order already paid — skipping UNPAID flow');
+        return;
+      }
+    }
+    console.log('Pass: payment option filter');
+
+    //  // Abandoned Checkout Logic
+    if (campaign.new_checkout_abandonment_filter === true) {
+      const trigger_time = campaign.new_checkout_abandonment_time as any;
+      const abandonedCartDate = getFromDate(
+        campaign.new_checkout_abandonment_type === 'AFTER_EVENT'
+          ? '0 minutes'
+          : `${trigger_time.time} ${trigger_time.unit}`,
+      );
+
+      const abandoned_checkout = await this.databaseService.checkout.findFirst({
+        where: {
+          phone: sanitizePhoneNumber(orderById.customer.phone),
+
+          completedAt: null,
+          createdAt: { gt: abandonedCartDate },
+        },
+      });
+      if (abandoned_checkout) {
         return;
       }
     }
 
-    if(campaign?.filters?.is_order_delivery_filter_enabled){
-        if(fullfillment.status === campaign?.filters?.order_method){
-            return
-        }
+    if (campaign.related_order_cancelled && orderById.cancelledAt) {
+      return;
+    }
+    if (
+      campaign.related_order_fulfilled &&
+      orderById.displayFulfillmentStatus !== 'UNFULFILLED'
+    ) {
+      return;
+    }
+
+    if (campaign.new_order_creation_filter === true) {
+      const trigger_time = campaign.new_order_creation_time as any;
+      const orderDate = getFromDate(
+        campaign.new_order_creation_type === 'AFTER_EVENT'
+          ? '0 minutes'
+          : `${trigger_time.time} ${trigger_time.unit}`,
+      );
+      const neworder = await this.databaseService.order.findFirst({
+        where: {
+          customer_phoneno: orderById.customer.phone,
+          id: { not: order.id },
+          cancelled_at: null,
+          created_at: { gt: orderDate },
+        },
+      });
+      if (neworder) {
+        console.log('order already created');
+        return;
+      }
     }
 
     //  // Abandoned Checkout Logic
@@ -302,307 +388,293 @@ export class FullfillmentEventCampaign extends WorkerHost {
       }
     }
 
-
     if (campaign.related_order_cancelled && orderById.cancelledAt) {
       return;
     }
-    
-    let razorpaymentUrl = ""
-     
-           const components = [];
-           const { header, buttons, body } = campaign.components as any;
-           
-           const isCodToCheckoutLink = buttons.some((button) => button.segmentname === 'cod_to_checkout_link')
-            if(isCodToCheckoutLink){
-              const data = await this.razorpayService.generatePaymentLink(
-               razorpayConfig,
-                {
-                  name: orderById.customer.displayName,
-                  contact: orderById.customer.phone,
-                
-                },
-                Number(orderById.totalPrice),
-                'cod to checkout link',
-              );
-              
-              razorpaymentUrl = data.short_url
-              await this.databaseService.paymentLink.create({
-                data: {
-                  order_id:orderById.id,
-                  campaign_id:campaignId,
-                  razorpay_link_id:data.id,
-                  amount:orderById.totalPrice,
-                  currency:'INR',
-                  description:"cod to checkout link",
-                  customer_name:orderById.customer.displayName,
-                  customer_phone:sanitizePhoneNumber(orderById.customer.phone),
-                  status:data.status,
-                  short_url:data.short_url,
-                  
-                }
-              }) // Ensure safe accessrazorpayLink);
-            }
-           
-           const response = await this.whatsappService.findSpecificTemplate(
-             whatsappConfig,
-             campaign.template_name,
-           );
-           const template = response?.data?.[0];
-          // Ensure safe access
-     
-        
-           // // Process header component
-           if (header && header.isEditable) {
-             let headerValue = '';
-             if (header.type === 'TEXT') {
-               headerValue = header.fromsegment
-                 ? this.getOrderValue(orderById, header.segmentname)
-                 : header.value;
-               if (
-                 template.parameter_format === 'NAMED' &&
-                 template.components[0]?.example?.header_text_named_params?.[0]
-                   ?.param_name
-               ) {
-                 components.push({
-                   type: 'header',
-                   parameters: [
-                     {
-                       type: 'text',
-                       parameter_name:
-                         template.components[0].example.header_text_named_params[0]
-                           .param_name,
-                       text: headerValue,
-                     },
-                   ],
-                 });
-               } else {
-                 components.push({
-                   type: 'header',
-                   parameters: [{ type: 'text', text: headerValue }],
-                 });
-               }
-             } else if (header.type === 'IMAGE') {
-               components.push({
-                 type: 'header',
-                 parameters: [{ type: 'image', image: { link:  header.value==="ProductImage"?orderById?.lineItems?.[0]?.product?.images?.[0]??"":header.value } }],
-               });
-             } else if (header.type === 'VIDEO') {
-               components.push({
-                 type: 'header',
-                 parameters: [{ type: 'video', video: { link: header.value } }],
-               });
-             } else if (header.type === 'DOCUMENT') {
-               components.push({
-                 type: 'header',
-                 parameters: [
-                   { type: 'document', document: { link: header.value } },
-                 ],
-               });
-             }
-           
-           }
 
-     
-           // Process body component parameters
-           const bodyParameters = body.map((param) => {
-             const value = param.fromsegment
-               ? this.getOrderValue(orderById, param.segmentname)
-               : param.value || 'test';
-             return template.parameter_format === 'NAMED'
-               ? {
-                   type: 'text',
-                   parameter_name: param.parameter_name.replace(/{{|}}/g, ''),
-                   text: value,
-                 }
-               : { type: 'text', text: value };
-           });
-           components.push({ type: 'body', parameters: bodyParameters });
-           
-           
-    
-    
-           
-           // Process buttons
-           const isLinkTrackEnabled: boolean =
-           isTemplateButtonRedirectSafe(template);
-   
-           let trackId;
-           let trackUrl;
-            for (const [index, button] of buttons.entries()) {
-              console.log(`Button [${index}]:`, button);
-            
-              if (button.type === 'URL' && button.isEditable === true) {
-                if (!isLinkTrackEnabled) {
-                  components.push({
-                    type: 'button',
-                    sub_type: 'url',
-                    index,
-                    parameters: [
-                      {
-                        type: 'text',
-                        text:  button.fromsegment
-                        ? button.segmentname === 'cod_to_checkout_link'
-                          ? razorpaymentUrl
-                          : this.getOrderValue(orderById, button.segmentname)
-                        : button.value,
-                      },
-                    ],
-                  });
-                } else {
-                  const url = await this.databaseService.linkTrack.create({
-                    data: {
-                      link:  button.fromsegment
-                      ? button.segmentname === 'cod_to_checkout_link'
-                        ? razorpaymentUrl
-                        : this.getOrderValue(orderById, button.segmentname)
-                      : button.value,
-                      buisness_id: campaign.businessId,
-                      utm_source: "roi_magnet",
-                      utm_medium: "whatsapp",
-                    },
-                  });
-            
-                   trackId = url.id;
-                trackUrl = `go/${trackId}`;
-            
-                  components.push({
-                    type: 'button',
-                    sub_type: 'url',
-                    index,
-                    parameters: [
-                      {
-                        type: 'text',
-                        text: trackUrl,
-                      },
-                    ],
-                  });
-                }
-              } else if (button.type === 'COPY_CODE') {
-                components.push({
-                  type: 'button',
-                  sub_type: 'COPY_CODE',
-                  index,
-                  parameters: [
-                    {
-                      type: 'coupon_code',
-                      coupon_code: button.value,
-                    },
-                  ],
-                });
-              }
-            }
-           console.log(JSON.stringify(components))
-          
-     
-           const messageResponse = await this.whatsappService.sendTemplateMessage(
-             {
-               recipientNo: orderById.customer.phone,
-               templateName: template.name,
-               languageCode: template.language,
-               components,
-             },
-             whatsappConfig,
-           );
-     
-    
-     
-           const footer = template.components.find(
-             (component) => component.type === 'footer'
-           );
-           let bodycomponent = template.components.find(
-             (component) => component.type.toLowerCase() === 'body'
-           );
-           
-           
-           let bodyRawText = '';
-           if (bodycomponent && bodycomponent.text) {
-             bodyRawText = bodycomponent.text;
-            
-           
-             // Build a mapping for placeholders from the body parameters
-             const mapping = body.reduce(
-               (acc, param) => {
-                 // Clean up parameter name (remove any curly braces if present)
-                 const key = param.parameter_name.replace(/{{|}}/g, '');
-                 // Use getCheckoutValue if the value should come from checkout data; otherwise, fallback to param.value
-                 const value = param.fromsegment
-                   ? this.getOrderValue(orderById, param.segmentname)
-                   : param.value;
-                 acc[key] = value;
-              
-                 return acc;
-               },
-               {} as Record<string, string | number | null>
-             );
-           
-          
-           
-             // Replace each placeholder in the bodyRawText with its mapped value
-             Object.keys(mapping).forEach((placeholder) => {
-               const escapedPlaceholder = escapeRegExp(placeholder);
-               // Create a regex pattern to match the placeholder wrapped in curly braces,
-               // with optional whitespace inside the braces.
-               const regex = new RegExp(`{{\\s*${escapedPlaceholder}\\s*}}`, 'g');
-              
-               bodyRawText = bodyRawText.replace(
-                 regex,
-                 mapping[placeholder] as string
-               );
-              
-             });
-           
-             // Remove any remaining curly braces in case some placeholders weren't replaced
-             bodyRawText = bodyRawText.replace(/{{|}}/g, '');
-            
-           }
-     
-           const prospect = await this.databaseService.prospect.upsert({
-             where:{
-              buisnessId_phoneNo: {
-                buisnessId: campaign.Business.id,
-                phoneNo: sanitizePhoneNumber(orderById.customer.phone)
-              }
-             },
-             update:{},
-             create:{
-               phoneNo: sanitizePhoneNumber(orderById.customer.phone),
-               name: orderById.customer.name,
-               email: orderById.customer.email,
-     
-               lead: 'LEAD',
-               buisnessId: campaign.Business.id
-             }
-           })
-     
-           // Save chat record to the database
-           // console.log('Creating chat record in DB for contact:', contact);
-           const addTodb = await this.databaseService.chat.create({
-             data: {
-               prospectId: prospect.id,
-               template_used: true,
-               template_name: campaign.template_name,
-               senderPhoneNo: campaign.Business.whatsapp_mobile,
-               receiverPhoneNo: sanitizePhoneNumber(orderById.customer.phone),
-               sendDate: new Date(),
-               header_type: header?.type,
-               header_value:
-                 header?.isEditable && header?.type === 'TEXT'
-                   ? this.getOrderValue(orderById, header.segmentname)
-                   : header?.value,
-               body_text: bodyRawText,
-               footer_included: footer ? true : false,
-               footer_text: footer?.text || '',
-               Buttons: buttons,
-               type: template.type || 'text',
-               template_components: components,
-               isForCampaign: true,
-               campaignId: campaign.id,
-            
-    
-             },
-           });
+    let razorpaymentUrl = '';
 
+    const components = [];
+    const { header, buttons, body } = campaign.components as any;
 
+    const isCodToCheckoutLink = buttons.some(
+      (button) => button.segmentname === 'cod_to_checkout_link',
+    );
+    if (isCodToCheckoutLink) {
+      const data = await this.razorpayService.generatePaymentLink(
+        razorpayConfig,
+        {
+          name: orderById.customer.displayName,
+          contact: orderById.customer.phone,
+        },
+        Number(orderById.totalPrice),
+        'cod to checkout link',
+      );
+
+      razorpaymentUrl = data.short_url;
+      await this.databaseService.paymentLink.create({
+        data: {
+          order_id: orderById.id,
+          campaign_id: campaignId,
+          razorpay_link_id: data.id,
+          amount: orderById.totalPrice,
+          currency: 'INR',
+          description: 'cod to checkout link',
+          customer_name: orderById.customer.displayName,
+          customer_phone: sanitizePhoneNumber(orderById.customer.phone),
+          status: data.status,
+          short_url: data.short_url,
+        },
+      }); // Ensure safe accessrazorpayLink);
+    }
+
+    const response = await this.whatsappService.findSpecificTemplate(
+      whatsappConfig,
+      campaign.template_name,
+    );
+    const template = response?.data?.[0];
+    // Ensure safe access
+
+    // // Process header component
+    if (header && header.isEditable) {
+      let headerValue = '';
+      if (header.type === 'TEXT') {
+        headerValue = header.fromsegment
+          ? this.getOrderValue(orderById, header.segmentname)
+          : header.value;
+        if (
+          template.parameter_format === 'NAMED' &&
+          template.components[0]?.example?.header_text_named_params?.[0]
+            ?.param_name
+        ) {
+          components.push({
+            type: 'header',
+            parameters: [
+              {
+                type: 'text',
+                parameter_name:
+                  template.components[0].example.header_text_named_params[0]
+                    .param_name,
+                text: headerValue,
+              },
+            ],
+          });
+        } else {
+          components.push({
+            type: 'header',
+            parameters: [{ type: 'text', text: headerValue }],
+          });
+        }
+      } else if (header.type === 'IMAGE') {
+        components.push({
+          type: 'header',
+          parameters: [
+            {
+              type: 'image',
+              image: {
+                link:
+                  header.value === 'ProductImage'
+                    ? (orderById?.lineItems?.[0]?.product?.images?.[0] ?? '')
+                    : header.value,
+              },
+            },
+          ],
+        });
+      } else if (header.type === 'VIDEO') {
+        components.push({
+          type: 'header',
+          parameters: [{ type: 'video', video: { link: header.value } }],
+        });
+      } else if (header.type === 'DOCUMENT') {
+        components.push({
+          type: 'header',
+          parameters: [{ type: 'document', document: { link: header.value } }],
+        });
+      }
+    }
+
+    // Process body component parameters
+    const bodyParameters = body.map((param) => {
+      const value = param.fromsegment
+        ? this.getOrderValue(orderById, param.segmentname)
+        : param.value || 'test';
+      return template.parameter_format === 'NAMED'
+        ? {
+            type: 'text',
+            parameter_name: param.parameter_name.replace(/{{|}}/g, ''),
+            text: value,
+          }
+        : { type: 'text', text: value };
+    });
+    components.push({ type: 'body', parameters: bodyParameters });
+
+    // Process buttons
+    const isLinkTrackEnabled: boolean = isTemplateButtonRedirectSafe(template);
+
+    let trackId;
+    let trackUrl;
+    for (const [index, button] of buttons.entries()) {
+      console.log(`Button [${index}]:`, button);
+
+      if (button.type === 'URL' && button.isEditable === true) {
+        if (!isLinkTrackEnabled) {
+          components.push({
+            type: 'button',
+            sub_type: 'url',
+            index,
+            parameters: [
+              {
+                type: 'text',
+                text: button.fromsegment
+                  ? button.segmentname === 'cod_to_checkout_link'
+                    ? razorpaymentUrl
+                    : this.getOrderValue(orderById, button.segmentname)
+                  : button.value,
+              },
+            ],
+          });
+        } else {
+          const url = await this.databaseService.linkTrack.create({
+            data: {
+              link: button.fromsegment
+                ? button.segmentname === 'cod_to_checkout_link'
+                  ? razorpaymentUrl
+                  : this.getOrderValue(orderById, button.segmentname)
+                : button.value,
+              buisness_id: campaign.businessId,
+              utm_source: 'roi_magnet',
+              utm_medium: 'whatsapp',
+            },
+          });
+
+          trackId = url.id;
+          trackUrl = trackId;
+
+          components.push({
+            type: 'button',
+            sub_type: 'url',
+            index,
+            parameters: [
+              {
+                type: 'text',
+                text: trackUrl,
+              },
+            ],
+          });
+        }
+      } else if (button.type === 'COPY_CODE') {
+        components.push({
+          type: 'button',
+          sub_type: 'COPY_CODE',
+          index,
+          parameters: [
+            {
+              type: 'coupon_code',
+              coupon_code: button.value,
+            },
+          ],
+        });
+      }
+    }
+    console.log(JSON.stringify(components));
+
+    const messageResponse = await this.whatsappService.sendTemplateMessage(
+      {
+        recipientNo: orderById.customer.phone,
+        templateName: template.name,
+        languageCode: template.language,
+        components,
+      },
+      whatsappConfig,
+    );
+
+    const footer = template.components.find(
+      (component) => component.type === 'footer',
+    );
+    let bodycomponent = template.components.find(
+      (component) => component.type.toLowerCase() === 'body',
+    );
+
+    let bodyRawText = '';
+    if (bodycomponent && bodycomponent.text) {
+      bodyRawText = bodycomponent.text;
+
+      // Build a mapping for placeholders from the body parameters
+      const mapping = body.reduce(
+        (acc, param) => {
+          // Clean up parameter name (remove any curly braces if present)
+          const key = param.parameter_name.replace(/{{|}}/g, '');
+          // Use getCheckoutValue if the value should come from checkout data; otherwise, fallback to param.value
+          const value = param.fromsegment
+            ? this.getOrderValue(orderById, param.segmentname)
+            : param.value;
+          acc[key] = value;
+
+          return acc;
+        },
+        {} as Record<string, string | number | null>,
+      );
+
+      // Replace each placeholder in the bodyRawText with its mapped value
+      Object.keys(mapping).forEach((placeholder) => {
+        const escapedPlaceholder = escapeRegExp(placeholder);
+        // Create a regex pattern to match the placeholder wrapped in curly braces,
+        // with optional whitespace inside the braces.
+        const regex = new RegExp(`{{\\s*${escapedPlaceholder}\\s*}}`, 'g');
+
+        bodyRawText = bodyRawText.replace(
+          regex,
+          mapping[placeholder] as string,
+        );
+      });
+
+      // Remove any remaining curly braces in case some placeholders weren't replaced
+      bodyRawText = bodyRawText.replace(/{{|}}/g, '');
+    }
+
+    const prospect = await this.databaseService.prospect.upsert({
+      where: {
+        buisnessId_phoneNo: {
+          buisnessId: campaign.Business.id,
+          phoneNo: sanitizePhoneNumber(orderById.customer.phone),
+        },
+      },
+      update: {},
+      create: {
+        phoneNo: sanitizePhoneNumber(orderById.customer.phone),
+        name: orderById.customer.name,
+        email: orderById.customer.email,
+
+        lead: 'LEAD',
+        buisnessId: campaign.Business.id,
+      },
+    });
+
+    // Save chat record to the database
+    // console.log('Creating chat record in DB for contact:', contact);
+    const addTodb = await this.databaseService.chat.create({
+      data: {
+        prospectId: prospect.id,
+        template_used: true,
+        template_name: campaign.template_name,
+        senderPhoneNo: campaign.Business.whatsapp_mobile,
+        receiverPhoneNo: sanitizePhoneNumber(orderById.customer.phone),
+        sendDate: new Date(),
+        header_type: header?.type,
+        header_value:
+          header?.isEditable && header?.type === 'TEXT'
+            ? this.getOrderValue(orderById, header.segmentname)
+            : header?.value,
+        body_text: bodyRawText,
+        footer_included: footer ? true : false,
+        footer_text: footer?.text || '',
+        Buttons: buttons,
+        type: template.type || 'text',
+        template_components: components,
+        isForCampaign: true,
+        campaignId: campaign.id,
+      },
+    });
   }
   async getOrderById(orderId: string, config: any) {
     try {
@@ -766,23 +838,23 @@ export class FullfillmentEventCampaign extends WorkerHost {
           }
         }
       `;
-  
+
       const variables = { id: `gid://shopify/Order/${orderId}` };
-  
-      const { data: response, errors } = await this.shopifyService.executeGraphQL(query, variables, config);
-  
+
+      const { data: response, errors } =
+        await this.shopifyService.executeGraphQL(query, variables, config);
+
       if (errors) {
         console.error('Error executing GraphQL query:', errors);
         throw new Error('Error executing GraphQL query');
       }
-  
+
       if (!response?.order) return;
-  
+
       console.log('Order data:', JSON.stringify(response?.order, null, 2));
-   
+
       const cleanedOrder = this.cleanOrderData(response?.order);
       return cleanedOrder;
-  
     } catch (error) {
       console.error('Error in getOrderById:', error);
       throw error;
@@ -834,7 +906,7 @@ export class FullfillmentEventCampaign extends WorkerHost {
       order_status: orderData.displayFinancialStatus || 'UNKNOWN',
       order_fulfillment_status: orderData.displayFulfillmentStatus || 'UNKNOWN',
 
-      tags:orderData.tags,
+      tags: orderData.tags,
       order_payment_gateway:
         orderData.paymentGatewayNames?.join(', ') || 'UNKNOWN',
       order_status_link: orderData.statusPageUrl || null,
@@ -849,15 +921,14 @@ export class FullfillmentEventCampaign extends WorkerHost {
         orderData.lineItems?.map((item: any) => item.title).join(', ') || null,
       order_id: orderData.id || null,
       order_date: orderData.createdAt || null,
-      
-        track_id: orderData?.fulfillments?.[0]?.trackingInfo?.[0]?.number ?? "123",
-        track_link: orderData?.fulfillments?.[0]?.trackingInfo?.[0]?.url ?? "https://www.google.com",
-        shippment_status: orderData?.fulfillments?.[0]?.displayStatus ?? "UNKNOWN",
-      
-      
 
-
-
+      track_id:
+        orderData?.fulfillments?.[0]?.trackingInfo?.[0]?.number ?? '123',
+      track_link:
+        orderData?.fulfillments?.[0]?.trackingInfo?.[0]?.url ??
+        'https://www.google.com',
+      shippment_status:
+        orderData?.fulfillments?.[0]?.displayStatus ?? 'UNKNOWN',
     };
 
     return mapping.hasOwnProperty(key) ? mapping[key] : key;

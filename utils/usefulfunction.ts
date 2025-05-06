@@ -16,6 +16,7 @@ export function getFirstAndLastName(fullName: string) {
 }
 
 export function getShopifyConfig(buisness: Business) {
+  console.log(buisness);
   return {
     store: buisness?.shopify_domain || process.env.SHOPIFY_STORE,
     accessToken: decrypt(buisness?.shopify_Token) || process.env.SHOPIFY_ACCESS_TOKEN,
@@ -290,4 +291,30 @@ export function decrypt(payload: string): string {
     decipher.final(),
   ]);
   return decrypted.toString('utf8');
+}
+
+export function extractProductImages(order: any): string[] {
+  const urls: string[] = [];
+
+  for (const item of order.lineItems) {
+    // 1) the line item’s own image
+    if (item.image?.url) {
+      urls.push(item.image.url);
+      continue;
+    }
+
+    // 2) any product-level images
+    if (Array.isArray(item.product.images) && item.product.images.length) {
+      urls.push(...item.product.images);
+      continue;
+    }
+
+    // 3) the variant’s image
+    if (item.variant.image?.url) {
+      urls.push(item.variant.image.url);
+      continue;
+    }
+  }
+
+  return urls;
 }

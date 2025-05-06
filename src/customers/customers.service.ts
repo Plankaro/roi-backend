@@ -158,96 +158,107 @@ export class CustomersService {
   }
 
   async getCustomerById(customerId: string, req: any) {
-    const buisness = req.user.business ;
-    console.log(customerId);
-    const config = getShopifyConfig(buisness);
-    const query = `
-  query ($id: ID!) {
-    customer(id: $id) {
-      id
-      firstName
-      lastName
-      displayName
-      email
-      numberOfOrders
-      phone
-      amountSpent {
-        amount
-        currencyCode
-      }
-     
-      addresses {
-        address1
-        address2
-        city
-        country
-        zip
-      }
-    }
-  }
-`;
-
-    const variables = { id: `gid://shopify/Customer/${customerId}` };
-
-    const getProspect = await this.databaseService.prospect.findUnique({
-      where: { shopify_id: customerId },
-    });
-
-    const response = await this.shopifyService.executeGraphQL(
-      query,
-      variables,
-      config,
-    );
-
-    console.log(JSON.stringify(response, null, 2));
-
-    if (!response || !response.data || !response.data.customer) {
+    const business = req.user.business;
+    const config = getShopifyConfig(business);
+    const shopifyCustomerId = `gid://shopify/Customer/${customerId}`;
+  
+    // 1️⃣ Fetch prospect and Shopify data in parallel
+    const [prospect, shopifyResp] = await Promise.all([
+      this.databaseService.prospect.findUnique({
+        where: { shopify_id: customerId },
+      }),
+      this.shopifyService.executeGraphQL(
+        `
+          query ($id: ID!) {
+            customer(id: $id) {
+              id
+              firstName
+              lastName
+              displayName
+              email
+              numberOfOrders
+              phone
+              amountSpent {
+                amount
+                currencyCode
+              }
+              addresses {
+                address1
+                address2
+                city
+                country
+                zip
+              }
+            }
+          }
+        `,
+        { id: shopifyCustomerId },
+        config
+      ),
+    ]);
+  
+    if (!shopifyResp?.data?.customer) {
       throw new NotFoundException('No customer found');
     }
-
-    let totalMessages = 0,
-      sentMessages = 0,
-      receivedMessages = 0,
-      readMessages = 0;
-
-
-    if (getProspect) {
-      [totalMessages, sentMessages, receivedMessages, readMessages] =
-        await Promise.all([
-          this.databaseService.chat.count({
-            where: { prospectId: getProspect.id },
-          }),
-          this.databaseService.chat.count({
-            where: {
-              senderPhoneNo: getProspect.phoneNo,
-              receiverPhoneNo: buisness.whatsapp_mobile,
-            },
-          }),
-          this.databaseService.chat.count({
-            where: {
-              receiverPhoneNo: getProspect.phoneNo,
-              senderPhoneNo: buisness.whatsapp_mobile,
-            },
-          }),
-          this.databaseService.chat.count({
-            where: {
-              receiverPhoneNo: getProspect.phoneNo,
-              Status: 'read',
-            },
-          }),
-        ]);
+  
+    // Default stats
+    let totalMessages = 0;
+    let sentMessages = 0;
+    let receivedMessages = 0;
+    let readMessages = 0;
+    let clickCount = 0;
+  
+    // 2️⃣ If we have a prospect, gather chat counts and click sum
+    if (prospect) {
+      const { id: prospectId, phoneNo } = prospect;
+      const { whatsapp_mobile } = business;
+  
+      const [
+        totalMsgs,
+        sentMsgs,
+        recvMsgs,
+        readMsgs,
+        clickRecords,
+      ] = await Promise.all([
+        this.databaseService.chat.count({ where: { prospectId } }),
+        this.databaseService.chat.count({
+          where: { senderPhoneNo: phoneNo, receiverPhoneNo: whatsapp_mobile },
+        }),
+        this.databaseService.chat.count({
+          where: { receiverPhoneNo: phoneNo, senderPhoneNo: whatsapp_mobile },
+        }),
+        this.databaseService.chat.count({
+          where: { receiverPhoneNo: phoneNo, Status: 'read' },
+        }),
+        this.databaseService.linkTrack.findMany({
+          where: { prospect_id: prospectId },
+          select: { no_of_click: true },
+        }),
+      ]);
+  
+      totalMessages = totalMsgs;
+      sentMessages = sentMsgs;
+      receivedMessages = recvMsgs;
+      readMessages = readMsgs;
+      clickCount = clickRecords.reduce(
+        (sum, { no_of_click }) => sum + no_of_click,
+        0
+      );
     }
-
-    console.log(JSON.stringify(response.data, null, 2)); // Log the response
+  
+    // 3️⃣ Return combined result
     return {
-      shopifyData: response.data.customer,
-      DbData: getProspect || null,
+      shopifyData: shopifyResp.data.customer,
+      dbData: prospect,
       totalMessages,
       sentMessages,
       receivedMessages,
       readMessages,
+      clickCount,
     };
   }
+  
+  
 
   async getAllSegments(
     req: any,
@@ -340,9 +351,10 @@ export class CustomersService {
     let hasNextPage = true;
     let after: string = null;
     const first = 250;
-
+console.log(req);
     // Retrieve the business configuration
-    const config = getShopifyConfig(req?.user?.business ?? req?.business ?? {});
+    const config = getShopifyConfig(req?.user?.business ?? req?.business ?? req);
+    console.log(config);
 
     // Define the GraphQL query
     const query = `
@@ -453,7 +465,7 @@ export class CustomersService {
 
       const variables = { phoneNumber: phone };
       const config = getShopifyConfig(
-        req?.user?.business ?? req?.business ?? {},
+        req?.user?.business ?? req?.business ?? req??{},
       );
 
       const customer = await this.shopifyService.executeGraphQL(

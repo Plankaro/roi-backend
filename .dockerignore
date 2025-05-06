@@ -1,0 +1,39 @@
+# Node modules and build outputs
+node_modules
+dist
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Package manager directories
+.npm
+.yarn
+
+# Local environment files (do NOT include secrets in images)
+.env
+.env.*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Git and version control
+.git
+.gitignore
+
+# IDE/editor folders
+.vscode/
+.idea/
+
+# Docker files (ignore overrides, but keep the main Dockerfile and compose)
+docker-compose*.yml
+!Dockerfile
+
+# Coverage & test reports
+coverage/
+test-results/
+
+# Miscellaneous
+logs/

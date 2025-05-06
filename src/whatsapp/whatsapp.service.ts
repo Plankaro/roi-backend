@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Injectable,
   InternalServerErrorException,
   NotFoundException,
@@ -179,8 +180,8 @@ export class WhatsappService {
       category: templateData.category,
       components: templateData.components,
     };
-    console.log(JSON.stringify(payload,null,2));
-    try {
+
+
       const client = this.createClient(
         config?.whatsappApiToken
       );
@@ -190,11 +191,9 @@ export class WhatsappService {
       );
       console.log('Template successfully sent to Meta:', response.data);
       return response.data;
-    } catch (error: any) {
-     console.log(JSON.stringify(error.response ? error.response.data : error.message,null,2))
-      throw error;
-    }
-  }
+    
+  
+}
 
   async sendMessage(
     recipientNo: string,

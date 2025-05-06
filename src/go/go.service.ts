@@ -72,7 +72,7 @@ export class GoService {
       return res.redirect(finalUrl);
     } catch (error) {
       console.error('Error processing URL:', error);
-      return {};
+      throw new NotFoundException('Link not found');
     }
   }
   

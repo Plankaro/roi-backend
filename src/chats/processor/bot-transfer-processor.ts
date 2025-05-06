@@ -580,6 +580,35 @@ This offer is valid for the next ${isDiscountBotEnabled.discount_expiry} days, s
             businessId:chatMessage.Prospect.business.id,
           }
         })
+        let tag
+         tag = await this.databaseService.tag.findFirst({
+          where:{
+            tagName:"CUSTOMERSUPPORT",
+            businessId:chatMessage.Prospect.business.id
+          }
+        })
+        if(!tag){
+          tag = await this.databaseService.tag.create({
+            data:{
+              tagName:"CUSTOMERSUPPORT",
+              businessId:chatMessage.Prospect.business.id
+             
+            }
+          })
+        }
+        const assignTag = await this.databaseService.prospectTag.upsert({
+          where: {
+            prospectId_tagId: {
+              prospectId: chatMessage.Prospect.id,
+              tagId: tag.id,
+            },
+          },
+          update:{},
+          create:{
+            prospect:{connect:{ id: chatMessage.Prospect.id }},
+            tag:{connect:{ id: tag.id }},
+          }
+        })
         users.forEach(async (user) => {
           const notification = await this.databaseService.notification.create({
             data: {

@@ -42,6 +42,7 @@ export class BroadcastService {
       schedule,
       template_name,
       template_language,
+      reply_action
     } = createBroadcastDto;
     const user = req.user;
 
@@ -59,6 +60,7 @@ export class BroadcastService {
       ...(utmParameters.utm_medium.enabled && {
         utm_medium: utmParameters.utm_medium.value,
       }),
+      reply_action:reply_action,
       utm_term: utmParameters.utm_term,
       utm_id: utmParameters.utm_id,
       avoid_duplicate: advanceFilters.avoidDuplicateContacts.enabled,
@@ -69,7 +71,7 @@ export class BroadcastService {
       template_name: template_name,
       template_language: template_language,
       onlimit_exced: onlimitexced,
-      price: `5000`,
+      price: `0`,
       createdBy: user.id,
       createdForId: user.business.id,
       total_contact: contact.total_count,
@@ -225,6 +227,7 @@ export class BroadcastService {
             data: {
               link: button.value,
               buisness_id: user?.buisness?.id,
+              
               is_test_link: true,
               ...(utmParameters.utm_campaign.enabled && {
                 utm_campaign: utmParameters.utm_campaign.value,
@@ -353,6 +356,15 @@ export class BroadcastService {
           createdForId: business.id,
           id: id,
         },
+        include:{
+          creator:{
+            select: {
+              name: true,
+              id: true,
+              image: true
+            }
+          }
+        }
        
       
       });
@@ -369,6 +381,7 @@ export class BroadcastService {
         skippedReasonGroups,
         failedReasonGroups,
         sentCount,
+        conversion,
       ] = await Promise.all([
         this.databaseService.chat.count({
           where: { broadcastId: broadcast.id },
@@ -421,6 +434,14 @@ export class BroadcastService {
             Status: 'sent',
           },
         }),
+        this.databaseService.linkTrack.count({
+          where: {
+            broadcast_id: broadcast.id,
+            Order: {      // or "orders" if your relation field is named in lowercase
+              some: {}    // filters to only those linkTrack entries with ≥1 related Order
+            },
+          },
+        })
       ]);
       const config = getWhatsappConfig(business);
 
@@ -444,6 +465,18 @@ export class BroadcastService {
           count: group._count._all,
         }),
       );
+
+      const order = await this.databaseService.order.findMany({
+        where:{
+          linkTrack:{
+            broadcast_id:id
+          }
+        },
+        select:{
+          amount:true
+        }
+      })
+
       const link = await this.databaseService.linkTrack.findMany({
         where:{
           broadcast_id:id,
@@ -452,11 +485,6 @@ export class BroadcastService {
           no_of_click:true,
           first_click:true,
           last_click:true,
-          Order:{
-            select:{
-              amount:true
-            }
-          }
         }
       })
 
@@ -471,7 +499,9 @@ export class BroadcastService {
         skippedReasonGroups: transformedSkippedReasonGroups,
         failedReasonGroups: transformedFailedReasonGroups,
         template: Templates.data[0],
+        order,
         link,
+        conversion
       };
     } catch (error) {
       console.log(error);

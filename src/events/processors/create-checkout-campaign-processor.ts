@@ -7,7 +7,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { DatabaseService } from 'src/database/database.service';
-import { discount_type } from '@prisma/client';
+import { Business, discount_type } from '@prisma/client';
 import {
   getFromDate,
   getShopifyConfig,
@@ -26,6 +26,7 @@ import {
   noneTagPresent,
 } from 'utils/usefulfunction';
 import { Order } from 'src/orders/entities/order.entity';
+import { Campaign } from 'src/campaign/entities/campaign.entity';
 
 @Processor('createCheckoutCampaign')
 @Injectable()
@@ -57,6 +58,7 @@ export class CreateCheckoutCampaign extends WorkerHost {
         }),
       ]);
 
+
       if (campaign?.related_order_created && checkout.completedAt !== null) {
         console.log('order already created');
         return;
@@ -73,7 +75,7 @@ export class CreateCheckoutCampaign extends WorkerHost {
 
       //get order
 
-      if (order?.tags && campaign.filters.is_order_tag_filter_enabled) {
+      if (campaign.filters.is_order_tag_filter_enabled) {
         console.log('order tags', order?.tags);
         const tagsfromField = getTagsArray(order?.tags);
         console.log('tagsfromField', tagsfromField);
@@ -85,6 +87,7 @@ export class CreateCheckoutCampaign extends WorkerHost {
               campaign.filters.order_tag_filter_all,
             )
           ) {
+            console.log('order tag filter all failed');
             return;
           }
         }
@@ -156,6 +159,7 @@ export class CreateCheckoutCampaign extends WorkerHost {
         products,
         shopifyConfig,
       );
+      console.log('ProductList', ProductList);
       if (ProductList && campaign.filters.is_product_tag_filter_enabled) {
         const tagsFromField = getTagsArray(
           ProductList?.map((products) => products.tags),
@@ -345,7 +349,7 @@ export class CreateCheckoutCampaign extends WorkerHost {
       }
       // Proceed with processing the order
       if (campaign.filters.is_order_count_filter_enabled) {
-        const orderCount = customer.OrderCount;
+        const orderCount = customer.numberOfOrders;
         const {
           order_count_filter_less_or_equal: minAmount,
           order_count_filter_greater_or_equal: maxAmount,
@@ -404,6 +408,29 @@ export class CreateCheckoutCampaign extends WorkerHost {
         }
       }
 
+      if(campaign.new_order_creation_filter === true){
+        const trigger_time = campaign.new_order_creation_time as any;
+        const orderDate = getFromDate(
+          campaign.new_order_creation_type === 'AFTER_EVENT'
+            ? '0 minutes'
+            : `${trigger_time.time} ${trigger_time.unit}`,
+        );
+        const neworder = await this.databaseService.order.findFirst({
+          where: {
+            customer_phoneno: checkout.phone,
+            id: { not: order.id },
+            cancelled_at: null,
+            created_at: { gt: orderDate },
+          },
+        });
+        if(neworder){
+          console.log('order already created');
+          return;
+        }
+      }
+
+
+
       await this.databaseService.checkoutOnCampaign.create({
         data: {
           checkoutId: checkout.id,
@@ -446,6 +473,7 @@ export class CreateCheckoutCampaign extends WorkerHost {
             ? this.getCheckoutValue(
                 checkout,
                 header.segmentname,
+                campaign.Business,
                 discount,
                 isLinkTrackEnabled,
                 campaign,
@@ -510,6 +538,7 @@ export class CreateCheckoutCampaign extends WorkerHost {
           ? this.getCheckoutValue(
               checkout,
               param.segmentname,
+              campaign.Business,
               discount,
               isLinkTrackEnabled,
               campaign,
@@ -544,6 +573,7 @@ export class CreateCheckoutCampaign extends WorkerHost {
                     ? this.getCheckoutValue(
                         checkout,
                         button.segmentname,
+                        campaign.Business,
                         discount,
                         isLinkTrackEnabled,
                         campaign,
@@ -998,9 +1028,12 @@ export class CreateCheckoutCampaign extends WorkerHost {
   getCheckoutValue(
     checkout: any,
     key: string,
+    Buisness:Business,
     discount?: string,
     is_link_track_enabled = true as boolean,
+   
     campaign?: any,
+
   ): string | number | null {
     let abandonUrl = checkout.abandonedCheckoutUrl || null;
 
@@ -1045,7 +1078,12 @@ export class CreateCheckoutCampaign extends WorkerHost {
           ? `Rs ${campaign?.discount} `
           : `${campaign?.discount}%` || '0.00',
       abandon_checkout_url: modifiedAbandonUrl,
-      shop_url: checkout.domain ? `https://${checkout.domain}` : null,
+      shop_url: Buisness.shopify_domain
+      ? Buisness.shopify_domain.startsWith('http://') ||
+        Buisness.shopify_domain.startsWith('https://')
+        ? Buisness.shopify_domain
+        : `https://${Buisness.shopify_domain}`
+      : null,
     };
 
     return mapping.hasOwnProperty(key) ? mapping[key] : key;

@@ -74,25 +74,43 @@ export class AnalyticsService {
         completedAt: null
       }
     })
-    const recoveredCheckout = await this.databaseService.order.count({
+    // const recoveredCheckout = await this.databaseService.linkTrack.count({
+    //   // where:{
+    //   //   created_at: {
+    //   //     gte: startDate,
+    //   //     lte: endDate
+    //   //   },
+    //     linkTrackId: {
+    //       not: null
+    //     },
+    //    linkTrack: {   
+    //    NOT: {
+    //     checkout_id: null,
+    //      last_click: null,
+    //      no_of_click: 0
+    //    }
+    //  }
+    //   },select: {
+    //     amount: true,
+    //     created_at: true
+    //   }
+    // })
+
+    const recoveredCheckout = await this.databaseService.linkTrack.count({
       where:{
-        created_at: {
-          gte: startDate,
-          lte: endDate
+        buisness_id: req.user.business.id,
+        Order:{
+          some:{
+            created_at: {
+              gte: startDate,
+              lte: endDate
+            }
+          }
         },
-        linkTrackId: {
-          not: null
-        },
-       linkTrack: {   
-       NOT: {
-        checkout_id: null,
-         last_click: null,
-         no_of_click: 0
-       }
-     }
-      },select: {
-        amount: true,
-        created_at: true
+      recovered_checkout: true,
+      checkout_id:{
+        not: null
+      }
       }
     })
 
@@ -291,7 +309,7 @@ async getChatAnalytics(req, query) {
       totalMessages,
       automatedMessages,
       totalEngagements,
-      abandonedEngagements,
+      rawAbandoned,
       messagesByAgentsRaw,
     ] = await Promise.all([
       this.databaseService.chat.count({
@@ -313,24 +331,32 @@ async getChatAnalytics(req, query) {
           created_at: { gte: startDate, lte: endDate },
         },
       }),
-      this.databaseService.prospect.findMany({
-        where: {
-          business: { id: businessId },
-          created_at: { gte: startDate, lte: endDate },
-          chats: { some: {} },
-        },
-        include: {
-          chats: {
-            where: {
-              senderPhoneNo: req.user.business.whatsapp_mobile,
-              createdAt: { lte: threeDaysBeforeEnd },
-
-            },
-            orderBy: { createdAt: 'desc' },
-            take: 1,
-          },
-        },
-      }),
+      this.databaseService.$queryRawUnsafe<
+      Array<{ count: bigint }>
+    >(
+      `
+      SELECT COUNT(*) AS count
+      FROM "Prospect" p
+      JOIN (
+        SELECT "prospectId", MAX("createdAt") AS lastDate
+        FROM "Chat"
+        GROUP BY "prospectId"
+      ) lc ON lc."prospectId" = p.id
+      JOIN "Chat" c
+        ON c."prospectId" = p.id
+        AND c."createdAt" = lc.lastDate
+      WHERE
+        p."buisnessId"      = $1
+        AND p."created_at"  BETWEEN $2 AND $3
+        AND c."senderPhoneNo" = $4
+        AND c."createdAt"   <= $5;
+      `,
+      businessId,
+      startDate,
+      endDate,
+      req.user.business.whatsapp_mobile,
+      threeDaysBeforeEnd,
+    ),
       this.databaseService.$queryRawUnsafe<
         { senderId: string; senderName: string; messageCount: bigint }[]
       >(
@@ -350,6 +376,8 @@ async getChatAnalytics(req, query) {
         endDate
       ),
     ]);
+    const abandonedEngagements = rawAbandoned.length ? Number(rawAbandoned[0].count) : 0;
+
   
     // Fetch all relevant chat messages
     const chatCount = await this.databaseService.chat.findMany({

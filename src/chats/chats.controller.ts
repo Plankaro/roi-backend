@@ -93,6 +93,11 @@ export class ChatsController {
     return this.chatsService.markMessageAsRead(prospectId,req);
   }
 
+  @Patch('/notifications')
+  markNotificationsAsRead(@Req() req: Request,) {
+    return this.chatsService.markNotificationsAsRead(req);
+  }
+
   
 
  

@@ -15,7 +15,8 @@ import _ from 'lodash';
 import { graphql } from 'graphql';
 import { randomUUID } from 'crypto';
 import axios from 'axios';
-import { Buisness } from 'src/buisness/entities/buisness.entity';
+import { Business } from '@prisma/client';
+
 
 @Injectable()
 @Processor('linktrackQueue')
@@ -90,6 +91,7 @@ export class LinkTrackQueue extends WorkerHost {
           checkout_id: getOrder.db_checkout_id,
           prospect: { phoneNo: sanitizedPhone },
           buisness: { id: findBusiness.id },
+          recovered_checkout:false,
 
           is_test_link: false,
           chat: {
@@ -110,7 +112,9 @@ export class LinkTrackQueue extends WorkerHost {
           where: { id: findLink.id },
           data: {
             Order: { connect: { id: orderId } },
+            recovered_checkout: true
           },
+          
           include: {
             campaign: true,
           },
@@ -173,6 +177,7 @@ export class LinkTrackQueue extends WorkerHost {
         });
         console.log(update);
         if(update.type==="BROADCAST"){
+          console.log('broadcast');
           if(findBusiness.is_google_analytics_connected){
             await this.trackGa4Event(
               'broadcast',
@@ -317,7 +322,7 @@ export class LinkTrackQueue extends WorkerHost {
     order_currency: string,
     createdAt: string | Date,
     name: string,
-    business: any,
+    business: Business,
   ): Promise<void> {
     const config = getgoogleAnalyticsConfig(business);
     const { mesurementId, apiSecret } = config;
@@ -331,27 +336,29 @@ export class LinkTrackQueue extends WorkerHost {
       `&api_secret=${apiSecret}`;
 
     // Use crypto.randomUUID() for a v4 UUID
-    const clientId = randomUUID();
+    
 
     // GA4 expects timestamp in microseconds
     const timestampMicros =
       (new Date(createdAt).getTime() || Date.now()) * 1000;
 
-    const payload = {
-      client_id: clientId,
-      timestamp_micros: timestampMicros,
-      events: [
-        {
-          name: type,
-          params: {
-            name,
-            value: order_amount,
-            currency: order_currency,
+      const payload = {
+        client_id: business.id,
+        timestamp_micros: timestampMicros,
+        events: [
+          {
+            name: name,       // ← Event name, not the source
+            params: {
+              value: Number(order_amount),       // e.g. 30.03
+              currency: order_currency,  // e.g. 'USD'
+              lead_source: type, // ← your lead source string
+           
+            },
           },
-        },
-      ],
-    };
-    Logger.log('payload', payload);
+        ],
+      };
+      
+      console.log('payload', payload);
 
     try {
       const res = await axios.post(endpoint, payload, {
@@ -362,7 +369,7 @@ export class LinkTrackQueue extends WorkerHost {
       if (res.status !== 204) {
         console.warn(`GA4 responded with status ${res.status}`, res.data);
       }
-      return res.data;
+     
     } catch (err: any) {
       console.error(
         'Error sending GA4 event:',
@@ -405,6 +412,7 @@ export class LinkTrackQueue extends WorkerHost {
             value: order_amount,
             currency: order_currency, // swap your currency code
             content_name: name,
+           
           },
         },
       ],

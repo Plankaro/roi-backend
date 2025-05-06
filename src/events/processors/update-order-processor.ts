@@ -3,7 +3,7 @@ import { Job, Queue } from 'bullmq';
 import { Injectable } from '@nestjs/common';
 import { DatabaseService } from 'src/database/database.service';
 import { JobData } from './checkout-create-processor';
-import { getFutureTimestamp, sanitizePhoneNumber } from 'utils/usefulfunction';
+import { getFutureTimestamp, getTagsArray, sanitizePhoneNumber } from 'utils/usefulfunction';
 
 @Injectable()
 @Processor('updateOrderQueue')
@@ -12,6 +12,8 @@ export class UpdateOrderProcessor extends WorkerHost {
     private readonly databaseService: DatabaseService,
     @InjectQueue('updateOrderCampaign')
     private readonly updateOrderCampaign: Queue,
+    @InjectQueue('orderTagsAddedCampaign')
+    private readonly orderTagsAddedCampaign: Queue,
   ) {
     super();
   }
@@ -21,20 +23,28 @@ export class UpdateOrderProcessor extends WorkerHost {
       orderData.billing_address?.phone || orderData.customer?.phone;
 
     const sanitizedContact = sanitizePhoneNumber(contact);
-    const updateOrder = await this.databaseService.order.findUnique({
+    const findOrder = await this.databaseService.order.findUnique({
       where: {
         shopify_id: orderData.id.toString(),
       },
     });
-    if (!updateOrder) {
+  
+    if (!findOrder) {
       console.log('No order found in the database for this shopify_id');
       return;
     }
+
+    const  newTags = getTagsArray(orderData.tags)
+    const exisitingTags = getTagsArray(findOrder.tags)
+
+    const hasNewTags = this.hasNewTags(newTags, exisitingTags)
+    console.log('hasNewTags', hasNewTags)
+
     console.log('processing with order');
 
     const order_updated = await this.databaseService.order.update({
       where: {
-        id: updateOrder.id,
+        id: findOrder.id,
       },
 
       data: {
@@ -86,6 +96,7 @@ export class UpdateOrderProcessor extends WorkerHost {
     });
 
     if (Campaigns.length > 0) {
+
       Campaigns.forEach((campaign) => {
         const time =
           campaign.trigger_type === 'AFTER_CAMPAIGN_CREATED'
@@ -109,8 +120,51 @@ export class UpdateOrderProcessor extends WorkerHost {
           });
       });
     }
+
+    if(hasNewTags){
+      const campaigns = await this.databaseService.campaign.findMany({
+        where: {
+          // ✅ Add 'where'
+          Business: {
+            shopify_domain: domain, // ✅ Correct nested filtering
+          },
+          status: 'ACTIVE',
+          trigger: 'ORDER_TAG_ADDED',
+        },
+      });
+  
+      if (campaigns.length > 0) {
+        campaigns.forEach((campaign) => {
+          const time =
+            campaign.trigger_type === 'AFTER_CAMPAIGN_CREATED'
+              ? 0
+              : getFutureTimestamp(campaign.trigger_time as any);
+          this.orderTagsAddedCampaign
+            .add(
+              'orderTagsAddedCampaign',
+              { campaignId: campaign.id, orderId: order_updated.id },
+  
+              {
+                delay: time,
+                removeOnComplete: true,
+              }
+            )
+            .then((job) => {
+              console.log('Job added to createCheckoutCampaignQueue:', job.id);
+            })
+            .catch((error) => {
+              console.error('Error adding job:', error);
+            });
+        });
+      }
+    }
+
+    
+    
   }
-  catch(error) {
-    console.error('Error in manipulateOrder:', error);
+  hasNewTags(newTags: string[], existingTags: string[]): boolean {
+    const existingSet = new Set(existingTags);
+    // `.some` will short-circuit and return true on the first new tag it finds
+    return newTags.some((tag) => !existingSet.has(tag));
   }
 }
