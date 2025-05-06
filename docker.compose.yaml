@@ -1,28 +1,24 @@
 version: '3.8'
-
+ 
 services:
   app:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: roi-backend:latest
-    container_name: roi-backend
-    env_file:
-      - .env
+    build: .
     ports:
-      - '3000:3000'
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - REDIS_HOST=redis
     depends_on:
       - redis
     restart: unless-stopped
-
+ 
   redis:
-    image: redis:7-alpine
-    container_name: roi-redis
+    image: redis:alpine
     ports:
-      - '6379:6379'
+      - "6379:6379"
     volumes:
-      - redis-data:/data
+      - redis_data:/data
     restart: unless-stopped
-
+ 
 volumes:
-  redis-data:
+  redis_data:
