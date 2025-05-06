@@ -3,12 +3,16 @@ FROM node:18-alpine AS builder
 
 WORKDIR /app
 
-# Install Yarn (Alpine requires this step)
+# Install Yarn
 RUN apk add --no-cache yarn
 
 # Copy dependency files and install dependencies
 COPY package.json yarn.lock ./
 RUN yarn install
+
+# Copy Prisma schema and generate client
+COPY prisma ./prisma/
+RUN npx prisma generate
 
 # Copy the rest of the application and build it
 COPY . .
