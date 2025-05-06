@@ -1,24 +1,23 @@
 version: '3.8'
- 
+
 services:
   app:
     build: .
     ports:
       - "3000:80"
-    environment:
-      - NODE_ENV=production
-      - REDIS_HOST=redis
+    env_file:
+      - .env  # Loads environment variables from the .env file
     depends_on:
       - redis
     restart: unless-stopped
- 
+
   redis:
     image: redis:alpine
     ports:
-      - "6379:6378"
+      - "6379:6379"  # Updated to standard Redis port mapping
     volumes:
       - redis_data:/data
     restart: unless-stopped
- 
+
 volumes:
   redis_data:
