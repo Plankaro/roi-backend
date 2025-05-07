@@ -1,23 +1,58 @@
 version: '3.8'
-
+ 
 services:
   app:
     build: .
-    ports:
-      - "80:4000"
+    expose:
+      - "4000"  # Exposed internally only (accessed via Nginx)
     env_file:
-      - .env  # Loads environment variables from the .env file
+      - .env
     depends_on:
       - redis
+    networks:
+      - app-network
     restart: unless-stopped
-
+ 
   redis:
     image: redis:alpine
     ports:
-      - "6379:6379"  # Updated to standard Redis port mapping
+      - "6379:6379"
     volumes:
       - redis_data:/data
+    networks:
+      - app-network
     restart: unless-stopped
-
+ 
+  nginx:
+    image: nginx:alpine
+    container_name: nginx-proxy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d
+      - ./certbot/www:/var/www/certbot
+      - ./certbot/conf:/etc/letsencrypt
+    depends_on:
+      - app
+    networks:
+      - app-network
+    restart: unless-stopped
+ 
+  certbot:
+    image: certbot/certbot
+    volumes:
+      - ./certbot/www:/var/www/certbot
+      - ./certbot/conf:/etc/letsencrypt
+    depends_on:
+      - nginx
+    networks:
+      - app-network
+    restart: unless-stopped
+ 
+networks:
+  app-network:
+    driver: bridge
+ 
 volumes:
   redis_data:
