@@ -23,13 +23,17 @@ FROM node:18-alpine
 
 WORKDIR /app
 
+# Install Yarn for runtime dependencies
+RUN apk add --no-cache yarn
+
 # Copy built files and dependencies from the builder stage
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/package.json ./
+COPY --from=builder /app/prisma ./prisma/
 
 # Expose the application port
-EXPOSE 3000
+EXPOSE 4000
 
-# Start the application
-CMD ["node", "dist/src/main.js"]
+# Run migrations, generate Prisma Client, and start the application
+CMD ["sh", "-c", "npx prisma migrate deploy && npx prisma generate && node dist/src/main.js"]
