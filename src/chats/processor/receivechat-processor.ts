@@ -24,6 +24,11 @@ export class ReceiveChatsQueue extends WorkerHost {
   }
   async process(job: Job) {
     const { receiveMessageDto } = job.data;
+    console.log(
+      `Processing job with ID: ${job.id} and data: ${JSON.stringify(
+        receiveMessageDto,
+      )}`,
+    );
     try {
   
 
@@ -141,11 +146,7 @@ export class ReceiveChatsQueue extends WorkerHost {
                         business:true,
                       }
                     },
-                    Broadcast:{
-                      select:{
-                        
-                      }
-                    }
+                    Broadcast:true,
                   }
                 });
 

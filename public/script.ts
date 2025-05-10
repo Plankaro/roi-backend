@@ -48,7 +48,7 @@
   
       btn.addEventListener('click', () => {
         const shop     = window.location.host;
-        const endpoint = 'https://2ccd-2401-4900-72c1-a6b1-8cc4-307-a4ac-6ed3.ngrok-free.app/go/whatsapp';
+        const endpoint = 'https://backend.roimagnet.com/go/whatsapp';
   
         const form = document.createElement('form');
         form.method = 'POST';
