@@ -37,6 +37,7 @@ export class cancelOrderCampaign extends WorkerHost {
   ) {
     super();
   }
+  
   async process(job: Job<any>): Promise<void> {
     try {
       console.log('==== PROCESSING JOB ====', job.data);
