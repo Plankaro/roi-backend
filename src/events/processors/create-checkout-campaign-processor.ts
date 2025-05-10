@@ -67,8 +67,9 @@ export class CreateCheckoutCampaign extends WorkerHost {
         where: { checkout_id: checkout.shopify_id },
       });
 
+
       //realted order canceleed 
-      if(campaign.related_order_cancelled && order?.cancelled_at !== null){
+      if(order && campaign.related_order_cancelled && order?.cancelled_at !== null){
         console.log('order already cancelled');
         return;
       }
@@ -356,6 +357,7 @@ export class CreateCheckoutCampaign extends WorkerHost {
           order_count_min: rangeMin,
           order_count_max: rangeMax,
           order_count_type: orderCountType,
+          
         } = campaign.filters;
 
         if (orderCountType === 'greater' && orderCount < minAmount) {
@@ -372,14 +374,17 @@ export class CreateCheckoutCampaign extends WorkerHost {
           return;
         }
       }
+      const fullfillment= await this.databaseService.fulfillment.findFirst({where:{
+        db_order_id:order.id
+      }});
 
       if(campaign.filters.is_order_delivery_filter_enabled){
-       const fullfillment:any = order.fulfillment_status[0];
+       
        if(!fullfillment){
         console.log('order not yet fulfilled');
         return;
        }
-       if(campaign.filters.order_method!==fullfillment.shipment_status){
+       if(campaign.filters.order_method!==fullfillment.shipmentStatus){
         console.log('order fullfillment failed');
         return;
        }
@@ -605,6 +610,7 @@ export class CreateCheckoutCampaign extends WorkerHost {
             });
 
             trackId = url.id;
+
             console.log(trackId);
 
             components.push({
@@ -724,7 +730,7 @@ export class CreateCheckoutCampaign extends WorkerHost {
               const placeholder = '{{1}}';
               const finalUrl = templateUrlButton.url
                 .split(placeholder)
-                .join(isLinkTrackEnabled ? trackUrl : button.value);
+                .join(isLinkTrackEnabled ? trackId : button.value);
               console.log('✅ Final URL:', finalUrl);
               return {
                 ...button,
@@ -751,15 +757,17 @@ export class CreateCheckoutCampaign extends WorkerHost {
           header_value:
             header?.isEditable && header?.type === 'TEXT'
               ? this.getCheckoutValue(checkout, header.segmentname, discount)
-              : header?.value,
+              : header?.value==="ProductImage"?ProductList?.[0]?.images?.[0]:header?.value,
           body_text: bodyRawText,
           footer_included: footer ? true : false,
           footer_text: footer?.text || '',
           Buttons: updatedButtons,
-          type: template.type || 'text',
+          type:campaign.type,
           template_components: components,
           isForCampaign: true,
           campaignId: campaign.id,
+          isAutomated: true,
+          
         },
       });
       console.log(addTodb.id);
@@ -777,6 +785,9 @@ export class CreateCheckoutCampaign extends WorkerHost {
           button.value?.toLowerCase().startsWith(campaign.Business.shopify_url),
       );
 
+      if(trackId.length===0){
+        return
+      }
       const cobs = await this.databaseService.linkTrack.update({
         where: { id: trackId },
         data: {

@@ -347,11 +347,11 @@ export class LinkTrackQueue extends WorkerHost {
         timestamp_micros: timestampMicros,
         events: [
           {
-            name: name,       // ← Event name, not the source
+            name: type,       // ← Event name, not the source
             params: {
               value: Number(order_amount),       // e.g. 30.03
               currency: order_currency,  // e.g. 'USD'
-              lead_source: type, // ← your lead source string
+              lead_source: name, // ← your lead source string
            
             },
           },

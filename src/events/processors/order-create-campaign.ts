@@ -23,6 +23,7 @@ import {
 } from 'utils/usefulfunction';
 import _ from 'lodash';
 import { RazorpayService } from 'src/razorpay/razorpay.service';
+import { Business } from '@prisma/client';
 
 @Injectable()
 @Processor('createOrderCampaign')
@@ -255,15 +256,21 @@ export class CreateOrderCampaign extends WorkerHost {
           order_amount_filter_less_or_equal: maxAmount,
           order_amount_min: rangeMin,
           order_amount_max: rangeMax,
+          order_amount_type: orderAmountType,
         } = campaign.filters;
 
-        if (
-          (minAmount !== undefined && orderAmount < minAmount) ||
-          (maxAmount !== undefined && orderAmount > maxAmount) ||
-          orderAmount < rangeMin ||
-          orderAmount > rangeMax
+       
+        if (orderAmountType === 'greater' && orderAmount < minAmount) {
+          console.log('orderAmount < minAmount');
+          return;
+        } else if (orderAmountType === 'less' && orderAmount > maxAmount) {
+          console.log('orderAmount > maxAmount');
+          return;
+        } else if (
+          orderAmountType === 'custom' &&
+          (orderAmount < rangeMin || orderAmount > rangeMax)
         ) {
-          // Order amount is outside the specified range; handle accordingly
+          console.log('orderAmount < rangeMin || orderAmount > rangeMax');
           return;
         }
 
@@ -281,18 +288,25 @@ export class CreateOrderCampaign extends WorkerHost {
           discount_amount_filter_less_or_equal: maxAmount,
           discount_amount_min: rangeMin,
           discount_amount_max: rangeMax,
+          discount_amount_type: discountAmountType,
         } = campaign.filters;
 
-        if (
-          (minAmount !== undefined && discountAmount < minAmount) ||
-          (maxAmount !== undefined && discountAmount > maxAmount) ||
-          discountAmount < rangeMin ||
-          discountAmount > rangeMax
+       if (discountAmountType === 'greater' && discountAmount < minAmount) {
+          console.log('discountAmount < minAmount');
+          return;
+        } else if (
+          discountAmountType === 'less' &&
+          discountAmount > maxAmount
         ) {
-          // Discount amount is outside the specified range; handle accordingly
+          console.log('discountAmount > maxAmount');
+          return;
+        } else if (
+          discountAmountType === 'custom' &&
+          (discountAmount < rangeMin || discountAmount > rangeMax)
+        ) {
+          console.log('discountAmount < rangeMin || discountAmount > rangeMax');
           return;
         }
-
         // Proceed with processing the order
       }
       console.log(orderById.customer.numberOfOrders);
@@ -306,19 +320,33 @@ export class CreateOrderCampaign extends WorkerHost {
           order_count_filter_less_or_equal: maxAmount,
           order_count_min: rangeMin,
           order_count_max: rangeMax,
+          order_count_type: orderCountType,
         } = campaign.filters;
-
-        if (
-          (minAmount !== undefined && orderCount < minAmount) ||
-          (maxAmount !== undefined && orderCount > maxAmount) ||
-          orderCount < rangeMin ||
-          orderCount > rangeMax
+  if (orderCountType === 'greater' && orderCount < minAmount) {
+          console.log('orderCount < minAmount');
+          return;
+        } else if (orderCountType === 'less' && orderCount > maxAmount) {
+          console.log('orderCount > maxAmount');
+          return;
+        } else if (
+          orderCountType === 'custom' &&
+          (orderCount < rangeMin || orderCount > rangeMax)
         ) {
-          // Order count is outside the specified range; handle accordingly
+          console.log('orderCount < rangeMin || orderCount > rangeMax');
           return;
         }
-
         // Proceed with processing the order
+      }
+         if(campaign.filters.is_order_delivery_filter_enabled){
+       const fullfillment:any = order.fulfillment_status[0];
+       if(!fullfillment){
+        console.log('order not yet fulfilled');
+        return;
+       }
+       if(campaign.filters.order_method!==fullfillment.shipment_status){
+        console.log('order fullfillment failed');
+        return;
+       }
       }
 
       console.log(orderById.displayFinancialStatus);
@@ -342,6 +370,23 @@ export class CreateOrderCampaign extends WorkerHost {
         }
       }
       console.log('Pass: payment option filter');
+
+      const fullfillment= await this.databaseService.fulfillment.findFirst({where:{
+        db_order_id:order.id
+      }});
+
+      if(campaign.filters.is_order_delivery_filter_enabled){
+       
+       if(!fullfillment){
+        console.log('order not yet fulfilled');
+        return;
+       }
+       if(campaign.filters.order_method!==fullfillment.shipmentStatus){
+        console.log('order fullfillment failed');
+        return;
+       }
+      }
+
 
       //  // Abandoned Checkout Logic
       if (campaign.new_checkout_abandonment_filter === true) {
@@ -407,12 +452,14 @@ export class CreateOrderCampaign extends WorkerHost {
 
       let razorpaymentUrl = '';
 
+
       const components = [];
       const { header, buttons, body } = campaign.components as any;
 
       const isCodToCheckoutLink = buttons.some(
         (button) => button.segmentname === 'cod_to_checkout_link',
       );
+      console.log('isCodToCheckoutLink', isCodToCheckoutLink);
       if (isCodToCheckoutLink) {
         const data = await this.razorpayService.generatePaymentLink(
           razorpayConfig,
@@ -425,12 +472,14 @@ export class CreateOrderCampaign extends WorkerHost {
         );
 
         razorpaymentUrl = data.short_url;
+        console.log('razorpaymentUrl', razorpaymentUrl);
         await this.databaseService.paymentLink.create({
           data: {
             order_id: orderId,
             campaign_id: campaignId,
             razorpay_link_id: data.id,
             amount: orderById.totalPrice,
+            businessId: campaign.businessId,
             currency: 'INR',
             description: 'cod to checkout link',
             customer_name: orderById.customer.displayName,
@@ -455,7 +504,7 @@ export class CreateOrderCampaign extends WorkerHost {
         let headerValue = '';
         if (header.type === 'TEXT') {
           headerValue = header.fromsegment
-            ? this.getOrderValue(orderById, header.segmentname)
+            ? this.getOrderValue(orderById, header.segmentname,campaign.Business)
             : header.value;
           if (
             template.parameter_format === 'NAMED' &&
@@ -513,7 +562,7 @@ export class CreateOrderCampaign extends WorkerHost {
       // Process body component parameters
       const bodyParameters = body.map((param) => {
         const value = param.fromsegment
-          ? this.getOrderValue(orderById, param.segmentname)
+          ? this.getOrderValue(orderById, param.segmentname,campaign.Business)
           : param.value || 'test';
         return template.parameter_format === 'NAMED'
           ? {
@@ -547,37 +596,40 @@ export class CreateOrderCampaign extends WorkerHost {
                   text: button.fromsegment
                     ? button.segmentname === 'cod_to_checkout_link'
                       ? razorpaymentUrl
-                      : this.getOrderValue(orderById, button.segmentname)
+                      : this.getOrderValue(orderById, button.segmentname,campaign.Business)
                     : button.value,
                 },
               ],
             });
           } else {
-            const is_test_link =
+            const is_test_link = 
             button.isEditable === true &&
             button.fromsegment === true &&
             (
               button.segmentname === "cod_to_checkout_link" ||
               button.segmentname === "order_status_link"
             );
+            console.log(razorpaymentUrl)
 
             const url = await this.databaseService.linkTrack.create({
               data: {
                 link: button.fromsegment
-                  ? button.segmentname === 'cod_to_checkout_link'
+                  ? isCodToCheckoutLink
                     ? razorpaymentUrl
-                    : this.getOrderValue(orderById, button.segmentname)
+                    : this.getOrderValue(orderById, button.segmentname,campaign.Business)
                   : button.value,
-                buisness_id: campaign.businessId,
+                buisness_id: campaign.Business.id,
                 utm_source: 'roi_magnet',
                 utm_medium: 'whatsapp',
                 is_test_link: is_test_link,
                 campaign_id: campaign.id,
+                
+                
               },
             });
 
             trackId = url.id;
-            trackUrl = `go/${trackId}`;
+           
 
             components.push({
               type: 'button',
@@ -586,7 +638,7 @@ export class CreateOrderCampaign extends WorkerHost {
               parameters: [
                 {
                   type: 'text',
-                  text: trackUrl,
+                  text: trackId,
                 },
               ],
             });
@@ -634,7 +686,7 @@ export class CreateOrderCampaign extends WorkerHost {
             const key = param.parameter_name.replace(/{{|}}/g, '');
             // Use getCheckoutValue if the value should come from checkout data; otherwise, fallback to param.value
             const value = param.fromsegment
-              ? this.getOrderValue(orderById, param.segmentname)
+              ? this.getOrderValue(orderById, param.segmentname,campaign.Business)
               : param.value;
             acc[key] = value;
 
@@ -673,7 +725,7 @@ export class CreateOrderCampaign extends WorkerHost {
               const placeholder = '{{1}}';
               const finalUrl = templateUrlButton.url
                 .split(placeholder)
-                .join(isLinkTrackEnabled ? trackUrl : button.value);
+                .join(isLinkTrackEnabled ? trackId : button.value);
               console.log('✅ Final URL:', finalUrl);
               return {
                 ...button,
@@ -717,8 +769,8 @@ export class CreateOrderCampaign extends WorkerHost {
           header_type: header?.type,
           header_value:
             header?.isEditable && header?.type === 'TEXT'
-              ? this.getOrderValue(orderById, header.segmentname)
-              : header?.value,
+              ? this.getOrderValue(orderById, header.segmentname,campaign.Business)
+              : header?.value==="ProductImage"?productimageslist?.[0]:header?.value,
           body_text: bodyRawText,
           footer_included: footer ? true : false,
           footer_text: footer?.text || '',
@@ -727,6 +779,26 @@ export class CreateOrderCampaign extends WorkerHost {
           template_components: components,
           isForCampaign: true,
           campaignId: campaign.id,
+          isAutomated: true,
+        },
+      });
+      if(trackId.length===0){
+        return
+      }
+      const cobs = await this.databaseService.linkTrack.update({
+        where: { id: trackId },
+        data: {
+          chat: {
+            connect: { id: addTodb.id },
+          },
+          prospect: {
+            connect: { id: prospect.id },
+          },
+          type: 'CAMPAIGN',
+          
+
+          // conditional checkout connect/disconnect
+         
         },
       });
     } catch (error) {
@@ -953,40 +1025,50 @@ export class CreateOrderCampaign extends WorkerHost {
   }
 
   getOrderValue(
-    orderData: any,
-    key: string,
-    config?: any,
-  ): string | number | null {
-    const mapping: Record<string, any> = {
-      customer_full_name:
-        `${orderData.customer?.firstName || ''} ${orderData.customer?.lastName || ''}`.trim(),
-      customer_email: orderData.customer?.email || null,
-      customer_phone: orderData.customer?.phone || orderData.phone || null,
-      order_total_items:
-        orderData.lineItems?.reduce(
-          (acc: number, item: any) => acc + item.quantity,
-          0,
-        ) || 0,
-      order_total_price: orderData.totalPrice || '0.00',
-      order_total_tax: orderData.totalTaxSet?.shopMoney?.amount || '0.00',
-      order_status: orderData.displayFinancialStatus || 'UNKNOWN',
-      order_fulfillment_status: orderData.displayFulfillmentStatus || 'UNKNOWN',
-      order_payment_gateway:
-        orderData.paymentGatewayNames?.join(', ') || 'UNKNOWN',
-      order_status_link: orderData.statusPageUrl || null,
-      shop_url: orderData.shopUrl || null,
-      shipping_address: orderData.shippingAddress
-        ? `${orderData.shippingAddress.address1}, ${orderData.shippingAddress.city}, ${orderData.shippingAddress.country}, ${orderData.shippingAddress.zip}`
-        : null,
-      billing_address: orderData.billingAddress
-        ? `${orderData.billingAddress.address1}, ${orderData.billingAddress.city}, ${orderData.billingAddress.province}, ${orderData.billingAddress.country}, ${orderData.billingAddress.zip}`
-        : null,
-      cart_items:
-        orderData.lineItems?.map((item: any) => item.title).join(', ') || null,
-      order_id: orderData.id || null,
-      order_date: orderData.createdAt || null,
-    };
-
-    return mapping.hasOwnProperty(key) ? mapping[key] : key;
-  }
+      orderData: any,
+      key: string,
+      Buisness: Business,
+      config?: any,
+    ): string | number | null {
+      const mapping: Record<string, any> = {
+        customer_full_name:
+          `${orderData.customer?.firstName || ''} ${orderData.customer?.lastName || ''}`.trim(),
+        customer_email: orderData.customer?.email || null,
+        customer_phone: orderData.customer?.phone || orderData.phone || null,
+        customer_address: orderData.customer?.addresses
+          ? `${orderData.customer.addresses[0].address1}, ${orderData.customer.addresses[0].city}, ${orderData.customer.addresses[0].country}, ${orderData.customer.addresses[0].zip}`
+          : "unknown",
+        order_total_items:
+          orderData.lineItems?.reduce(
+            (acc: number, item: any) => acc + item.quantity,
+            0,
+          ) || 0,
+        order_total_price: orderData.totalPrice || '0.00',
+        order_total_tax: orderData.totalTaxSet?.shopMoney?.amount || '0.00',
+        order_status: orderData.displayFinancialStatus || 'UNKNOWN',
+        order_fulfillment_status: orderData.displayFulfillmentStatus || 'UNKNOWN',
+        order_payment_gateway:
+          orderData.paymentGatewayNames?.join(', ') || 'UNKNOWN',
+        order_status_link: orderData.statusPageUrl || null,
+        shop_url: Buisness.shopify_domain
+          ? Buisness.shopify_domain.startsWith('http://') ||
+            Buisness.shopify_domain.startsWith('https://')
+            ? Buisness.shopify_domain
+            : `https://${Buisness.shopify_domain}`
+          : null,
+        shipping_address: orderData.shippingAddress
+          ? `${orderData.shippingAddress.address1}, ${orderData.shippingAddress.city}, ${orderData.shippingAddress.country}, ${orderData.shippingAddress.zip}`
+          : null,
+        billing_address: orderData.billingAddress
+          ? `${orderData.billingAddress.address1}, ${orderData.billingAddress.city}, ${orderData.billingAddress.province}, ${orderData.billingAddress.country}, ${orderData.billingAddress.zip}`
+          : null,
+        cart_items:
+          orderData.lineItems?.map((item: any) => item.title).join(', ') || null,
+        order_id: orderData.id || null,
+        order_date: orderData.createdAt || null,
+      };
+      console.log('Received order data:', key);
+  
+      return mapping.hasOwnProperty(key) ? mapping[key] : key;
+    }
 }

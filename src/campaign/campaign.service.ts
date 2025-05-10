@@ -15,6 +15,7 @@ export class CampaignService {
   async createrCampaign(createCampaignDto: CreateCampaignDto, req: any) {
    try {
      const user = req.user;
+    if(user.manageCampaign !== true) throw new BadRequestException('You are not allowed to create campaign');
     
      console.log(createCampaignDto);
     
@@ -123,6 +124,7 @@ export class CampaignService {
  
      return createOrderCampaign;
    } catch (error) {
+    console.log(error);
     throw new Error(error);
     
    }

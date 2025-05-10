@@ -19,9 +19,12 @@ import {
   allTagsPresent,
   noneTagPresent,
   getFromDate,
+  extractProductImages
 } from 'utils/usefulfunction';
 import _ from 'lodash';
 import { RazorpayService } from 'src/razorpay/razorpay.service';
+import { Business } from '@prisma/client';
+
 
 @Injectable()
 @Processor('cancelOrderCampaign')
@@ -37,6 +40,7 @@ export class cancelOrderCampaign extends WorkerHost {
   async process(job: Job<any>): Promise<void> {
     try {
       console.log('==== PROCESSING JOB ====', job.data);
+          console.log('cancel order in job');
 
       const { campaignId, orderId } = job.data;
 
@@ -82,8 +86,11 @@ export class cancelOrderCampaign extends WorkerHost {
 
       //  //get order
 
-      if (order?.tags && campaign.filters.is_order_tag_filter_enabled) {
+   
+
+      if (campaign.filters.is_order_tag_filter_enabled) {
         const tagsfromField = getTagsArray(orderById?.tags);
+
         if (campaign.filters.order_tag_filter_all.length > 0) {
           if (
             !allTagsPresent(
@@ -243,29 +250,37 @@ export class cancelOrderCampaign extends WorkerHost {
         }
       }
 
+      // Order Amount Filter
       if (campaign.filters.is_order_amount_filter_enabled) {
         const orderAmount = Number(order.amount);
-
         const {
           order_amount_filter_greater_or_equal: minAmount,
           order_amount_filter_less_or_equal: maxAmount,
           order_amount_min: rangeMin,
           order_amount_max: rangeMax,
+          order_amount_type: orderAmountType,
         } = campaign.filters;
 
-        if (
-          (minAmount && orderAmount < minAmount) ||
-          (maxAmount !== 0 && orderAmount > maxAmount) ||
-          orderAmount < rangeMin ||
-          orderAmount > rangeMax
+       
+        if (orderAmountType === 'greater' && orderAmount < minAmount) {
+          console.log('orderAmount < minAmount');
+          return;
+        } else if (orderAmountType === 'less' && orderAmount > maxAmount) {
+          console.log('orderAmount > maxAmount');
+          return;
+        } else if (
+          orderAmountType === 'custom' &&
+          (orderAmount < rangeMin || orderAmount > rangeMax)
         ) {
-          // Order amount is outside the specified range; handle accordingly
+          console.log('orderAmount < rangeMin || orderAmount > rangeMax');
           return;
         }
 
         // Proceed with processing the order
       }
+      console.log("HIKHIKHS");
 
+      // Discount Amount Filter
       if (
         orderById.totalDiscounts &&
         campaign.filters.is_discount_amount_filter_enabled
@@ -276,36 +291,106 @@ export class cancelOrderCampaign extends WorkerHost {
           discount_amount_filter_less_or_equal: maxAmount,
           discount_amount_min: rangeMin,
           discount_amount_max: rangeMax,
+          discount_amount_type: discountAmountType,
         } = campaign.filters;
-        if (
-          (minAmount && discountAmount < minAmount) ||
-          (maxAmount !== 0 && discountAmount > maxAmount) ||
-          discountAmount < rangeMin ||
-          discountAmount > rangeMax
+
+       if (discountAmountType === 'greater' && discountAmount < minAmount) {
+          console.log('discountAmount < minAmount');
+          return;
+        } else if (
+          discountAmountType === 'less' &&
+          discountAmount > maxAmount
         ) {
-          // Order amount is outside the specified range; handle accordingly
+          console.log('discountAmount > maxAmount');
+          return;
+        } else if (
+          discountAmountType === 'custom' &&
+          (discountAmount < rangeMin || discountAmount > rangeMax)
+        ) {
+          console.log('discountAmount < rangeMin || discountAmount > rangeMax');
           return;
         }
+        // Proceed with processing the order
       }
-      //    // Proceed with processing the order
+      console.log(orderById.customer.numberOfOrders);
+
+      // Order Count Filter
       if (campaign.filters.is_order_count_filter_enabled) {
-        const orderCount = Number(orderById.customer.OrderCount);
+        const orderCount = Number(orderById.customer.numberOfOrders);
+        console.log(orderCount);
         const {
           order_count_filter_greater_or_equal: minAmount,
           order_count_filter_less_or_equal: maxAmount,
           order_count_min: rangeMin,
           order_count_max: rangeMax,
+          order_count_type: orderCountType,
         } = campaign.filters;
-        if (
-          (minAmount && orderCount < minAmount) ||
-          (maxAmount !== 0 && orderCount > maxAmount) ||
-          orderCount < rangeMin ||
-          orderCount > rangeMax
+  if (orderCountType === 'greater' && orderCount < minAmount) {
+          console.log('orderCount < minAmount');
+          return;
+        } else if (orderCountType === 'less' && orderCount > maxAmount) {
+          console.log('orderCount > maxAmount');
+          return;
+        } else if (
+          orderCountType === 'custom' &&
+          (orderCount < rangeMin || orderCount > rangeMax)
         ) {
-          // Order amount is outside the specified range; handle accordingly
+          console.log('orderCount < rangeMin || orderCount > rangeMax');
+          return;
+        }
+        // Proceed with processing the order
+      }
+         if(campaign.filters.is_order_delivery_filter_enabled){
+       const fullfillment:any = order.fulfillment_status[0];
+       if(!fullfillment){
+        console.log('order not yet fulfilled');
+        return;
+       }
+       if(campaign.filters.order_method!==fullfillment.shipment_status){
+        console.log('order fullfillment failed');
+        return;
+       }
+      }
+
+      console.log(orderById.displayFinancialStatus);
+
+      if (campaign.filters.is_payment_option_filter_enabled) {
+        if (
+          campaign.filters.payment_options_type === 'PAID' &&
+          orderById.displayFinancialStatus !== 'paid'
+        ) {
+          console.log('Fail: order not yet paid — waiting for PAID status');
+          return;
+        }
+
+        // If filter = UNPAID, bail once the order *is* paid
+        if (
+          campaign.filters.payment_options_type === 'UNPAID' &&
+          orderById.displayFinancialStatus === 'paid'
+        ) {
+          console.log('Fail: order already paid — skipping UNPAID flow');
           return;
         }
       }
+      console.log('Pass: payment option filter');
+
+      const fullfillment= await this.databaseService.fulfillment.findFirst({where:{
+        db_order_id:order.id
+      }});
+
+      if(campaign.filters.is_order_delivery_filter_enabled){
+       
+       if(!fullfillment){
+        console.log('order not yet fulfilled');
+        return;
+       }
+       if(campaign.filters.order_method!==fullfillment.shipmentStatus){
+        console.log('order fullfillment failed');
+        return;
+       }
+      }
+      console.log('Pass: delivery method filter');
+
 
       //  // Abandoned Checkout Logic
       if (campaign.new_checkout_abandonment_filter === true) {
@@ -330,14 +415,27 @@ export class cancelOrderCampaign extends WorkerHost {
         }
       }
 
-      if (campaign.related_order_cancelled && orderById.cancelledAt) {
-        return;
-      }
-      if (
-        campaign.related_order_fulfilled &&
-        orderById.displayFulfillmentStatus !== 'UNFULFILLED'
-      ) {
-        return;
+
+      
+      if(campaign.new_order_creation_filter === true){
+        const trigger_time = campaign.new_order_creation_time as any;
+        const orderDate = getFromDate(
+          campaign.new_order_creation_type === 'AFTER_EVENT'
+            ? '0 minutes'
+            : `${trigger_time.time} ${trigger_time.unit}`,
+        );
+        const neworder = await this.databaseService.order.findFirst({
+          where: {
+            customer_phoneno: orderById.customer.phone ,
+            id: { not: order.id },
+            cancelled_at: null,
+            created_at: { gt: orderDate },
+          },
+        });
+        if(neworder){
+          console.log('order already created');
+          return;
+        }
       }
 
       const linkOrderWithCampaign =
@@ -350,12 +448,14 @@ export class cancelOrderCampaign extends WorkerHost {
 
       let razorpaymentUrl = '';
 
+
       const components = [];
       const { header, buttons, body } = campaign.components as any;
 
       const isCodToCheckoutLink = buttons.some(
         (button) => button.segmentname === 'cod_to_checkout_link',
       );
+      console.log('isCodToCheckoutLink', isCodToCheckoutLink);
       if (isCodToCheckoutLink) {
         const data = await this.razorpayService.generatePaymentLink(
           razorpayConfig,
@@ -368,12 +468,14 @@ export class cancelOrderCampaign extends WorkerHost {
         );
 
         razorpaymentUrl = data.short_url;
+        console.log('razorpaymentUrl', razorpaymentUrl);
         await this.databaseService.paymentLink.create({
           data: {
             order_id: orderId,
             campaign_id: campaignId,
             razorpay_link_id: data.id,
             amount: orderById.totalPrice,
+            businessId: campaign.businessId,
             currency: 'INR',
             description: 'cod to checkout link',
             customer_name: orderById.customer.displayName,
@@ -389,6 +491,8 @@ export class cancelOrderCampaign extends WorkerHost {
         campaign.template_name,
       );
       const template = response?.data?.[0];
+      const productimageslist = extractProductImages(orderById);
+      console.log('productimageslist', productimageslist);
       // Ensure safe access
 
       // // Process header component
@@ -396,7 +500,7 @@ export class cancelOrderCampaign extends WorkerHost {
         let headerValue = '';
         if (header.type === 'TEXT') {
           headerValue = header.fromsegment
-            ? this.getOrderValue(orderById, header.segmentname)
+            ? this.getOrderValue(orderById, header.segmentname,campaign.Business)
             : header.value;
           if (
             template.parameter_format === 'NAMED' &&
@@ -424,7 +528,17 @@ export class cancelOrderCampaign extends WorkerHost {
         } else if (header.type === 'IMAGE') {
           components.push({
             type: 'header',
-            parameters: [{ type: 'image', image: { link: header.value } }],
+            parameters: [
+              {
+                type: 'image',
+                image: {
+                  link:
+                    header.value === 'ProductImage'
+                      ? productimageslist[0]
+                      : header.value,
+                },
+              },
+            ],
           });
         } else if (header.type === 'VIDEO') {
           components.push({
@@ -444,7 +558,7 @@ export class cancelOrderCampaign extends WorkerHost {
       // Process body component parameters
       const bodyParameters = body.map((param) => {
         const value = param.fromsegment
-          ? this.getOrderValue(orderById, param.segmentname)
+          ? this.getOrderValue(orderById, param.segmentname,campaign.Business)
           : param.value || 'test';
         return template.parameter_format === 'NAMED'
           ? {
@@ -478,27 +592,40 @@ export class cancelOrderCampaign extends WorkerHost {
                   text: button.fromsegment
                     ? button.segmentname === 'cod_to_checkout_link'
                       ? razorpaymentUrl
-                      : this.getOrderValue(orderById, button.segmentname)
+                      : this.getOrderValue(orderById, button.segmentname,campaign.Business)
                     : button.value,
                 },
               ],
             });
           } else {
+            const is_test_link = 
+            button.isEditable === true &&
+            button.fromsegment === true &&
+            (
+              button.segmentname === "cod_to_checkout_link" ||
+              button.segmentname === "order_status_link"
+            );
+            console.log(razorpaymentUrl)
+
             const url = await this.databaseService.linkTrack.create({
               data: {
                 link: button.fromsegment
-                  ? button.segmentname === 'cod_to_checkout_link'
+                  ? isCodToCheckoutLink
                     ? razorpaymentUrl
-                    : this.getOrderValue(orderById, button.segmentname)
+                    : this.getOrderValue(orderById, button.segmentname,campaign.Business)
                   : button.value,
-                buisness_id: campaign.businessId,
+                buisness_id: campaign.Business.id,
                 utm_source: 'roi_magnet',
                 utm_medium: 'whatsapp',
+                is_test_link: is_test_link,
+                campaign_id: campaign.id,
+                
+                
               },
             });
 
             trackId = url.id;
-            trackUrl = `go/${trackId}`;
+           
 
             components.push({
               type: 'button',
@@ -507,7 +634,7 @@ export class cancelOrderCampaign extends WorkerHost {
               parameters: [
                 {
                   type: 'text',
-                  text: trackUrl,
+                  text: trackId,
                 },
               ],
             });
@@ -555,7 +682,7 @@ export class cancelOrderCampaign extends WorkerHost {
             const key = param.parameter_name.replace(/{{|}}/g, '');
             // Use getCheckoutValue if the value should come from checkout data; otherwise, fallback to param.value
             const value = param.fromsegment
-              ? this.getOrderValue(orderById, param.segmentname)
+              ? this.getOrderValue(orderById, param.segmentname,campaign.Business)
               : param.value;
             acc[key] = value;
 
@@ -594,7 +721,7 @@ export class cancelOrderCampaign extends WorkerHost {
               const placeholder = '{{1}}';
               const finalUrl = templateUrlButton.url
                 .split(placeholder)
-                .join(isLinkTrackEnabled ? trackUrl : button.value);
+                .join(isLinkTrackEnabled ? trackId : button.value);
               console.log('✅ Final URL:', finalUrl);
               return {
                 ...button,
@@ -608,10 +735,10 @@ export class cancelOrderCampaign extends WorkerHost {
 
       const prospect = await this.databaseService.prospect.upsert({
         where: {
-         buisnessId_phoneNo: {
-           buisnessId: campaign.businessId,
-           phoneNo: sanitizePhoneNumber(orderById.customer.phone),
-         }
+          buisnessId_phoneNo: {
+            buisnessId: campaign.businessId,
+            phoneNo: sanitizePhoneNumber(orderById.customer.phone),
+          },
         },
         update: {},
         create: {
@@ -620,7 +747,7 @@ export class cancelOrderCampaign extends WorkerHost {
           email: orderById.customer.email,
 
           lead: 'LEAD',
-          buisnessId: campaign.businessId
+          buisnessId: campaign.businessId,
         },
       });
 
@@ -638,8 +765,8 @@ export class cancelOrderCampaign extends WorkerHost {
           header_type: header?.type,
           header_value:
             header?.isEditable && header?.type === 'TEXT'
-              ? this.getOrderValue(orderById, header.segmentname)
-              : header?.value,
+              ? this.getOrderValue(orderById, header.segmentname,campaign.Business)
+              : header?.value==="ProductImage"?productimageslist?.[0]:header?.value,
           body_text: bodyRawText,
           footer_included: footer ? true : false,
           footer_text: footer?.text || '',
@@ -648,6 +775,26 @@ export class cancelOrderCampaign extends WorkerHost {
           template_components: components,
           isForCampaign: true,
           campaignId: campaign.id,
+          isAutomated: true,
+        },
+      });
+      if(trackId.length===0){
+        return
+      }
+      const cobs = await this.databaseService.linkTrack.update({
+        where: { id: trackId },
+        data: {
+          chat: {
+            connect: { id: addTodb.id },
+          },
+          prospect: {
+            connect: { id: prospect.id },
+          },
+          type: 'CAMPAIGN',
+          
+
+          // conditional checkout connect/disconnect
+         
         },
       });
     } catch (error) {
@@ -661,132 +808,171 @@ export class cancelOrderCampaign extends WorkerHost {
 
     try {
       const query = `
-query getOrder($id: ID!) {
- order(id: $id) {
-   id
-   name
-   email
-   phone
-   createdAt
-   processedAt
-   fulfillments(first: 250) {
-     deliveredAt
-     displayStatus
-     trackingInfo {
-       url
-       number
-       company
-     }
-     updatedAt
-   }
-   statusPageUrl
-    totalDiscounts
-   totalPrice
-   displayFinancialStatus
-   displayFulfillmentStatus
-    paymentGatewayNames
-   discountCode
-   discountCodes
-   cancelReason
-   tags
-   cancelledAt
-   totalPriceSet {
-     shopMoney {
-       amount
-       currencyCode
-     }
-   }
-   subtotalPriceSet {
-     shopMoney {
-       amount
-       currencyCode
-     }
-   }
-   totalTaxSet {
-     shopMoney {
-       amount
-       currencyCode
-     }
-   }
-   customer {
-     id
-     firstName
-     lastName
-     displayName
-     email
-     numberOfOrders
-     phone
-     amountSpent {
-       amount
-       currencyCode
-     }
-     emailMarketingConsent {
-       marketingState
-       marketingOptInLevel
-       consentUpdatedAt
-     }
-     addresses {
-       address1
-       address2
-       city
-       country
-       zip
-     }
-     tags
-   }
-   lineItems(first: 250) {
-     edges {
-       node {
-         title
-         image {
-           url
-         }
-         product {
-           tags
-           title
-           images(first: 250) {
-             edges {
-               node {
-                 id
-                 altText
-                 url
-               }
-             }
-           }
-         }
-         quantity
-         variant {
-           id
-           title
-           image {
-             url
-           }
-         }
-       }
-     }
-   }
-   shippingAddress {
-     address1
-     address2
-     city
-     country
-     zip
-   }
-   billingAddress {
-     address1
-     city
-     province
-     zip
-     country
-   }
- }
-}
-`;
+      query getOrder($id: ID!) {
+        order(id: $id) {
+          id
+          name
+          email
+          phone
+          cancelledAt
+          landingPageUrl
+          createdAt
+          processedAt
+          fulfillments(first: 250) {
+            deliveredAt
+            displayStatus
+            trackingInfo {
+              url
+              number
+              company
+            }
+            updatedAt
+          }
+          statusPageUrl
+          customerJourney {
+              firstVisit {
+                landingPage
+                referralCode
+                referralInfoHtml
+                referrerUrl
+                source
+                sourceType
+                utmParameters {
+                  campaign
+                  content
+                  medium
+                  source
+                  term
+                }
+                occurredAt
+              }
+              lastVisit {
+                id
+                landingPage
+                referralCode
+                referralInfoHtml
+                referrerUrl
+                source
+                sourceType
+                utmParameters {
+                  campaign
+                  content
+                  term
+                  medium
+                  source
+                }
+                occurredAt
+              }
+            }
+          totalDiscounts
+          totalPrice
+          displayFinancialStatus
+          displayFulfillmentStatus
+          paymentGatewayNames
+          discountCode
+          discountCodes
+          cancelReason
+          tags
+          cancelledAt
+          totalPriceSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+          subtotalPriceSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+          totalTaxSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+          customer {
+            id
+            firstName
+            lastName
+            
+            displayName
+            email
+            numberOfOrders
+            phone
+            amountSpent {
+              amount
+              currencyCode
+            }
+            emailMarketingConsent {
+              marketingState
+              marketingOptInLevel
+              consentUpdatedAt
+            }
+            addresses {
+              address1
+              address2
+              city
+              country
+              zip
+            }
+            tags
+          }
+          lineItems(first: 250) {
+            edges {
+              node {
+                title
+                image {
+                  url
+                }
+                product {
+                  tags
+                  title
+                  images(first: 250) {
+                    edges {
+                      node {
+                        id
+                        altText
+                        url
+                      }
+                    }
+                  }
+                }
+                quantity
+                variant {
+                  id
+                  title
+                  image {
+                    url
+                  }
+                }
+              }
+            }
+          }
+          shippingAddress {
+            address1
+            address2
+            city
+            country
+            zip
+          }
+          billingAddress {
+            address1
+            city
+            province
+            zip
+            country
+          }
+        }
+      }
+    `;
 
       const variables = { id: `gid://shopify/Order/${orderId}` };
 
       const { data: response, errors } =
         await this.shopifyService.executeGraphQL(query, variables, config);
+      console.log(JSON.stringify(response, null, 2));
 
       if (errors) {
         console.error('Error executing GraphQL query:', errors);
@@ -797,9 +983,10 @@ query getOrder($id: ID!) {
         return;
       }
 
+      console.log('Order data:', JSON.stringify(response?.order, null, 2));
       // Clean the order data by flattening any "edges" wrappers using lodash.
       const cleanedOrder = this.cleanOrderData(response?.order);
-      console.log('Cleaned order data:', JSON.stringify(cleanedOrder, null, 2));
+      //  console.log('Cleaned order data:', JSON.stringify(cleanedOrder, null, 2));
 
       return cleanedOrder;
     } catch (error) {
@@ -834,40 +1021,51 @@ query getOrder($id: ID!) {
   }
 
   getOrderValue(
-    orderData: any,
-    key: string,
-    config?: any,
-  ): string | number | null {
-    const mapping: Record<string, any> = {
-      customer_full_name:
-        `${orderData.customer?.firstName || ''} ${orderData.customer?.lastName || ''}`.trim(),
-      customer_email: orderData.customer?.email || null,
-      customer_phone: orderData.customer?.phone || orderData.phone || null,
-      order_total_items:
-        orderData.lineItems?.reduce(
-          (acc: number, item: any) => acc + item.quantity,
-          0,
-        ) || 0,
-      order_total_price: orderData.totalPrice || '0.00',
-      order_total_tax: orderData.totalTaxSet?.shopMoney?.amount || '0.00',
-      order_status: orderData.displayFinancialStatus || 'UNKNOWN',
-      order_fulfillment_status: orderData.displayFulfillmentStatus || 'UNKNOWN',
-      order_payment_gateway:
-        orderData.paymentGatewayNames?.join(', ') || 'UNKNOWN',
-      order_status_link: orderData.statusPageUrl || null,
-      shop_url: orderData.shopUrl || null,
-      shipping_address: orderData.shippingAddress
-        ? `${orderData.shippingAddress.address1}, ${orderData.shippingAddress.city}, ${orderData.shippingAddress.country}, ${orderData.shippingAddress.zip}`
-        : null,
-      billing_address: orderData.billingAddress
-        ? `${orderData.billingAddress.address1}, ${orderData.billingAddress.city}, ${orderData.billingAddress.province}, ${orderData.billingAddress.country}, ${orderData.billingAddress.zip}`
-        : null,
-      cart_items:
-        orderData.lineItems?.map((item: any) => item.title).join(', ') || null,
-      order_id: orderData.id || null,
-      order_date: orderData.createdAt || null,
-    };
-
-    return mapping.hasOwnProperty(key) ? mapping[key] : key;
-  }
+      orderData: any,
+      key: string,
+      Buisness: Business,
+      config?: any,
+    ): string | number | null {
+      const mapping: Record<string, any> = {
+        customer_full_name:
+          `${orderData.customer?.firstName || ''} ${orderData.customer?.lastName || ''}`.trim(),
+        customer_email: orderData.customer?.email || null,
+        customer_phone: orderData.customer?.phone || orderData.phone || null,
+        order_total_items:
+          orderData.lineItems?.reduce(
+            (acc: number, item: any) => acc + item.quantity,
+            0,
+          ) || 0,
+        order_total_price: orderData.totalPrice || '0.00',
+        order_total_tax: orderData.totalTaxSet?.shopMoney?.amount || '0.00',
+        order_status: orderData.displayFinancialStatus || 'UNKNOWN',
+        order_fulfillment_status: orderData.displayFulfillmentStatus || 'UNKNOWN',
+        
+         customer_address: orderData.customer?.addresses
+          ? `${orderData.customer.addresses[0].address1}, ${orderData.customer.addresses[0].city}, ${orderData.customer.addresses[0].country}, ${orderData.customer.addresses[0].zip}`
+          : "unknown",
+        order_payment_gateway:
+          orderData.paymentGatewayNames?.join(', ') || 'UNKNOWN',
+        order_status_link: orderData.statusPageUrl || null,
+        shop_url: Buisness.shopify_domain
+          ? Buisness.shopify_domain.startsWith('http://') ||
+            Buisness.shopify_domain.startsWith('https://')
+            ? Buisness.shopify_domain
+            : `https://${Buisness.shopify_domain}`
+          : null,
+        shipping_address: orderData.shippingAddress
+          ? `${orderData.shippingAddress.address1}, ${orderData.shippingAddress.city}, ${orderData.shippingAddress.country}, ${orderData.shippingAddress.zip}`
+          : null,
+        billing_address: orderData.billingAddress
+          ? `${orderData.billingAddress.address1}, ${orderData.billingAddress.city}, ${orderData.billingAddress.province}, ${orderData.billingAddress.country}, ${orderData.billingAddress.zip}`
+          : null,
+        cart_items:
+          orderData.lineItems?.map((item: any) => item.title).join(', ') || null,
+        order_id: orderData.id || null,
+        order_date: orderData.createdAt || null,
+      };
+      console.log('Received order data:', key);
+  
+      return mapping.hasOwnProperty(key) ? mapping[key] : key;
+    }
 }

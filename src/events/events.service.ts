@@ -43,7 +43,7 @@ export class EventsService {
   }
 
   async manipulateUpdateOrder(updateOrder: any,domain: string){
-    console.log("updated order triggered")
+ 
 
     await this.updateOrderQueue.add(
       'updateOrder',
@@ -58,11 +58,12 @@ export class EventsService {
   }
 
   async manipulateCancelOrder(cancelOrder: any, domain: string) {
+    console.log("cancel order triggered")
 
-  
+  console.log("cancel",JSON.stringify(cancelOrder,null,2))
     await this.cancelOrderQueue.add(
       'cancelOrderQueue',
-      { cancelOrderData: cancelOrder, domain },
+      { orderData: cancelOrder, domain },
       {
         delay: 0,
         removeOnComplete: true,
